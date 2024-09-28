@@ -2,8 +2,6 @@
 
 <div align="center">
 
-J. Skyler Sampayan 
-
 _San Diego State University, San Diego, CA_
 
 _Labratories of Computational Physics and Fluid Dynamics, Naval Research Lab, Washington, DC_
