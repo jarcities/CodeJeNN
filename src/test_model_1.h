@@ -5,11 +5,6 @@
 
 template<typename Scalar>
 using activationFunction = void(*)(Scalar*, const Scalar*, size_t, Scalar);
-template<typename Scalar>
-const Scalar SELU_LAMBDA = static_cast<Scalar>(1.0507009873554804934193349852946);
-template<typename Scalar>
-const Scalar SELU_ALPHA = static_cast<Scalar>(1.6732632423543772848170429916717);
-
 // - -
 
 template<typename Scalar>
@@ -54,14 +49,14 @@ void forwardPropagation(Scalar* outputs, const Scalar* inputs, const Scalar* wei
 // - -
 
 template <typename Scalar = float>
-auto test_model_1(const std::array<Scalar, 10>& initial_input) {
+auto C:\Users\hawai\Documents\KEEP\CODEJENN\src\test_model_1(const std::array<Scalar, 10>& initial_input) {
 
     std::array<Scalar, 10> input_norms = {9.783506673e-01, 9.950856503e-01, 9.911147200e-01, 9.481037490e-01, 9.701938376e-01, 9.837677445e-01, 9.746474191e-01, 9.860366004e-01, 9.822145455e-01, 9.460183203e-01};
 
     std::array<Scalar, 10> input_mins = {1.215447469e-02, 4.632023005e-03, 5.522117124e-03, 1.454466567e-02, 1.545661653e-02, 9.197051617e-03, 1.135364477e-02, 1.083765148e-02, 5.061583846e-03, 4.086861627e-02};
 
     std::array<Scalar, 10> model_input;
-    for (int i = 0; i < 10; i++) { model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]); }
+    for (i = 0; i < 10; i++) { model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]); }
 
     std::array<Scalar, 4> alphas = {0.0000000000000000, 0.0000000000000000, 0.0000000000000000, 0.0000000000000000};
 
