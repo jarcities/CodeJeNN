@@ -4,4 +4,4 @@
 
 # ./main.py --input="path_to_input_folder" --output="path_to_output_folder" --precision="desired_precision" --header="desired_function_name"
 
-python3 main.py --input="/Users/jsampa/Documents/codejenn/src/dump_model" --output="/Users/jsampa/Documents/codejenn/src" --precision="double" 
+python main.py --input="C:\Users\hawai\Documents\KEEP\CODEJENN\src\dump_model" --output="C:\Users\hawai\Documents\KEEP\CODEJENN\src" --precision="double" 
