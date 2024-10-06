@@ -23,6 +23,7 @@ def preambleHeader():
 
 template<typename Scalar>
 using activationFunction = void(*)(Scalar*, const Scalar*, size_t, Scalar);
+
 // - -
 """
 
@@ -70,19 +71,14 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
         cpp_code += ", ".join(f"{x:10.9e}" for x in input_mins)
         cpp_code += "};\n\n"
         cpp_code += f"""    std::array<Scalar, {input_size}> model_input;
-    for (i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]); }}\n
+    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]); }}\n
 """
     else: 
         cpp_code += f' if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }} \n'
 
-    alphas_for_cpp = [f'{alpha:.16f}' for alpha in alphas]
-    cpp_code += f"    std::array<Scalar, {len(alphas)}> alphas = {{"
-    cpp_code += ", ".join(alphas_for_cpp)
-    cpp_code += "};\n\n"
-
-    cpp_code += f"    std::array<Scalar, {len(dropout_rates)}> dropoutRates = {{"
-    cpp_code += ", ".join(map(str, dropout_rates))
-    cpp_code += "}; //NOT USED, JUST FOR REFERENCE\n\n"
+    # cpp_code += f"    std::array<Scalar, {len(dropout_rates)}> dropoutRates = {{"
+    # cpp_code += ", ".join(map(str, dropout_rates))
+    # cpp_code += "}; //NOT USED, JUST FOR REFERENCE\n\n"
 
     cpp_code += f"    // - -\n\n"
 
@@ -144,35 +140,26 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
 
     cpp_code += f"    // - -\n\n"
 
-    cpp_code += f"    std::array<activationFunction<Scalar>, {len(activation_functions)}> activationFunctions = {{"
-    activation_funcs = [
-        'nullptr' if act in ['batchNormalization', 'flatten', 'convolutionalLayer'] else f'{activation_func_map[act]}<Scalar>'
-        for act in activation_functions
-    ]
-    cpp_code += ", ".join([act for act in activation_funcs if act != 'softmax'])
-    cpp_code += "};\n\n"
-
-    if "softmax" in activation_functions:
-        cpp_code += f"    std::array<activationFunctionVector<Scalar, {input_size}>, {len(activation_functions)}> activationFunctionsVector = {{"
-        cpp_code += ", ".join(['softmax'] if 'softmax' in activation_funcs else [])
-        cpp_code += "};\n\n"
-
     output_size = input_size
-    for i, (weights, biases, bn_params, conv_params, act_func) in enumerate(zip(weights_list, biases_list, batch_norm_params, conv_layer_params, activation_functions)):
-        
+    for i, (weights, biases, bn_params, conv_params, act_func, alpha) in enumerate(zip(weights_list, biases_list, batch_norm_params, conv_layer_params, activation_functions, alphas)):
+
+        # For convolutional layers
         if conv_params is not None:
             filters = conv_params["filters"]
             cpp_code += f"    std::array<Scalar, {filters}> layer_{i+1}_output;\n"
-            cpp_code += f"    convolutionLayer<Scalar, {last_size}, {filters}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), strides_{i+1}.data(), padding_{i+1}.data(), dilation_rate_{i+1}.data(), activationFunctions[{i}], alphas[{i}]);\n\n"
+            cpp_code += f"    convolutionLayer<Scalar, {last_size}, {filters}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), strides_{i+1}.data(), padding_{i+1}.data(), dilation_rate_{i+1}.data(), {activation_func_map[act_func]}<Scalar>, {alpha});\n\n"
 
+        # For forward propagation layers
         if weights is not None and biases is not None:
             cpp_code += f"    std::array<Scalar, {output_size}> layer_{i+1}_output;\n"
-            cpp_code += f"    forwardPropagation<Scalar, {output_size}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), {last_size}, activationFunctions[{i}], alphas[{i}]);\n\n"
+            cpp_code += f"    forwardPropagation<Scalar, {output_size}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), {last_size}, {activation_func_map[act_func]}<Scalar>, {alpha});\n\n"
 
+        # For batch normalization layers
         if bn_params is not None:
             cpp_code += f"    std::array<Scalar, {output_size}> layer_{i+1}_output;\n"
             cpp_code += f"    batchNormalization<Scalar, {output_size}>(layer_{i+1}_output.data(), {last_layer}.data(), gamma_{i+1}.data(), beta_{i+1}.data(), mean_{i+1}.data(), variance_{i+1}.data(), epsilon_{i+1});\n\n"
 
+        # For flatten layers
         if act_func == 'flatten':
             flatten_size = last_size * filters if conv_params is not None else weights.shape[0]
             cpp_code += f"    std::array<Scalar, {flatten_size}> layer_{i+1}_output;\n"
@@ -180,12 +167,14 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
             last_layer = f"layer_{i+1}_output"
             last_size = flatten_size
 
+        # For other activation functions not related to weights or batch normalization
         if weights is None and biases is None and bn_params is None:
             activation_func_name = activation_func_map[act_func]
             cpp_code += f"    std::array<Scalar, {output_size}> layer_{i+1}_output;\n"
-            cpp_code += f"    {activation_func_name}(layer_{i+1}_output.data(), {last_layer}.data(), {last_size}, alphas[{i}]);\n\n"
+            cpp_code += f"    {activation_func_name}<Scalar>(layer_{i+1}_output.data(), {last_layer}.data(), {last_size}, {alpha});\n\n"
             last_layer = f"layer_{i+1}_output"
 
+        # Update the current layer and its size
         last_layer = f"layer_{i+1}_output"
         last_size = output_size
 

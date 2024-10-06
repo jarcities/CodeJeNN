@@ -19,6 +19,6 @@ int main() {
 }
 
 /*
-clang++ -std=c++2b -o test test.cpp
+g++ -std=c++2b -o test test.cpp
 ./test
 */
