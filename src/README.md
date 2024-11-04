@@ -14,7 +14,7 @@ THIS SOURCE CODE IS UNDER THE CUSTODY AND ADMINISTRATION OF THE GOVERNMENT OF TH
 ## Compilation Requirements
 **Libraries:**
 ```zsh
-pip install onnx onnxruntime tf2onnx torch tensorflow keras2onnx onnx2keras h5py numpy scipy keras scikit-learn absl-py
+pip install onnx onnxruntime tf2onnx torch tensorflow keras2onnx onnx2keras h5py numpy scipy keras scikit-learn absl-py pandas scipy sympy 
 ```
 
 **Compiler Check:**
@@ -30,7 +30,6 @@ pip install onnx onnxruntime tf2onnx torch tensorflow keras2onnx onnx2keras h5py
 
 
 ## Compilation Notes
-
 * The code is a single line terminal command script. 
 * You linke the input folder with all trained models wanting to be code generated as well as the output folder to save the files. Additionally, the precision is optional, but only accepts float or double.
 * All file name and namespaces of the generated header files are the same name of the model file that was in the input folder with the exceptions of hyphens and whitespace.
@@ -44,7 +43,6 @@ pip install onnx onnxruntime tf2onnx torch tensorflow keras2onnx onnx2keras h5py
     OR ⮕ dump any and all trained models in **dump_model** and link that instead.
 1. `--output` ⮕ path to folder to save all generated header files.
 1. `--precision` ⮕ (OPTIONAL) variable type of precision, either double or float. If not specified, will default to float.
-1. `--header` ⮕ (OPTIONAL) name of the predict function at your disgression.
 
 **NOW**:
 
