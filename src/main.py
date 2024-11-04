@@ -86,9 +86,10 @@ else:
                 cpp_code = activationFunctions(cpp_code, activation_functions)
                 # print("\n - - CREATED ACTIVATION FUNCTIONS - - \n")
 
-                cpp_code = codeGen(cpp_code, weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size, save_path, input_norms, input_mins, output_norms, output_mins)
+                cpp_code = codeGen(cpp_code, precision_type, weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size, save_path, input_norms, input_mins, output_norms, output_mins)
                 # print("\n - - GENERATED MODEL - - \n")
 
+                print()
                 with open(f"{save_path}.h", "w") as f:
                     f.write(cpp_code)
                 print(save_path)

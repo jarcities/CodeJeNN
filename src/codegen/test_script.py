@@ -24,7 +24,7 @@ using Scalar = {precision_type};
 
 int main() {{
     std::array<Scalar, _number_of_input_features_> input = {{_inputs_}}; // change input to desired features
-    auto output = _namespace_::_function_name_<Scalar>(input); // change input to desired features
+    auto output = _function_name_<Scalar>(input); // change input to desired features
     std::cout << "Output: ";
     for(const auto& val : output) {{
         std::cout << val << " ";
