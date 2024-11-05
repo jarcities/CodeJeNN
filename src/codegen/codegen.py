@@ -31,7 +31,7 @@ using activationFunction = void(*)(Scalar*, const Scalar*, size_t, Scalar);
 
 
 
-def codeGen(cpp_code, weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size, user_file, input_norms, input_mins, output_norms, output_mins):
+def codeGen(cpp_code, precision_type, weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size, user_file, input_norms, input_mins, output_norms, output_mins):
     """
     Generate C++ code from model parameters such as weights, biases, activation functions, batch normalization parameters,
     convolutional layers, flatten layers, and dropout rates, and create the predict function in the given namespace.
@@ -60,7 +60,7 @@ def codeGen(cpp_code, weights_list, biases_list, activation_functions, alphas, d
 
     cpp_code += f"""
 // - -\n
-template <typename Scalar = float>
+template <typename Scalar = {precision_type}>
 auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
 """
     if input_norms is not None:
