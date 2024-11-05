@@ -9,30 +9,33 @@ using activationFunction = void(*)(Scalar*, const Scalar*, size_t, Scalar);
 // - -
 
 template<typename Scalar>
-Scalar linear(const Scalar& value) {
+Scalar linear(const Scalar& value, Scalar alpha = 0.0) {
     return value;
 }
 
 template<typename Scalar>
-Scalar relu(const Scalar& value) {
+Scalar relu(const Scalar& value, Scalar alpha = 0.0) {
     return value > 0 ? value : 0;
 }
 
-template<typename Scalar, typename ActivationFunction, typename... Rest>
-void forwardPropagation(Scalar* output, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
-                        size_t index, ActivationFunction activation, Rest... rest) {
-    output[index] = activation(inputs[index] * weights[index] + biases[index]);
-    forwardPropagation(output, inputs, weights, biases, index + 1, rest...);
-}
-
-template<typename Scalar>
-void forwardPropagation(Scalar* output, const Scalar* inputs, const Scalar* weights, const Scalar* biases, size_t index) {
-}
-
 template<typename Scalar, typename ActivationFunction>
-void forwardPropagation(const Scalar* inputs, const Scalar* weights, const Scalar* biases, Scalar* output, size_t size, ActivationFunction activation) {
-    forwardPropagation(output, inputs, weights, biases, 0, activation);
+void combinedForwardPropagation(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, ActivationFunction activation, Scalar alpha) noexcept {
+    Scalar temp_outputs[output_size];
+    for (int i = 0; i < output_size; i++) {
+        temp_outputs[i] = biases[i];
+        for (int j = 0; j < input_size; j++) {
+            temp_outputs[i] += inputs[j] * weights[j * output_size + i];
+        }
+    }
+    activation_function(outputs, temp_outputs, output_size, alpha);
 }
+
+// template<typename Scalar, typename ActivationFunction>
+// void forwardPropagation(Scalar* output, const Scalar* inputs, const Scalar* weights, const Scalar* biases, size_t size, ActivationFunction activation, Scalar alpha) {
+//     for (size_t i = 0; i < size; ++i) {
+//         output[i] = activation(inputs[i] * weights[i] + biases[i], alpha);
+//     }
+// }
 
 // - -
 
@@ -66,17 +69,17 @@ auto test_model_1(const std::array<Scalar, 10>& initial_input) {
 
     // - -
 
-    std::array<Scalar, 10> layer_1_output;
-    forwardPropagation<Scalar, 10>(layer_1_output.data(), model_input.data(), weights_1.data(), biases_1.data(), 10, relu<Scalar>, 0.0);
+    std::array<Scalar, 8> layer_1_output;
+    forwardPropagation<Scalar>(layer_1_output.data(), model_input.data(), weights_1.data(), biases_1.data(), 10, &relu<Scalar>, 0.0);
 
-    std::array<Scalar, 10> layer_2_output;
-    forwardPropagation<Scalar, 10>(layer_2_output.data(), layer_1_output.data(), weights_2.data(), biases_2.data(), 10, relu<Scalar>, 0.0);
+    std::array<Scalar, 16> layer_2_output;
+    forwardPropagation<Scalar>(layer_2_output.data(), layer_1_output.data(), weights_2.data(), biases_2.data(), 8, &relu<Scalar>, 0.0);
 
-    std::array<Scalar, 10> layer_3_output;
-    forwardPropagation<Scalar, 10>(layer_3_output.data(), layer_2_output.data(), weights_3.data(), biases_3.data(), 10, relu<Scalar>, 0.0);
+    std::array<Scalar, 8> layer_3_output;
+    forwardPropagation<Scalar>(layer_3_output.data(), layer_2_output.data(), weights_3.data(), biases_3.data(), 16, &relu<Scalar>, 0.0);
 
-    std::array<Scalar, 10> layer_4_output;
-    forwardPropagation<Scalar, 10>(layer_4_output.data(), layer_3_output.data(), weights_4.data(), biases_4.data(), 10, linear<Scalar>, 0.0);
+    std::array<Scalar, 5> layer_4_output;
+    forwardPropagation<Scalar>(layer_4_output.data(), layer_3_output.data(), weights_4.data(), biases_4.data(), 8, &linear<Scalar>, 0.0);
 
     return layer_4_output;
 }

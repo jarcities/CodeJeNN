@@ -135,40 +135,40 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
             cpp_code += f"    std::array<Scalar, {len(padding_values)}> padding_{i+1} = {{{', '.join(f'{x:10.9e}' for x in padding_values)}}};\n"
             cpp_code += f"    std::array<Scalar, {len(dilation_rate)}> dilation_rate_{i+1} = {{{', '.join(f'{x:10.9e}' for x in dilation_rate)}}};\n\n"
 
-    last_layer = "model_input"
-    last_size = input_size
-
     cpp_code += f"    // - -\n\n"
 
-    output_size = input_size
+    last_layer = "model_input"
+    last_size = input_size
     for i, (weights, biases, bn_params, conv_params, act_func, alpha) in enumerate(zip(weights_list, biases_list, batch_norm_params, conv_layer_params, activation_functions, alphas)):
 
         # For convolutional layers
         if conv_params is not None:
             filters = conv_params["filters"]
             cpp_code += f"    std::array<Scalar, {filters}> layer_{i+1}_output;\n"
-            cpp_code += f"    convolutionLayer<Scalar, {last_size}, {filters}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), strides_{i+1}.data(), padding_{i+1}.data(), dilation_rate_{i+1}.data(), {activation_func_map[act_func]}<Scalar>, {alpha});\n\n"
+            cpp_code += f"    convolutionLayer<Scalar, {output_size}, {filters}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), strides_{i+1}.data(), padding_{i+1}.data(), dilation_rate_{i+1}.data(), {activation_func_map[act_func]}<Scalar>, {alpha});\n\n"
 
         # For forward propagation layers
         if weights is not None and biases is not None:
+            output_size = weights.shape[1]
             cpp_code += f"    std::array<Scalar, {output_size}> layer_{i+1}_output;\n"
-            cpp_code += f"    forwardPropagation<Scalar, {output_size}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), {last_size}, {activation_func_map[act_func]}<Scalar>, {alpha});\n\n"
+            cpp_code += f"    forwardPropagation<Scalar, {output_size}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), {last_size}, &{activation_func_map[act_func]}<Scalar>, {alpha});\n\n"
 
         # For batch normalization layers
         if bn_params is not None:
+            output_size = len(gamma)
             cpp_code += f"    std::array<Scalar, {output_size}> layer_{i+1}_output;\n"
             cpp_code += f"    batchNormalization<Scalar, {output_size}>(layer_{i+1}_output.data(), {last_layer}.data(), gamma_{i+1}.data(), beta_{i+1}.data(), mean_{i+1}.data(), variance_{i+1}.data(), epsilon_{i+1});\n\n"
 
         # For flatten layers
         if act_func == 'flatten':
-            flatten_size = last_size * filters if conv_params is not None else weights.shape[0]
+            output_size = last_size
+            flatten_size = output_size * filters if conv_params is not None else weights.shape[0]
             cpp_code += f"    std::array<Scalar, {flatten_size}> layer_{i+1}_output;\n"
-            cpp_code += f"    flattenLayer<Scalar, {last_size // filters}, {filters}>(layer_{i+1}_output.data(), {last_layer}.data());\n"
-            last_layer = f"layer_{i+1}_output"
-            last_size = flatten_size
+            cpp_code += f"    flattenLayer<Scalar, {output_size // filters}, {filters}>(layer_{i+1}_output.data(), {last_layer}.data());\n"
 
         # For other activation functions not related to weights or batch normalization
         if weights is None and biases is None and bn_params is None:
+            output_size = last_size
             activation_func_name = activation_func_map[act_func]
             cpp_code += f"    std::array<Scalar, {output_size}> layer_{i+1}_output;\n"
             cpp_code += f"    {activation_func_name}<Scalar>(layer_{i+1}_output.data(), {last_layer}.data(), {last_size}, {alpha});\n\n"
@@ -177,6 +177,10 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
         # Update the current layer and its size
         last_layer = f"layer_{i+1}_output"
         last_size = output_size
+
+        ##
+        # FIX OUTPUT SIZE
+        ##
 
     cpp_code += f"""    return {last_layer};
 }}
