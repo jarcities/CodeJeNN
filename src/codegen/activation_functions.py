@@ -19,19 +19,19 @@ def activationFunctions(cpp_code, activation_functions):
     cpp_functions = {
         'relu': """
 template<typename Scalar>
-Scalar relu(const Scalar& value) {
+Scalar relu(const Scalar& value, Scalar alpha = 0.0) {
     return value > 0 ? value : 0;
 }
 """,
         'sigmoid': """
 template<typename Scalar>
-Scalar sigmoid(const Scalar& value) {
+Scalar sigmoid(const Scalar& value, Scalar alpha = 0.0) {
     return 1 / (1 + std::exp(-value));
 }
 """,
         'tanhCustom': """
 template<typename Scalar>
-Scalar tanhCustom(const Scalar& value) {
+Scalar tanhCustom(const Scalar& value, Scalar alpha = 0.0) {
     return std::tanh(value);
 }
 """,
@@ -43,19 +43,19 @@ Scalar leakyRelu(const Scalar& value, Scalar alpha = 0.01) {
 """,
         'linear': """
 template<typename Scalar>
-Scalar linear(const Scalar& value) {
+Scalar linear(const Scalar& value, Scalar alpha = 0.0) {
     return value;
 }
 """,
         'elu': """
 template<typename Scalar>
-Scalar elu(const Scalar& value, Scalar alpha) {
+Scalar elu(const Scalar& value, Scalar alpha = 0.0) {
     return value > 0 ? value : alpha * (std::exp(value) - 1);
 }
 """,
         'softmaxSingle': """
 template<typename Scalar>
-void softmaxSingle(Scalar* outputs, const Scalar* inputs, size_t size) noexcept {
+void softmaxSingle(Scalar* outputs, const Scalar* inputs, size_t size, Scalar alpha = 0.0) noexcept {
     Scalar sum_exp = 0;
     for (size_t i = 0; i < size; ++i) {
         sum_exp += std::exp(inputs[i]);
@@ -83,7 +83,7 @@ Scalar swish(const Scalar& value, Scalar alpha = 1.0) {
 """,
         'prelu': """
 template<typename Scalar>
-Scalar prelu(const Scalar& value, Scalar alpha) {
+Scalar prelu(const Scalar& value, Scalar alpha = 0.0) {
     return value > 0 ? value : alpha * value;
 }
 """,
@@ -198,21 +198,41 @@ void convolutionLayer(Scalar* outputs, const Scalar* inputs, const Scalar* kerne
 #     addBias(temp_outputs.data(), biases, output_size);
 #     activation_function(outputs, temp_outputs.data(), output_size, alpha);
 # }
-        'forwardPropagation': """
+        'forwardPropagationVariadic': """
 template<typename Scalar, typename ActivationFunction, typename... Rest>
-void forwardPropagation(Scalar* output, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
-                        size_t index, ActivationFunction activation, Rest... rest) {
-    output[index] = activation(inputs[index] * weights[index] + biases[index]);
-    forwardPropagation(output, inputs, weights, biases, index + 1, rest...);
-}
-
-template<typename Scalar>
-void forwardPropagation(Scalar* output, const Scalar* inputs, const Scalar* weights, const Scalar* biases, size_t index) {
+void forwardPropagation(Scalar* output, const Scalar* inputs, const Scalar* weights, const Scalar* biases, size_t index, ActivationFunction activation, const Scalar* alpha, Rest... rest) {
+    output[index] = activation(inputs[index] * weights[index] + biases[index], alpha[index]);
+    forwardPropagation(output, inputs, weights, biases, index + 1, activation, alpha, rest...);
 }
 
 template<typename Scalar, typename ActivationFunction>
-void forwardPropagation(const Scalar* inputs, const Scalar* weights, const Scalar* biases, Scalar* output, size_t size, ActivationFunction activation) {
-    forwardPropagation(output, inputs, weights, biases, 0, activation);
+void forwardPropagation(Scalar* output, const Scalar* inputs, const Scalar* weights, const Scalar* biases, size_t index, ActivationFunction activation, const Scalar* alpha) {
+    // Base case: Do nothing or handle the last element
+}
+
+template<typename Scalar, typename ActivationFunction>
+void forwardPropagation(const Scalar* inputs, const Scalar* weights, const Scalar* biases, Scalar* output, size_t size, ActivationFunction activation, const Scalar* alpha) {
+    forwardPropagation(output, inputs, weights, biases, 0, activation, alpha);
+}
+""",
+        'forwardPropagationLoop':"""
+template<typename Scalar, int output_size>
+void combinedForwardPropagation(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, void (*activation_function)(Scalar*, const Scalar*, size_t, Scalar), Scalar alpha) noexcept {
+    Scalar temp_outputs[output_size];
+    for (int i = 0; i < output_size; i++) {
+        temp_outputs[i] = biases[i];
+        for (int j = 0; j < input_size; j++) {
+            temp_outputs[i] += inputs[j] * weights[j * output_size + i];
+        }
+    }
+    activation_function(outputs, temp_outputs, output_size, alpha);
+}
+
+template<typename Scalar, typename ActivationFunction>
+void forwardPropagation(Scalar* output, const Scalar* inputs, const Scalar* weights, const Scalar* biases, size_t size, ActivationFunction activation, Scalar alpha) {
+    for (size_t i = 0; i < size; ++i) {
+        output[i] = activation(inputs[i] * weights[i] + biases[i], alpha);
+    }
 }
 """
     }
@@ -220,7 +240,7 @@ void forwardPropagation(const Scalar* inputs, const Scalar* weights, const Scala
     activation_func_names = set(activation_functions)
     # method_names = set(['dotProduct', 'addBias'])
     # used_functions = activation_func_names | method_names | set(['forwardPropagation'])
-    used_functions = activation_func_names | set(['forwardPropagation'])
+    used_functions = activation_func_names | set(['forwardPropagationLoop'])
 
     for func_name in activation_func_names:
         if func_name == 'tanh':  
@@ -232,7 +252,7 @@ void forwardPropagation(const Scalar* inputs, const Scalar* weights, const Scala
     # for func_name in method_names:
     #     cpp_code += cpp_functions[func_name]
 
-    if 'forwardPropagation' in used_functions:
-        cpp_code += cpp_functions['forwardPropagation']
+    if 'forwardPropagationLoop' in used_functions:
+        cpp_code += cpp_functions['forwardPropagationLoop']
 
     return cpp_code
