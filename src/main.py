@@ -38,12 +38,12 @@ elif not os.path.exists(save_dir):
     print(f"\nFALSE!!!, '{save_dir}' AIN'T EXIST!!!\n")
 
 else:
-    # # copy test source file to make sure header file predict function works
-    # source_code = testSource(precision_type)
-    # save_path = os.path.join(save_dir, "test")
-    # with open(f"{save_path}.cpp", "w") as f:
-    #     f.write(source_code)
-    # print(save_path)
+    # copy test source file to make sure header file predict function works
+    source_code = testSource(precision_type)
+    save_path = os.path.join(save_dir, "test")
+    with open(f"{save_path}.cpp", "w") as f:
+        f.write(source_code)
+    print(save_path)
 
     # iterate through each file in model directory
     for file_name in os.listdir(model_dir):
