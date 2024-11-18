@@ -16,8 +16,3 @@ int main() {
     std::cout << std::endl;
     return 0;
 }
-
-/*
-clang++ -std=c++2b -o test.exe test.cpp
-./test.exe
-*/
