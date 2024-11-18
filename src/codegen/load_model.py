@@ -23,22 +23,22 @@ def loadModel(file_path):
         try:
             model=lm(file_path)
         except Exception as e:
-            errors.append(f"\nError loading model from {file_path} with tensorflow.keras: {e}\n")
+            errors.append(f"\nError loading model from {file_name} with tensorflow.keras: {e}\n")
         if 'model' not in locals():
             try:
                 model=load_model(file_path)
             except Exception as e:
-                errors.append(f"\nError loading model from {file_path} with load_model using keras (no custom_objects): {e}\n")
+                errors.append(f"\nError loading model from {file_name} with load_model using keras (no custom_objects): {e}\n")
         if 'model' not in locals():
             try:
                 model=load_model(file_path,custom_objects=custom_objects)
             except Exception as e:
-                errors.append(f"\nError loading model from {file_path} with load_model using keras (with custom_objects): {e}\n")
+                errors.append(f"\nError loading model from {file_name} with load_model using keras (with custom_objects): {e}\n")
         if 'model' not in locals():
             try:
                 model=load_model(file_path,compile=False)
             except Exception as e:
-                errors.append(f"\nError loading model from {file_path} with load_model using keras (no compiling): {e}\n")
+                errors.append(f"\nError loading model from {file_name} with load_model using keras (no compiling): {e}\n")
         if 'model' not in locals():
             error_message="\n".join(errors)
             print(f"\nAll attempts to load the model failed:\n{error_message}\n")
@@ -48,12 +48,12 @@ def loadModel(file_path):
             model = tf.saved_model.load(file_path)
             model = model.signatures['serving_default']
         except Exception as e:
-            raise ValueError(f"\nError loading SavedModel from {file_path}: {e}\n")
+            raise ValueError(f"\nError loading SavedModel from {file_name}: {e}\n")
     elif file_extension == '.onnx':
         try:
             model = onnx.load(file_path)
         except Exception as e:
-            raise ValueError(f"\nError loading ONNX model from {file_path}: {e}\n")
+            raise ValueError(f"\nError loading ONNX model from {file_name}: {e}\n")
     else:
         raise ValueError("\nUnsupported file type\n")
 

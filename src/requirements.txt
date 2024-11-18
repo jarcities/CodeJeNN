@@ -1,0 +1,85 @@
+# Name                    Version                   Build  Channel
+absl-py                   2.1.0                    pypi_0    pypi
+astunparse                1.6.3                    pypi_0    pypi
+bzip2                     1.0.8                h2bbff1b_6  
+ca-certificates           2024.9.24            haa95532_0  
+certifi                   2024.8.30                pypi_0    pypi
+charset-normalizer        3.4.0                    pypi_0    pypi
+coloredlogs               15.0.1                   pypi_0    pypi
+filelock                  3.16.1                   pypi_0    pypi
+fire                      0.7.0                    pypi_0    pypi
+flatbuffers               24.3.25                  pypi_0    pypi
+fsspec                    2024.10.0                pypi_0    pypi
+gast                      0.6.0                    pypi_0    pypi
+google-pasta              0.2.0                    pypi_0    pypi
+grpcio                    1.68.0                   pypi_0    pypi
+h5py                      3.12.1                   pypi_0    pypi
+humanfriendly             10.0                     pypi_0    pypi
+idna                      3.10                     pypi_0    pypi
+jinja2                    3.1.4                    pypi_0    pypi
+joblib                    1.4.2                    pypi_0    pypi
+keras                     3.6.0                    pypi_0    pypi
+keras2onnx                1.7.0                    pypi_0    pypi
+libclang                  18.1.1                   pypi_0    pypi
+libexpat                  2.6.4                he0c23c2_0    conda-forge
+libffi                    3.4.4                hd77b12b_1  
+libsqlite                 3.47.0               h2466b09_1    conda-forge
+libzlib                   1.3.1                h2466b09_2    conda-forge
+markdown                  3.7                      pypi_0    pypi
+markdown-it-py            3.0.0                    pypi_0    pypi
+markupsafe                3.0.2                    pypi_0    pypi
+mdurl                     0.1.2                    pypi_0    pypi
+ml-dtypes                 0.4.0                    pypi_0    pypi
+mpmath                    1.3.0                    pypi_0    pypi
+namex                     0.0.8                    pypi_0    pypi
+networkx                  3.4.2                    pypi_0    pypi
+numpy                     1.26.4                   pypi_0    pypi
+onnx                      1.17.0                   pypi_0    pypi
+onnx2keras                0.0.24                   pypi_0    pypi
+onnxconverter-common      1.13.0                   pypi_0    pypi
+onnxruntime               1.20.0                   pypi_0    pypi
+openssl                   3.4.0                h2466b09_0    conda-forge
+opt-einsum                3.4.0                    pypi_0    pypi
+optree                    0.13.1                   pypi_0    pypi
+packaging                 24.2                     pypi_0    pypi
+pandas                    2.2.3                    pypi_0    pypi
+pip                       24.3.1                   pypi_0    pypi
+protobuf                  3.20.3                   pypi_0    pypi
+pygments                  2.18.0                   pypi_0    pypi
+pyreadline3               3.5.4                    pypi_0    pypi
+python                    3.11.10         hce54a09_3_cpython    conda-forge
+python-dateutil           2.9.0.post0              pypi_0    pypi
+pytz                      2024.2                   pypi_0    pypi
+requests                  2.32.3                   pypi_0    pypi
+rich                      13.9.4                   pypi_0    pypi
+scikit-learn              1.5.2                    pypi_0    pypi
+scipy                     1.14.1                   pypi_0    pypi
+setuptools                75.1.0          py311haa95532_0  
+six                       1.16.0                   pypi_0    pypi
+sqlite                    3.45.3               h2bbff1b_0  
+sympy                     1.13.1                   pypi_0    pypi
+tensorboard               2.17.1                   pypi_0    pypi
+tensorboard-data-server   0.7.2                    pypi_0    pypi
+tensorflow                2.17.0                   pypi_0    pypi
+tensorflow-intel          2.17.0                   pypi_0    pypi
+tensorflow-io-gcs-filesystem 0.31.0                   pypi_0    pypi
+termcolor                 2.5.0                    pypi_0    pypi
+tf2onnx                   1.16.1                   pypi_0    pypi
+threadpoolctl             3.5.0                    pypi_0    pypi
+tk                        8.6.13               h5226925_1    conda-forge
+torch                     2.5.1                    pypi_0    pypi
+typing-extensions         4.12.2                   pypi_0    pypi
+tzdata                    2024.2                   pypi_0    pypi
+ucrt                      10.0.22621.0         h57928b3_1    conda-forge
+urllib3                   2.2.3                    pypi_0    pypi
+vc                        14.40                h2eaa2aa_1  
+vc14_runtime              14.42.34433         he29a5d6_23    conda-forge
+vs2015_runtime            14.42.34433         hdffcdeb_23    conda-forge
+werkzeug                  3.1.3                    pypi_0    pypi
+wheel                     0.44.0          py311haa95532_0  
+wrapt                     1.16.0                   pypi_0    pypi
+xz                        5.4.6                h8cc25b3_1  
+zlib                      1.3.1                h2466b09_2    conda-forge
+
+
+## Additionally, clang++ and g++ was used at system-wide level ##

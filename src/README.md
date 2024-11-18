@@ -12,22 +12,7 @@ THIS SOURCE CODE IS UNDER THE CUSTODY AND ADMINISTRATION OF THE GOVERNMENT OF TH
   * **dump_model** ⮕ Dump folder that user can dump any trained model and link that if they want. 
 
 ## Compilation Requirements
-**Libraries:**
-```zsh
-pip install onnx onnxruntime tf2onnx torch tensorflow keras2onnx onnx2keras h5py numpy scipy keras scikit-learn absl-py pandas scipy sympy 
-```
-
-**Compiler Check:**
-```zsh
-clang++ --version 
-OR
-g++ --version
-```
-
-**Compiler and C++ Version used to write and test code**:
-* C++14 up to C++23
-* clang version 18.1.8
-* g++ version 14.2.0
+  * In `requirement.txt`. Libraries in text file used to write and test code of course.
 
 ## Compilation Notes
 * The code is a single line terminal command script. 
