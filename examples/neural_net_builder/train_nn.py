@@ -16,28 +16,8 @@ import csv
 dir = os.getcwd()
 print(dir)
 
-# # LOAD MODEL INTO CSV
-# input_file = 'X_table'
-# input_path = f"{dir}/{input_file}.npy"
-# input_array = np.load(input_path)
-# input_array = input_array.T
-# input_array = input_array[:len(input_array),:]
-# csv_input_path = os.path.join(os.path.dirname(input_path), f"{dir}/{input_file}.csv")
-# np.savetxt(csv_input_path, input_array, delimiter=',') 
-# #--
-# output_file = 'Y_table'
-# output_path = f"{dir}/{output_file}.npy"
-# output_array = np.load(output_path)
-# output_array = output_array.T
-# output_array = output_array[:len(output_array),:]
-# csv_output_path = os.path.join(os.path.dirname(output_path), f"{dir}/{output_file}.csv")
-# np.savetxt(csv_output_path, output_array, delimiter=',') 
-
-# # read in complete data
-# complete_input_file = f"{dir}/{input_file}.csv"
-# complete_output_file = f"{dir}/{output_file}.csv"
-# complete_input = pd.read_csv(complete_input_file)
-# complete_output = pd.read_csv(complete_output_file)
+# NAME OF MODEL
+name_of_model = "test"
 
 # generate random matrix of input and output
 np.random.seed(42)  
@@ -58,7 +38,7 @@ scaling_params = {
     'output_min': output_normalization.data_min_,
     'output_max': output_normalization.data_max_
 }
-with open('test_model_1.dat', 'w') as f:
+with open('{name_of_model}.dat', 'w') as f:
     for key, value in scaling_params.items():
         value_str = ' '.join(map(str, value))
         f.write(f'{key}: [{value_str}]\n')
