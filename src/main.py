@@ -43,6 +43,7 @@ else:
     save_path = os.path.join(save_dir, "test")
     with open(f"{save_path}.cpp", "w") as f:
         f.write(source_code)
+    print()
     print(save_path)
 
     # iterate through each file in model directory
@@ -52,7 +53,7 @@ else:
         # skip hidden files, dat and csv files
         if file_name == '.gitkeep' or file_name.startswith('.'):
             continue
-        if file_name.endswith('.dat') or file_name.endswith('.csv'):
+        if file_name.endswith('.dat') or file_name.endswith('.csv') or file_name.endswith('.txt'):
             continue
 
         # codegen each model file in model_dump
@@ -64,10 +65,13 @@ else:
                 # check for corresponding .dat or .csv file
                 dat_file = os.path.join(model_dir, f"{base_file_name}.dat")
                 csv_file = os.path.join(model_dir, f"{base_file_name}.csv")
+                txt_file = os.path.join(model_dir, f"{base_file_name}.txt")
                 if os.path.exists(dat_file):
                     input_norms, input_mins, output_norms, output_mins = normParam(dat_file)
                 elif os.path.exists(csv_file):
                     input_norms, input_mins, output_norms, output_mins = normParam(csv_file)
+                elif os.path.exists(txt_file):
+                    input_norms, input_mins, output_norms, output_mins = normParam(txt_file)
                 else:
                     input_norms, input_mins, output_norms, output_mins = None, None, None, None
 
@@ -95,3 +99,5 @@ else:
                 print(save_path)
             except ValueError as e:
                 print(f"\n - -  SOMETHING IS WRONG WITH --> '{file_name}': {e}  - -\n")
+
+    print()

@@ -61,10 +61,10 @@ def codeGen(cpp_code, precision_type, weights_list, biases_list, activation_func
     cpp_code += f"""
 // - -\n
 template <typename Scalar = {precision_type}>
-auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
+auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
 """
     if input_norms is not None:
-        cpp_code += f"\n    std::array<Scalar, {len(input_norms)}> input_norms = {{"
+        cpp_code += f"    std::array<Scalar, {len(input_norms)}> input_norms = {{"
         cpp_code += ", ".join(f"{x:10.9e}" for x in input_norms)
         cpp_code += "};\n\n"
         cpp_code += f"    std::array<Scalar, {len(input_mins)}> input_mins = {{"
@@ -76,7 +76,7 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
         cpp_code += f'if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }} \n\n'
     else: 
         cpp_code += f"    std::array<Scalar, 10> model_input = initial_input; \n\n"
-        cpp_code += f'if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }} \n\n'
+        cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }} \n\n'
 
     # cpp_code += f"    std::array<Scalar, {len(dropout_rates)}> dropoutRates = {{"
     # cpp_code += ", ".join(map(str, dropout_rates))
