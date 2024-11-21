@@ -8,7 +8,7 @@ import shutil
 import argparse
 import numpy as np
 from codegen.activation_functions import activationFunctions
-from codegen.codegen import preambleHeader, codeGen
+from codegen.code_generation import preambleHeader, codeGen
 from codegen.extract_model import extractModel
 from codegen.load_model import loadModel
 from codegen.test_script import testSource

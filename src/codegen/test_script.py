@@ -34,7 +34,7 @@ int main() {{
 }}
 
 /*
-clang++ -std=c++2b -o test test.cpp
+clang++ -std=c++2b -Wall -O3 -march=native -o test test.cpp
 ./test
 */
 """
