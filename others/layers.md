@@ -32,16 +32,23 @@ Used primarily for processing grid-like data such as images.
 - **Conv1D, Conv2D, Conv3D**: Convolution layers for 1D, 2D, and 3D inputs.
 - **SeparableConv2D**: Depthwise separable convolution.
 - **ConvLSTM2D**: Convolutional LSTM.
+- **DepthwiseConv2D**: Depthwise convolution only.
+- **Conv2DTranspose**: Transposed convolution (deconvolution).
 
 **Example:**
 ```python
-from tensorflow.keras.layers import Conv2D, SeparableConv2D, ConvLSTM2D
+from tensorflow.keras.layers import Conv2D, SeparableConv2D, ConvLSTM2D, Conv1D, Conv3D, Conv2DTranspose, DepthwiseConv2D, LocallyConnected2D
 from tensorflow.keras.models import Sequential
 
 model = Sequential([
     Conv2D(32, (3, 3), activation='relu', input_shape=(64, 64, 3)),
     SeparableConv2D(64, (3, 3), activation='relu'),
-    ConvLSTM2D(64, (3, 3), activation='relu', return_sequences=True)
+    ConvLSTM2D(64, (3, 3), activation='relu', return_sequences=True),
+    Conv1D(32, 3, activation='relu', input_shape=(64, 64)),
+    Conv3D(16, (3, 3, 3), activation='relu', input_shape=(16, 64, 64, 3)),
+    Conv2DTranspose(32, (3, 3), activation='relu'),
+    DepthwiseConv2D((3, 3), activation='relu'),
+    LocallyConnected2D(32, (3, 3), activation='relu')
 ])
 ```
 
