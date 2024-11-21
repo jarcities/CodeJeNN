@@ -12,8 +12,10 @@ _Labratories of Computational Physics and Fluid Dynamics, Naval Research Lab, Wa
 Distribution Statement A: Distribution Statement A. Approved for public release, distribution is unlimited.
 
 ## Introduction
-CodeJenn is an interface package that can robustly ingest a trained NN to be used on the fly for inference in target computational fluid dynamics software. This abstracts away the need for using third party libraries which are often cumbersome and would require shipping CFD data onto main memory to utilize inference. Instead, we imbed the NN for inference onto the device itself. Currently the NNs are small enough and lean enough from PINN where they can be done directly on device. This will assure scalability and allow for certain optimizations that ML has promised to CFD: smaller look up tables and faster constiutive laws. 
+*CodeJeNN is an interface package that can robustly ingest a trained NN to be used on the fly for inference in target computational fluid dynamics software. This abstracts away the need for using third party libraries which are often cumbersome and would require shipping CFD data onto main memory to utilize inference. Instead, we imbed the NN for inference onto the device itself. Currently the NNs are small enough and lean enough from PINN where they can be done directly on device. This will assure scalability and allow for certain optimizations that ML has promised to CFD: smaller look up tables and faster constiutive laws.*
 -- ***Ryan F. Johnson, LCP-NRL***
+
+**CodeJeNN works by converting a trained neural net stored in a .onnx, .h5, or a .keras file into a c++ header file that can be used in the users code to predict (perform inference).**
 
 ## File Structure
 ```plaintext
@@ -34,8 +36,7 @@ CodeJeNN/
             └── dump_model/
             └── generate.sh
             └── main.py
-            └── makefile
-            └── pip_requirements.txt
+            └── requirements.txt
             └── README.md
     └── license.txt
 ```
