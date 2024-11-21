@@ -1,3 +1,3 @@
-1. fix foward propagation for loops
-2. implement variadic templating for forward propagation
-3. add blas and lapack
+1. Takeout any packages that do not belong there.
+2. Rewrite README to explain neural net and how norm/std works. 
+3. implement variadic templating and vectorization for forward propagation.
