@@ -8,5 +8,5 @@ rm *.cpp
 ### windows ###
 # python main.py --input="..\src\dump_model" --output="..\src" --precision="double" 
 
-### mac ###
-python3 main.py --input="../src/dump_model" --output="../src" --precision="double"
+### unix/linux ###
+python main.py --input="../src/dump_model" --output="../src" --precision="double"
