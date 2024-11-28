@@ -7,7 +7,7 @@ import os
 import shutil
 import argparse
 import numpy as np
-from codegen.activation_functions import activationFunctions
+from codegen.layer_propagation import activationFunctions
 from codegen.code_generation import preambleHeader, codeGen
 from codegen.extract_model import extractModel
 from codegen.load_model import loadModel

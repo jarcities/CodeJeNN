@@ -31,7 +31,7 @@ using activationFunction = void(*)(Scalar*, const Scalar*, size_t, Scalar);
 
 
 
-def codeGen(cpp_code, precision_type, weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size, user_file, input_norms, input_mins, output_norms, output_mins):
+def codeGen(cpp_code, precision_type, weights_list, biases_list, activation_functions, alphas, dropout_rates, norm_layer_params, conv_layer_params, input_size, user_file, input_norms, input_mins, output_norms, output_mins):
     """
     Generate C++ code from model parameters such as weights, biases, activation functions, batch normalization parameters,
     convolutional layers, flatten layers, and dropout rates, and create the predict function in the given namespace.
@@ -84,7 +84,7 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
 
     cpp_code += f"    // - -\n\n"
 
-    for i, (weights, biases, bn_params, conv_params) in enumerate(zip(weights_list, biases_list, batch_norm_params, conv_layer_params)):
+    for i, (weights, biases, norm_params, conv_params) in enumerate(zip(weights_list, biases_list, norm_layer_params, conv_layer_params)):
         if weights is not None and biases is not None:
             weights_flat = weights.flatten()
             biases_flat = biases.flatten()
@@ -96,33 +96,40 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
             cpp_code += f"    std::array<Scalar, {len(biases_flat)}> biases_{i+1} = {{"
             cpp_code += ", ".join(f"{x:10.9e}" for x in biases_flat)
             cpp_code += "};\n\n"
+###
 
-        if bn_params is not None:
-            gamma, beta, mean, variance, epsilon = bn_params
+        if norm_params is not None:
+            gamma, beta, mean, variance, epsilon = norm_params
 
-            gamma_flat = gamma.flatten()
-            beta_flat = beta.flatten()
-            mean_flat = mean.flatten()
-            variance_flat = variance.flatten()
+            # Flatten only if the parameter exists
+            gamma_flat = gamma.flatten() if gamma is not None else None
+            beta_flat = beta.flatten() if beta is not None else None
+            mean_flat = mean.flatten() if mean is not None else None  # LayerNormalization has no mean
+            variance_flat = variance.flatten() if variance is not None else None  # LayerNormalization has no variance
 
-            cpp_code += f"    std::array<Scalar, {len(gamma_flat)}> gamma_{i+1} = {{"
-            cpp_code += ", ".join(f"{x:10.9e}" for x in gamma_flat)
-            cpp_code += "};\n\n"
+            if gamma_flat is not None and gamma_flat.size > 0:
+                cpp_code += f"    std::array<Scalar, {len(gamma_flat)}> gamma_{i+1} = {{"
+                cpp_code += ", ".join(f"{x:10.9e}" for x in gamma_flat)
+                cpp_code += "};\n\n"
 
-            cpp_code += f"    std::array<Scalar, {len(beta_flat)}> beta_{i+1} = {{"
-            cpp_code += ", ".join(f"{x:10.9e}" for x in beta_flat)
-            cpp_code += "};\n\n"
+            if beta_flat is not None and beta_flat.size > 0:
+                cpp_code += f"    std::array<Scalar, {len(beta_flat)}> beta_{i+1} = {{"
+                cpp_code += ", ".join(f"{x:10.9e}" for x in beta_flat)
+                cpp_code += "};\n\n"
 
-            cpp_code += f"    std::array<Scalar, {len(mean_flat)}> mean_{i+1} = {{"
-            cpp_code += ", ".join(f"{x:10.9e}" for x in mean_flat)
-            cpp_code += "};\n\n"
+            if mean_flat is not None and mean_flat.size > 0:
+                cpp_code += f"    std::array<Scalar, {len(mean_flat)}> mean_{i+1} = {{"
+                cpp_code += ", ".join(f"{x:10.9e}" for x in mean_flat)
+                cpp_code += "};\n\n"
 
-            cpp_code += f"    std::array<Scalar, {len(variance_flat)}> variance_{i+1} = {{"
-            cpp_code += ", ".join(f"{x:10.9e}" for x in variance_flat)
-            cpp_code += "};\n\n"
+            if variance_flat is not None and variance_flat.size > 0:
+                cpp_code += f"    std::array<Scalar, {len(variance_flat)}> variance_{i+1} = {{"
+                cpp_code += ", ".join(f"{x:10.9e}" for x in variance_flat)
+                cpp_code += "};\n\n"
 
             cpp_code += f"    Scalar epsilon_{i+1} = {epsilon:10.9e};\n\n"
 
+###
         if conv_params is not None:
             filters = conv_params['filters']
             kernel_size = conv_params['kernel_size']
@@ -141,30 +148,36 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
 
     last_layer = "model_input"
     last_size = input_size
-    for i, (weights, biases, bn_params, conv_params, act_func, alpha) in enumerate(zip(weights_list, biases_list, batch_norm_params, conv_layer_params, activation_functions, alphas)):
+    for i, (weights, biases, norm_params, conv_params, act_func, alpha) in enumerate(zip(weights_list, biases_list, norm_layer_params, conv_layer_params, activation_functions, alphas)):
 
         if conv_params is not None:
             filters = conv_params["filters"]
             cpp_code += f"    std::array<Scalar, {filters}> layer_{i+1}_output;\n"
             cpp_code += f"    convolutionLayer<Scalar, {output_size}, {filters}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), strides_{i+1}.data(), padding_{i+1}.data(), dilation_rate_{i+1}.data(), {activation_func_map[act_func]}<Scalar>, {alpha});\n\n"
 
-        if weights is not None and biases is not None:
+        elif weights is not None and biases is not None:
             output_size = weights.shape[1]
             cpp_code += f"    std::array<Scalar, {output_size}> layer_{i+1}_output;\n"
-            cpp_code += f"    forwardPropagation<Scalar, {output_size}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), {last_size}, &{activation_func_map[act_func]}<Scalar>, {alpha});\n\n"
+            cpp_code += f"    forwardPass<Scalar, {output_size}>(layer_{i+1}_output.data(), {last_layer}.data(), weights_{i+1}.data(), biases_{i+1}.data(), {last_size}, &{activation_func_map[act_func]}<Scalar>, {alpha});\n\n"
 
-        if bn_params is not None:
+        elif act_func == 'batchNormalization' and norm_params is not None:
             output_size = len(gamma)
             cpp_code += f"    std::array<Scalar, {output_size}> layer_{i+1}_output;\n"
             cpp_code += f"    batchNormalization<Scalar, {output_size}>(layer_{i+1}_output.data(), {last_layer}.data(), gamma_{i+1}.data(), beta_{i+1}.data(), mean_{i+1}.data(), variance_{i+1}.data(), epsilon_{i+1});\n\n"
 
-        if act_func == 'flatten':
+        elif act_func == 'layerNormalization' and norm_params is not None:
+            gamma, beta, _, _, epsilon = norm_params
+            output_size = len(gamma)
+            cpp_code += f"    std::array<Scalar, {output_size}> layer_{i+1}_output;\n"
+            cpp_code += f"    layerNormalization<Scalar, {output_size}>(layer_{i+1}_output.data(), {last_layer}.data(), gamma_{i+1}.data(), beta_{i+1}.data(), epsilon_{i+1});\n\n"
+
+        elif act_func == 'flatten':
             output_size = last_size
             flatten_size = output_size * filters if conv_params is not None else weights.shape[0]
             cpp_code += f"    std::array<Scalar, {flatten_size}> layer_{i+1}_output;\n"
             cpp_code += f"    flattenLayer<Scalar, {output_size // filters}, {filters}>(layer_{i+1}_output.data(), {last_layer}.data());\n"
 
-        if weights is None and biases is None and bn_params is None:
+        elif weights is None and biases is None and norm_params is None:
             output_size = last_size
             activation_func_name = activation_func_map[act_func]
             cpp_code += f"    std::array<Scalar, {output_size}> layer_{i+1}_output;\n"
@@ -183,12 +196,12 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
         cpp_code += "};\n\n"
         cpp_code += f"""    std::array<Scalar, {output_size}> model_output;
     for (int i = 0; i < {output_size}; i++) {{ model_output[i] = ({last_layer}.data()[i] * output_norms[i]) + output_mins[i]; }} \n
-    """
+"""
 
     else:
         cpp_code += f"    std::array<Scalar, {output_size}> model_output = {last_layer}; \n\n"
     
-    cpp_code += f"""return model_output;
+    cpp_code += f"""    return model_output;
 }}
 """
 

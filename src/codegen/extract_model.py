@@ -19,39 +19,73 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 def extractModel(model, file_type):
     """
     Extract model weights, biases, activation functions, alphas, dropout rates, and batch normalization parameters,
-    including epsilon, based on the file type (.h5, .keras, SavedModel, .onnx).
+    including epsilon, based on the file type (.h5, .keras, .onnx).
     """
-    weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params = [], [], [], [], [], [], []
+    weights_list, biases_list, activation_functions, alphas, dropout_rates, norm_layer_params, conv_layer_params = [], [], [], [], [], [], []
 
+    # for keras/tensorflow models
     if file_type in ['.h5', '.keras']:
+
+        # iter through each layer
         for layer in model.layers:
             layer_weights = layer.get_weights()
             conv_layer_params.append(None)
 
-            if 'batch_normalization' in layer.name.lower():
+            # activation layer
+            if 'activation' in layer.name.lower() or isinstance(layer, keras.layers.Activation):
+                config = layer.get_config()
+                activation = config.get('activation', 'linear') if isinstance(config.get('activation'), str) else config.get('activation', 'linear')
+                activation_functions.append(activation)
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                alphas.append(0.0)
+                dropout_rates.append(0.0)
+            
+            # flatten layer
+            elif 'flatten' in layer.name.lower() or isinstance(layer, keras.layers.Flatten):
+                config = layer.get_config()
+                activation = 'flatten'
+                activation_functions.append(activation)
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                alphas.append(0.0)
+                dropout_rates.append(0.0)
+
+            # batch norm layer
+            elif 'batch_normalization' in layer.name.lower() or isinstance(layer, keras.layers.BatchNormalization):
                 config = layer.get_config()
                 epsilon = config.get('epsilon', 1e-5)
-
                 if len(layer_weights) == 4:
                     gamma, beta, moving_mean, moving_variance = layer_weights
-                    batch_norm_params.append((gamma, beta, moving_mean, moving_variance, epsilon))
+                    norm_layer_params.append((gamma, beta, moving_mean, moving_variance, epsilon))
                     weights_list.append(None)
                     biases_list.append(None)
                     activation_functions.append('batchNormalization')
                     alphas.append(0.0)
                     dropout_rates.append(0.0)
                 else:
-                    batch_norm_params.append(None)
+                    norm_layer_params.append(None)
                     activation_functions.append(None)
-            elif 'activation' in layer.name.lower() or isinstance(layer, keras.layers.Activation):
+
+            # layer norm layer
+            elif 'layer_normalization' in layer.name.lower() or isinstance(layer, keras.layers.LayerNormalization):
                 config = layer.get_config()
-                activation = config.get('activation', 'linear') if isinstance(config.get('activation'), str) else config.get('activation', 'linear')
-                activation_functions.append(activation)
-                weights_list.append(None)
-                biases_list.append(None)
-                batch_norm_params.append(None)
-                alphas.append(0.0)
-                dropout_rates.append(0.0)
+                epsilon = config.get('epsilon', 1e-5)
+                if len(layer_weights) == 2:
+                    gamma, beta = layer_weights
+                    norm_layer_params.append((gamma, beta, None, None, epsilon)) 
+                    activation_functions.append('layerNormalization')
+                    weights_list.append(None)
+                    biases_list.append(None)
+                    alphas.append(0.0)
+                    dropout_rates.append(0.0)
+                else:
+                    norm_layer_params.append(None)
+                    activation_functions.append(None)
+
+            # dense or fowardpass layer
             else:
                 if len(layer_weights) == 2:
                     weights, biases = layer_weights
@@ -59,16 +93,19 @@ def extractModel(model, file_type):
                     weights, biases = None, None
                 weights_list.append(weights)
                 biases_list.append(biases)
-                batch_norm_params.append(None)
+                norm_layer_params.append(None)
 
+                # if no activation function specificed in dense layer, assume linear
                 config = layer.get_config()
                 activation = config.get('activation', 'linear') if isinstance(config.get('activation'), str) else config.get('activation', 'linear')
 
+                # add activation function to list
                 if activation != 'linear':
                     activation_functions.append(activation)
                 else:
                     activation_functions.append('linear')
 
+                # check for LeakyReLU condition
                 if isinstance(activation, dict) and activation['class_name'] == 'LeakyReLU':
                     alphas.append(activation['config'].get('negative_slope', activation['config'].get('alpha', 0.01)))
                 elif activation == 'elu':
@@ -76,70 +113,13 @@ def extractModel(model, file_type):
                 else:
                     alphas.append(0.0)
 
+                # add dropout
                 dropout_rates.append(layer.rate if 'dropout' in layer.name.lower() else 0.0)
 
+        # special condition for leakyReLu
         activation_functions = [act['class_name'] if isinstance(act, dict) else act for act in activation_functions]
         activation_functions = ['leakyRelu' if act == 'LeakyReLU' else act for act in activation_functions]
         input_size = model.layers[0].input_shape[1] if hasattr(model.layers[0], 'input_shape') else model.input_shape[1]
-
-    elif file_type == 'SavedModel':
-        input_size = model.inputs[0].shape[-1]
-
-        for layer in model.layers:
-            layer_weights = layer.weights
-
-            if hasattr(layer, 'weights') and layer_weights:
-                if 'batch_normalization' in layer.name.lower() and len(layer_weights) == 4:
-                    gamma, beta, moving_mean, moving_variance = [w.numpy() for w in layer_weights]
-                    config = layer.get_config()
-                    epsilon = config.get('epsilon', 1e-5)
-                    batch_norm_params.append((gamma, beta, moving_mean, moving_variance, epsilon))
-                    weights_list.append(None)
-                    biases_list.append(None)
-                    activation_functions.append('batchNormalization')
-                    alphas.append(0.0)
-                    dropout_rates.append(0.0)
-                elif len(layer_weights) == 2:
-                    weights, biases = [w.numpy() for w in layer_weights]
-                    weights_list.append(weights)
-                    biases_list.append(biases)
-                    batch_norm_params.append(None)
-                    activation_functions.append(layer.get_config().get('activation', 'linear'))
-                else:
-                    weights_list.append(None)
-                    biases_list.append(None)
-                    batch_norm_params.append(None)
-                    activation_functions.append('linear')
-            
-            if 'activation' in layer.name.lower() or isinstance(layer, keras.layers.Activation):
-                config = layer.get_config()
-                activation = config.get('activation', 'linear') if isinstance(config.get('activation'), str) else config.get('activation', 'linear')
-                activation_functions.append(activation)
-                weights_list.append(None)
-                biases_list.append(None)
-                batch_norm_params.append(None)
-                alphas.append(0.0)
-                dropout_rates.append(0.0)
-
-            config = layer.get_config()
-            activation = config.get('activation', 'linear') if isinstance(config.get('activation'), str) else config.get('activation', 'linear')
-
-            if activation != 'linear':
-                activation_functions.append(activation)
-            else:
-                activation_functions.append('linear')
-
-            if isinstance(activation, dict) and activation['class_name'] == 'LeakyReLU':
-                alphas.append(activation['config'].get('negative_slope', activation['config'].get('alpha', 0.01)))
-            elif activation == 'elu':
-                alphas.append(layer.get_config().get('alpha', 1.0))
-            else:
-                alphas.append(0.0)
-
-            dropout_rates.append(layer.rate if 'dropout' in layer.name.lower() else 0.0)
-
-        activation_functions = [act['class_name'] if isinstance(act, dict) else act for act in activation_functions]
-        activation_functions = ['leakyRelu' if act == 'LeakyReLU' else act for act in activation_functions]
 
     elif file_type == '.onnx':
         for initializer in model.graph.initializer:
@@ -195,13 +175,13 @@ def extractModel(model, file_type):
                         variance = onnx.numpy_helper.to_array(attr)
                     elif attr.name == "epsilon":
                         epsilon = attr.f
-                batch_norm_params.append((gamma, beta, mean, variance, epsilon))
+                norm_layer_params.append((gamma, beta, mean, variance, epsilon))
                 alphas.append(0.0)  
                 dropout_rates.append(0.0) 
             else:
-                batch_norm_params.append(None)
+                norm_layer_params.append(None)
 
         dropout_rates = [0.0] * len(weights_list)
         input_size = model.graph.input[0].type.tensor_type.shape.dim[1].dim_value
 
-    return weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size
+    return weights_list, biases_list, activation_functions, alphas, dropout_rates, norm_layer_params, conv_layer_params, input_size

@@ -43,17 +43,12 @@ def loadModel(file_path):
             error_message="\n".join(errors)
             print(f"\nAll attempts to load the model failed:\n{error_message}\n")
 
-    elif file_extension == '' and os.path.isdir(file_path):
-        try:
-            model = tf.saved_model.load(file_path)
-            model = model.signatures['serving_default']
-        except Exception as e:
-            raise ValueError(f"\nError loading SavedModel from {file_name}: {e}\n")
     elif file_extension == '.onnx':
         try:
             model = onnx.load(file_path)
         except Exception as e:
             raise ValueError(f"\nError loading ONNX model from {file_name}: {e}\n")
+        
     else:
         raise ValueError("\nUnsupported file type\n")
 
