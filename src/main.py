@@ -7,7 +7,7 @@ import os
 import shutil
 import argparse
 import numpy as np
-from codegen.activation_functions import activationFunctions
+from codegen.layer_propagation import activationFunctions
 from codegen.code_generation import preambleHeader, codeGen
 from codegen.extract_model import extractModel
 from codegen.load_model import loadModel
@@ -76,7 +76,6 @@ else:
                     input_norms, input_mins, output_norms, output_mins = None, None, None, None
 
                 model, file_extension = loadModel(file_path)
-                # model.summary()
                 # print("\n - - LOADED MODEL - - \n")
 
                 weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size = extractModel(model, file_extension)
