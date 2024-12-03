@@ -1,11 +1,17 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Input, BatchNormalization
+from tensorflow.keras.layers import Dense, Input, BatchNormalization, Dropout, Conv2D, Flatten, LeakyReLU, ELU, Activation, LayerNormalization
+from tensorflow.keras.models import load_model
+from tensorflow.keras.activations import sigmoid
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+import pandas as pd
+from tensorflow.keras.regularizers import l2
+from sklearn.preprocessing import MinMaxScaler
+import joblib
 import os
-
-# NAME OF MODEL
-name_of_model = "test"
+import csv          
 
 # Generate random matrix of input and output
 np.random.seed(35)
@@ -30,9 +36,11 @@ for batch_size in iter1:
         model_complete = Sequential([
             Input(shape=(input.shape[1],)),  # Explicit Input layer
             Dense(8, activation='relu'),
-            Dense(16, activation='relu'),
             BatchNormalization(),
+            Dense(16, activation='relu'),
+            LayerNormalization(),
             Dense(8, activation='relu'),
+            BatchNormalization(),
             Dense(output.shape[1], activation='linear')
         ])
         

@@ -30,7 +30,6 @@ using activationFunction = void(*)(Scalar*, const Scalar*, size_t, Scalar);
     return cpp_code
 
 
-
 def codeGen(cpp_code, precision_type, weights_list, biases_list, activation_functions, alphas, dropout_rates, norm_layer_params, conv_layer_params, input_size, user_file, input_norms, input_mins, output_norms, output_mins):
     """
     Generate C++ code from model parameters such as weights, biases, activation functions, batch normalization parameters,
@@ -75,7 +74,7 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
     """
         cpp_code += f'if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }} \n\n'
     else: 
-        cpp_code += f"    std::array<Scalar, 10> model_input = initial_input; \n\n"
+        cpp_code += f"    std::array<Scalar, {input_size}> model_input = initial_input; \n\n"
         cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }} \n\n'
 
     # cpp_code += f"    std::array<Scalar, {len(dropout_rates)}> dropoutRates = {{"
@@ -96,16 +95,14 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
             cpp_code += f"    std::array<Scalar, {len(biases_flat)}> biases_{i+1} = {{"
             cpp_code += ", ".join(f"{x:10.9e}" for x in biases_flat)
             cpp_code += "};\n\n"
-###
 
         if norm_params is not None:
             gamma, beta, mean, variance, epsilon = norm_params
 
-            # Flatten only if the parameter exists
             gamma_flat = gamma.flatten() if gamma is not None else None
             beta_flat = beta.flatten() if beta is not None else None
-            mean_flat = mean.flatten() if mean is not None else None  # LayerNormalization has no mean
-            variance_flat = variance.flatten() if variance is not None else None  # LayerNormalization has no variance
+            mean_flat = mean.flatten() if mean is not None else None  
+            variance_flat = variance.flatten() if variance is not None else None 
 
             if gamma_flat is not None and gamma_flat.size > 0:
                 cpp_code += f"    std::array<Scalar, {len(gamma_flat)}> gamma_{i+1} = {{"
@@ -129,7 +126,6 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
 
             cpp_code += f"    Scalar epsilon_{i+1} = {epsilon:10.9e};\n\n"
 
-###
         if conv_params is not None:
             filters = conv_params['filters']
             kernel_size = conv_params['kernel_size']

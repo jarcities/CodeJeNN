@@ -76,7 +76,6 @@ else:
                     input_norms, input_mins, output_norms, output_mins = None, None, None, None
 
                 model, file_extension = loadModel(file_path)
-                # model.summary()
                 # print("\n - - LOADED MODEL - - \n")
 
                 weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size = extractModel(model, file_extension)
