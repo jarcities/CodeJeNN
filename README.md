@@ -52,3 +52,21 @@ CodeJeNN/
     * `layers.md` : shows the layers that codejenn can codegenerates and supports for inference.
 * `src/` : source code with its own **README** explaning how to run.
 * `license.txt` : distribution A licensing. 
+
+## Python Environment/Requirements
+
+```bash
+brew install python3.11
+python3.11 -m venv codejenn
+```
+
+
+then source
+
+```bash
+source codejenn/bin/activate
+```
+
+```
+pip3 install -r requirements.txt
+```
