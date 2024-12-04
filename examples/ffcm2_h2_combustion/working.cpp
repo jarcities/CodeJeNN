@@ -4,7 +4,7 @@
 #include <cmath>
 #include <chrono> // For timing
 #include "ffcm2_h2.h" // Change file name to desired header file
-
+//test
 using Scalar = double;
 
 // Function to scale the elements of the input array randomly
