@@ -96,7 +96,7 @@ int main() {
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
 
     // Report the elapsed time
-    std::cout << "Execution Time: " << elapsed_time << " ms" << std::endl;
+    //std::cout << "Execution Time: " << elapsed_time << " ms" << std::endl;
 
 
 
