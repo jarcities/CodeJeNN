@@ -8,32 +8,7 @@
 template<typename Scalar>
 using activationFunction = void(*)(Scalar&, Scalar, Scalar);
 
-// - -
-
-template<typename Scalar, int size>
-void batchNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, const Scalar* mean, const Scalar* variance, const Scalar epsilon) noexcept {
-    for (int i = 0; i < size; ++i) {
-        outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
-    }
-}
-
-template<typename Scalar, int size>
-void layerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, Scalar epsilon) noexcept {
-    Scalar mean = 0;
-    Scalar variance = 0;
-    for (int i = 0; i < size; ++i) {
-        mean += inputs[i];
-    }
-    mean /= size;
-    for (int i = 0; i < size; ++i) {
-        variance += (inputs[i] - mean) * (inputs[i] - mean);
-    }
-    variance /= size;
-    for (int i = 0; i < size; ++i) {
-        outputs[i] = gamma[i] * ((inputs[i] - mean) / std::sqrt(variance + epsilon)) + beta[i];
-    }
-}
-
+// - - -
 // Per-element activation functions (unchanged)
 template<typename Scalar>
 void relu(Scalar& output, Scalar input, Scalar alpha = 0.0) noexcept {
@@ -77,16 +52,89 @@ void dotProduct(Scalar& sum, Scalar input, Scalar weight) noexcept {
     sum += input * weight;
 }
 
+// - - -
+// Helper Functions for layerNormalization and batchNormalization
+
+// 1. Compute the sum of inputs
+template <typename Scalar, int size, std::size_t... Is>
+inline Scalar computeSum(const Scalar* inputs, std::index_sequence<Is...>) noexcept {
+    return ( (inputs[Is] + ...) );
+}
+
+// 2. Compute the sum of squared deviations from the mean
+template <typename Scalar, int size, std::size_t... Is>
+inline Scalar computeSumSquares(const Scalar* inputs, Scalar mean, std::index_sequence<Is...>) noexcept {
+    return ( ((inputs[Is] - mean) * (inputs[Is] - mean)) + ... );
+}
+
+// 3. Apply layer normalization to each element
+template <typename Scalar, int size, std::size_t... Is>
+inline void layerNormalizationImpl(Scalar* outputs,
+                                   const Scalar* inputs,
+                                   const Scalar* gamma,
+                                   const Scalar* beta,
+                                   Scalar mean,
+                                   Scalar variance,
+                                   Scalar epsilon,
+                                   std::index_sequence<Is...>) noexcept {
+    // Apply the normalization formula to each element using a fold expression
+    ((outputs[Is] = gamma[Is] * ((inputs[Is] - mean) / std::sqrt(variance + epsilon)) + beta[Is]), ...);
+}
+
+// 4. Optimized layerNormalization function
+template<typename Scalar, int size>
+inline void layerNormalization(Scalar* outputs,
+                               const Scalar* inputs,
+                               const Scalar* gamma,
+                               const Scalar* beta,
+                               Scalar epsilon) noexcept {
+    // Compute mean using variadic templates
+    Scalar mean = computeSum<Scalar, size>(inputs, std::make_index_sequence<size>{}) / static_cast<Scalar>(size);
+    
+    // Compute variance using variadic templates
+    Scalar variance = computeSumSquares<Scalar, size>(inputs, mean, std::make_index_sequence<size>{}) / static_cast<Scalar>(size);
+    
+    // Apply normalization to each element using variadic templates
+    layerNormalizationImpl<Scalar, size>(outputs, inputs, gamma, beta, mean, variance, epsilon, std::make_index_sequence<size>{});
+}
+
+// 5. Apply batch normalization to each element
+template <typename Scalar, int size, std::size_t... Is>
+inline void batchNormalizationImpl(Scalar* outputs,
+                                   const Scalar* inputs,
+                                   const Scalar* gamma,
+                                   const Scalar* beta,
+                                   const Scalar* mean,
+                                   const Scalar* variance,
+                                   Scalar epsilon,
+                                   std::index_sequence<Is...>) noexcept {
+    // Apply the normalization formula to each element using a fold expression
+    ((outputs[Is] = gamma[Is] * ((inputs[Is] - mean[Is]) / std::sqrt(variance[Is] + epsilon)) + beta[Is]), ...);
+}
+
+// 6. Optimized batchNormalization function
+template<typename Scalar, int size>
+inline void batchNormalization(Scalar* outputs,
+                               const Scalar* inputs,
+                               const Scalar* gamma,
+                               const Scalar* beta,
+                               const Scalar* mean,
+                               const Scalar* variance,
+                               Scalar epsilon) noexcept {
+    batchNormalizationImpl<Scalar, size>(outputs, inputs, gamma, beta, mean, variance, epsilon, std::make_index_sequence<size>{});
+}
+
+// - - -
 // Modified forwardPass with compile-time loop unrolling using variadic templates
 template<typename Scalar, int output_size, std::size_t... Is>
-void forwardPassImpl(Scalar* outputs,
-                    const Scalar* inputs,
-                    const Scalar* weights,
-                    const Scalar* biases,
-                    int input_size,
-                    activationFunction<Scalar> activation_function,
-                    Scalar alpha,
-                    std::index_sequence<Is...>) noexcept {
+inline void forwardPassImpl(Scalar* outputs,
+                            const Scalar* inputs,
+                            const Scalar* weights,
+                            const Scalar* biases,
+                            int input_size,
+                            activationFunction<Scalar> activation_function,
+                            Scalar alpha,
+                            std::index_sequence<Is...>) noexcept {
     // Expand the processing of each output neuron using a fold expression
     ( (
         // Compute the weighted sum for each output neuron
@@ -104,13 +152,13 @@ void forwardPassImpl(Scalar* outputs,
 }
 
 template<typename Scalar, int output_size>
-void forwardPass(Scalar* outputs,
-                const Scalar* inputs,
-                const Scalar* weights,
-                const Scalar* biases,
-                int input_size,
-                activationFunction<Scalar> activation_function,
-                Scalar alpha) noexcept {
+inline void forwardPass(Scalar* outputs,
+                        const Scalar* inputs,
+                        const Scalar* weights,
+                        const Scalar* biases,
+                        int input_size,
+                        activationFunction<Scalar> activation_function,
+                        Scalar alpha) noexcept {
     // Generate a compile-time sequence of indices and invoke forwardPassImpl
     forwardPassImpl<Scalar, output_size>(outputs,
                                          inputs,
@@ -124,23 +172,24 @@ void forwardPass(Scalar* outputs,
 
 // Helper function to apply an activation function to each element of an array
 template <typename Scalar, std::size_t Size, std::size_t... Is>
-void applyActivationFunctionsImpl(std::array<Scalar, Size>& outputs,
-                                   const std::array<Scalar, Size>& inputs,
-                                   activationFunction<Scalar> activation_func,
-                                   Scalar alpha,
-                                   std::index_sequence<Is...>) noexcept {
+inline void applyActivationFunctionsImpl(std::array<Scalar, Size>& outputs,
+                                        const std::array<Scalar, Size>& inputs,
+                                        activationFunction<Scalar> activation_func,
+                                        Scalar alpha,
+                                        std::index_sequence<Is...>) noexcept {
     // Apply the activation function to each element using a fold expression
     (activation_func(outputs[Is], inputs[Is], alpha), ...);
 }
 
 template <typename Scalar, std::size_t Size>
-void applyActivationFunctions(std::array<Scalar, Size>& outputs,
-                              const std::array<Scalar, Size>& inputs,
-                              activationFunction<Scalar> activation_func,
-                              Scalar alpha) noexcept {
+inline void applyActivationFunctions(std::array<Scalar, Size>& outputs,
+                                     const std::array<Scalar, Size>& inputs,
+                                     activationFunction<Scalar> activation_func,
+                                     Scalar alpha) noexcept {
     applyActivationFunctionsImpl<Scalar, Size>(outputs, inputs, activation_func, alpha, std::make_index_sequence<Size>{});
 }
 
+// - - -
 // Modified testing function with inlined activation function calls using variadic templates
 template <typename Scalar = double>
 auto newVariadic(const std::array<Scalar, 3>& initial_input) { 
