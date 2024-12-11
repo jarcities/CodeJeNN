@@ -3,7 +3,7 @@
 #include <random>
 #include <cmath>
 #include <chrono>
-#include "chatgpt.h" // change file name to desired header file
+#include "newVariadic.h" // change file name to desired header file
 
 using Scalar = double;
 
@@ -12,7 +12,7 @@ int main() {
 
     for (int j = 0; j < 1000; j++) {
         std::array<Scalar, 3> input = {Scalar(1 + j), Scalar(2 + j), Scalar(3 + j)}; 
-        auto output = chatgpt<Scalar>(input);
+        auto output = newVariadic<Scalar>(input);
 
         std::cout << "Iteration " << j << " - Input: "
                   << (1 + j) << ", " << (2 + j) << ", " << (3 + j) << " - Output: ";

@@ -88,8 +88,17 @@ void swish(Scalar* outputs, const Scalar* inputs, size_t size, Scalar alpha = 1.
         'prelu': """
 template<typename Scalar>
 void prelu(Scalar* outputs, const Scalar* inputs, size_t size, Scalar alpha) noexcept {
-    for (size_t i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; i++) {
         outputs[i] = inputs[i] > 0 ? inputs[i] : alpha * inputs[i];
+    }
+}
+""",
+        'silu': """
+template<typename Scalar>
+void silu(Scalar* outputs, const Scalar* inputs, size_t size, Scalar alpha = 1.0) noexcept {
+    for (size_t i = 0; i < size; ++i) {
+        Scalar sigmoid = 1 / (1 + std::exp(-inputs[i]));
+        outputs[i] = inputs[i] * sigmoid;
     }
 }
 """,
@@ -179,4 +188,3 @@ void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, c
             added_functions.add(func_name)
 
     return cpp_code
-

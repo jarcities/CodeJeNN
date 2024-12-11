@@ -48,9 +48,10 @@ def codeGen(cpp_code, precision_type, weights_list, biases_list, activation_func
         'softmax': 'softmax',
         'selu': 'selu',
         'swish': 'swish',
-        'batchNormalization': 'nullptr',  
-        'flatten': 'nullptr',             
-        'convolutionalLayer': 'nullptr'   
+        'silu': 'silu',  # Added mapping for 'silu'
+        'batchNormalization': 'nullptr',
+        'flatten': 'nullptr',
+        'convolutionalLayer': 'nullptr'
     }
 
     name_space = os.path.splitext(os.path.basename(user_file))[0]
@@ -60,8 +61,9 @@ def codeGen(cpp_code, precision_type, weights_list, biases_list, activation_func
     cpp_code += f"""
 // - -\n
 template <typename Scalar = {precision_type}>
-auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
+auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ 
 """
+
     if input_norms is not None:
         cpp_code += f"    std::array<Scalar, {len(input_norms)}> input_norms = {{"
         cpp_code += ", ".join(f"{x:10.9e}" for x in input_norms)
@@ -70,7 +72,7 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
         cpp_code += ", ".join(f"{x:10.9e}" for x in input_mins)
         cpp_code += "};\n\n"
         cpp_code += f"""    std::array<Scalar, {input_size}> model_input;
-    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]); }}\n
+    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]); }}
     """
         cpp_code += f'if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }} \n\n'
     else: 
@@ -145,7 +147,6 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
     last_layer = "model_input"
     last_size = input_size
     for i, (weights, biases, norm_params, conv_params, act_func, alpha) in enumerate(zip(weights_list, biases_list, norm_layer_params, conv_layer_params, activation_functions, alphas)):
-
         if conv_params is not None:
             filters = conv_params["filters"]
             cpp_code += f"    std::array<Scalar, {filters}> layer_{i+1}_output;\n"
@@ -191,9 +192,8 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ \n
         cpp_code += ", ".join(f"{x:10.9e}" for x in output_mins)
         cpp_code += "};\n\n"
         cpp_code += f"""    std::array<Scalar, {output_size}> model_output;
-    for (int i = 0; i < {output_size}; i++) {{ model_output[i] = ({last_layer}.data()[i] * output_norms[i]) + output_mins[i]; }} \n
+    for (int i = 0; i < {output_size}; i++) {{ model_output[i] = ({last_layer}.data()[i] * output_norms[i]) + output_mins[i]; }} 
 """
-
     else:
         cpp_code += f"    std::array<Scalar, {output_size}> model_output = {last_layer}; \n\n"
     
