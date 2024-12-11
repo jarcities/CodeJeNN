@@ -3,23 +3,23 @@
 #include <random>
 #include <cmath>
 #include <chrono>
-#include "newVariadic.h" // change file name to desired header file
+#include "original.h" // change file name to desired header file
 
 using Scalar = double;
 
 int main() {
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    for (int j = 0; j < 10000; j++) {
+    for (int j = 0; j < 1000000; j++) {
         std::array<Scalar, 3> input = {Scalar(1 + j), Scalar(2 + j), Scalar(3 + j)}; 
-        auto output = newVariadic<Scalar>(input);
+        auto output = original<Scalar>(input);
 
-        std::cout << "Iteration " << j << " - Input: "
-                  << (1 + j) << ", " << (2 + j) << ", " << (3 + j) << " - Output: ";
-        for (const auto& val : output) {
-            std::cout << val << " ";
-        }
-        std::cout << std::endl;
+        // std::cout << "Iteration " << j << " - Input: "
+        //           << (1 + j) << ", " << (2 + j) << ", " << (3 + j) << " - Output: ";
+        // for (const auto& val : output) {
+        //     std::cout << val << " ";
+        // }
+        // std::cout << std::endl;
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();
