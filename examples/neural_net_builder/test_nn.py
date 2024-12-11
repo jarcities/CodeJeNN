@@ -16,7 +16,7 @@ dir = os.getcwd()
 print(dir)
 
 # model variables, inputs, and outputs
-model_file = 'test_model_1.h5'
+model_file = 'original.h5'
 input = np.array([1,2,3]).reshape(-1,3)
 # output = np.array([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]).reshape(-1, 1)
 

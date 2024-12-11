@@ -35,12 +35,19 @@ for batch_size in iter1:
         # Model definition
         model_complete = Sequential([
             Input(shape=(input.shape[1],)),  # Explicit Input layer
-            Dense(128, activation='relu'),
-            BatchNormalization(),
-            Dense(256, activation='relu'),
+            Activation('relu'),
+            Dropout(0.2),
+            Dense(8),
+            Dense(8, activation='swish'),
             LayerNormalization(),
-            Dense(128, activation='relu'),
+            Dense(8, activation='tanh'),
             BatchNormalization(),
+            Dense(8),
+            Activation('sigmoid'),
+            Dropout(0.2),
+            Activation('elu'),
+            Dense(8),
+            LayerNormalization(),
             Dense(output.shape[1], activation='linear')
         ])
         
