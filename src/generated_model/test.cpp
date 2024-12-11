@@ -10,7 +10,7 @@ using Scalar = double;
 int main() {
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    for (int j = 0; j < 1000; j++) {
+    for (int j = 0; j < 10000; j++) {
         std::array<Scalar, 3> input = {Scalar(1 + j), Scalar(2 + j), Scalar(3 + j)}; 
         auto output = newVariadic<Scalar>(input);
 

@@ -77,20 +77,35 @@ void dotProduct(Scalar& sum, Scalar input, Scalar weight) noexcept {
     sum += input * weight;
 }
 
-// Modified forwardPass with all loops
+// // Modified forwardPass with all loops
+// template<typename Scalar, int output_size>
+// void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+//     for(int i = 0; i < output_size; ++i){
+//         Scalar sum = 0;
+//         for(int j = 0; j < input_size; ++j){
+//             // Compute the index for weights (assuming row-major order)
+//             sum += inputs[j] * weights[j * output_size + i];
+//             // Alternatively, using the per-element dotProduct:
+//             // dotProduct(sum, inputs[j], weights[j * output_size + i]);
+//         }
+//         // Add bias
+//         sum += biases[i];
+//         // Apply activation function
+//         activation_function(outputs[i], sum, alpha);
+//     }
+// }
+
 template<typename Scalar, int output_size>
 void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
     for(int i = 0; i < output_size; ++i){
         Scalar sum = 0;
         for(int j = 0; j < input_size; ++j){
-            // Compute the index for weights (assuming row-major order)
-            sum += inputs[j] * weights[j * output_size + i];
-            // Alternatively, using the per-element dotProduct:
-            // dotProduct(sum, inputs[j], weights[j * output_size + i]);
+            // Call dotProduct to accumulate the weighted inputs
+            dotProduct(sum, inputs[j], weights[j * output_size + i]);
         }
-        // Add bias
-        sum += biases[i];
-        // Apply activation function
+        // Call addBias to add the bias to the accumulated sum
+        addBias(sum, biases[i]);
+        // Apply the activation function to the final sum
         activation_function(outputs[i], sum, alpha);
     }
 }
