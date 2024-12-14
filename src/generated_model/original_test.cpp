@@ -24,7 +24,7 @@ int main() {
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    std::cout << "Execution Time: " << elapsed_time << " ms" << std::endl;
+    std::cout << elapsed_time << " ms" << std::endl;
 
     return 0;
 }
