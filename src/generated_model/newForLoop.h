@@ -9,30 +9,6 @@ using activationFunction = void(*)(Scalar&, Scalar, Scalar);
 
 // - -
 
-template<typename Scalar, int size>
-void batchNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, const Scalar* mean, const Scalar* variance, const Scalar epsilon) noexcept {
-    for (int i = 0; i < size; ++i) {
-        outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
-    }
-}
-
-template<typename Scalar, int size>
-void layerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, Scalar epsilon) noexcept {
-    Scalar mean = 0;
-    Scalar variance = 0;
-    for (int i = 0; i < size; ++i) {
-        mean += inputs[i];
-    }
-    mean /= size;
-    for (int i = 0; i < size; ++i) {
-        variance += (inputs[i] - mean) * (inputs[i] - mean);
-    }
-    variance /= size;
-    for (int i = 0; i < size; ++i) {
-        outputs[i] = gamma[i] * ((inputs[i] - mean) / std::sqrt(variance + epsilon)) + beta[i];
-    }
-}
-
 // Per-element activation functions
 template<typename Scalar>
 void relu(Scalar& output, Scalar input, Scalar alpha = 0.0) noexcept {
@@ -65,47 +41,71 @@ void elu(Scalar& output, Scalar input, Scalar alpha) noexcept {
     output = input > 0 ? input : alpha * (std::exp(input) - 1);
 }
 
-// Per-element addBias
-template<typename Scalar>
-void addBias(Scalar& output, Scalar bias) noexcept {
-    output += bias;
+template<typename Scalar, int size>
+void batchNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, const Scalar* mean, const Scalar* variance, const Scalar epsilon) noexcept {
+    for (int i = 0; i < size; ++i) {
+        outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
+    }
 }
 
-// Per-element dotProduct operation (multiply-add)
-template<typename Scalar>
-void dotProduct(Scalar& sum, Scalar input, Scalar weight) noexcept {
-    sum += input * weight;
+template<typename Scalar, int size>
+void layerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, Scalar epsilon) noexcept {
+    Scalar mean = 0;
+    Scalar variance = 0;
+    for (int i = 0; i < size; ++i) {
+        mean += inputs[i];
+    }
+    mean /= size;
+    for (int i = 0; i < size; ++i) {
+        variance += (inputs[i] - mean) * (inputs[i] - mean);
+    }
+    variance /= size;
+    for (int i = 0; i < size; ++i) {
+        outputs[i] = gamma[i] * ((inputs[i] - mean) / std::sqrt(variance + epsilon)) + beta[i];
+    }
 }
 
-// // Modified forwardPass with all loops
+// // Per-element addBias
+// template<typename Scalar>
+// void addBias(Scalar& output, Scalar bias) noexcept {
+//     output += bias;
+// }
+
+// // Per-element dotProduct operation (multiply-add)
+// template<typename Scalar>
+// void dotProduct(Scalar& sum, Scalar input, Scalar weight) noexcept {
+//     sum += input * weight;
+// }
+
 // template<typename Scalar, int output_size>
 // void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
 //     for(int i = 0; i < output_size; ++i){
 //         Scalar sum = 0;
 //         for(int j = 0; j < input_size; ++j){
-//             // Compute the index for weights (assuming row-major order)
-//             sum += inputs[j] * weights[j * output_size + i];
-//             // Alternatively, using the per-element dotProduct:
-//             // dotProduct(sum, inputs[j], weights[j * output_size + i]);
+//             // Call dotProduct to accumulate the weighted inputs
+//             dotProduct(sum, inputs[j], weights[j * output_size + i]);
 //         }
-//         // Add bias
-//         sum += biases[i];
-//         // Apply activation function
+//         // Call addBias to add the bias to the accumulated sum
+//         addBias(sum, biases[i]);
+//         // Apply the activation function to the final sum
 //         activation_function(outputs[i], sum, alpha);
 //     }
 // }
 
+// Modified forwardPass with all loops
 template<typename Scalar, int output_size>
 void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
     for(int i = 0; i < output_size; ++i){
         Scalar sum = 0;
         for(int j = 0; j < input_size; ++j){
-            // Call dotProduct to accumulate the weighted inputs
-            dotProduct(sum, inputs[j], weights[j * output_size + i]);
+            // Compute the index for weights (assuming row-major order)
+            sum += inputs[j] * weights[j * output_size + i];
+            // Alternatively, using the per-element dotProduct:
+            // dotProduct(sum, inputs[j], weights[j * output_size + i]);
         }
-        // Call addBias to add the bias to the accumulated sum
-        addBias(sum, biases[i]);
-        // Apply the activation function to the final sum
+        // Add bias
+        sum += biases[i];
+        // Apply activation function
         activation_function(outputs[i], sum, alpha);
     }
 }

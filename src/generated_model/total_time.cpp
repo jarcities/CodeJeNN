@@ -56,6 +56,7 @@ int main() {
     // Define the filenames
     const std::string file1 = "original_runtime.txt";
     const std::string file2 = "newArray_runtime.txt";
+    const std::string file3 = "newForLoop_runtime.txt";
 
     // Sum values from file1
     long long sum1 = sumFile(file1);
@@ -64,6 +65,10 @@ int main() {
     // Sum values from file2
     long long sum2 = sumFile(file2);
     std::cout << "Total sum of " << file2 << ": " << sum2 << " ms" << std::endl;
+
+    // Sum values from file3
+    long long sum3 = sumFile(file3);
+    std::cout << "Total sum of " << file3 << ": " << sum3 << " ms" << std::endl;
 
     return 0;
 }
