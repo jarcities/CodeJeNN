@@ -2,6 +2,7 @@
 #include <array>
 #include <random>
 #include <cmath>
+#include <omp.h> // Include OpenMP header
 
 // Updated activationFunction type to operate on single elements
 template<typename Scalar>
@@ -41,62 +42,48 @@ void elu(Scalar& output, Scalar input, Scalar alpha) noexcept {
     output = input > 0 ? input : alpha * (std::exp(input) - 1);
 }
 
+// Batch Normalization with SIMD pragma
 template<typename Scalar, int size>
 void batchNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, const Scalar* mean, const Scalar* variance, const Scalar epsilon) noexcept {
+    #pragma omp simd
     for (int i = 0; i < size; ++i) {
         outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
     }
 }
 
+// Layer Normalization with SIMD pragmas and reductions
 template<typename Scalar, int size>
 void layerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, Scalar epsilon) noexcept {
     Scalar mean = 0;
     Scalar variance = 0;
+
+    // Compute mean with reduction
+    #pragma omp simd reduction(+:mean)
     for (int i = 0; i < size; ++i) {
         mean += inputs[i];
     }
     mean /= size;
+
+    // Compute variance with reduction
+    #pragma omp simd reduction(+:variance)
     for (int i = 0; i < size; ++i) {
         variance += (inputs[i] - mean) * (inputs[i] - mean);
     }
     variance /= size;
+
+    // Apply normalization
+    #pragma omp simd
     for (int i = 0; i < size; ++i) {
         outputs[i] = gamma[i] * ((inputs[i] - mean) / std::sqrt(variance + epsilon)) + beta[i];
     }
 }
 
-// // Per-element addBias
-// template<typename Scalar>
-// void addBias(Scalar& output, Scalar bias) noexcept {
-//     output += bias;
-// }
-
-// // Per-element dotProduct operation (multiply-add)
-// template<typename Scalar>
-// void dotProduct(Scalar& sum, Scalar input, Scalar weight) noexcept {
-//     sum += input * weight;
-// }
-
-// template<typename Scalar, int output_size>
-// void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-//     for(int i = 0; i < output_size; ++i){
-//         Scalar sum = 0;
-//         for(int j = 0; j < input_size; ++j){
-//             // Call dotProduct to accumulate the weighted inputs
-//             dotProduct(sum, inputs[j], weights[j * output_size + i]);
-//         }
-//         // Call addBias to add the bias to the accumulated sum
-//         addBias(sum, biases[i]);
-//         // Apply the activation function to the final sum
-//         activation_function(outputs[i], sum, alpha);
-//     }
-// }
-
-// Modified forwardPass with all loops
+// Forward Pass with SIMD pragmas and reduction in inner loop
 template<typename Scalar, int output_size>
 void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
     for(int i = 0; i < output_size; ++i){
         Scalar sum = 0;
+        #pragma omp simd reduction(+:sum)
         for(int j = 0; j < input_size; ++j){
             // Compute the index for weights (assuming row-major order)
             sum += inputs[j] * weights[j * output_size + i];
@@ -170,6 +157,7 @@ auto newForLoop(const std::array<Scalar, 3>& initial_input) {
     // - -
 
     std::array<Scalar, 3> layer_1_output;
+    // Activation functions can be vectorized using parallelism libraries or SIMD intrinsics if needed
     relu<Scalar>(layer_1_output[0], model_input[0], 0.0);
     relu<Scalar>(layer_1_output[1], model_input[1], 0.0);
     relu<Scalar>(layer_1_output[2], model_input[2], 0.0);
