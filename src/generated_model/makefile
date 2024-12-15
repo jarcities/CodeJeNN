@@ -1,5 +1,5 @@
 CXX = clang++
-CXXFLAGS = -std=c++2b -Wall -O3 -march=native
+CXXFLAGS = -std=c++23 -Wall -O3 -march=native
 TARGET1 = original_runtime
 TARGET2 = newArray_runtime
 TARGET3 = newForLoop_runtime
@@ -31,5 +31,5 @@ run: all
 	$(CXX) $(CXXFLAGS) -o $(TARGET4) $(SRC4)
 	./$(TARGET4)
 
-clean:
+clear:
 	rm -f $(TARGET1) $(TARGET2) $(TARGET3) $(TARGET4) $(FILE1) $(FILE2) $(FILE3)
