@@ -33,12 +33,15 @@ void processFile(const std::string& filename) {
     }
     infile.close();
     std::cout << "Total sum of " << filename << ": " << sum << " ms" << std::endl;
+    std::cout << std::endl;
     if (count > 0) std::cout << "Average time in " << filename << ": " << (sum / count) << " ms" << std::endl;
+    std::cout << std::endl;
 }
 
 int main() {
+    std::cout << std::endl;
     const std::string file1 = "original_runtime.txt";
-    const std::string file2 = "newArray_runtime.txt";
+    const std::string file2 = "newVariadic_runtime.txt";
     const std::string file3 = "newForLoop_runtime.txt";
     processFile(file3);
     processFile(file2);

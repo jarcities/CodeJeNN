@@ -1,15 +1,15 @@
 CXX = clang++
 CXXFLAGS = -std=c++23 -Wall -O3 -march=native
 TARGET1 = original_runtime
-TARGET2 = newArray_runtime
+TARGET2 = newVariadic_runtime
 TARGET3 = newForLoop_runtime
 TARGET4 = total_runtime
 SRC1 = original_test.cpp
-SRC2 = newArray_test.cpp
+SRC2 = newVariadic_test.cpp
 SRC3 = newForLoop_test.cpp
 SRC4 = total_time.cpp
 FILE1 = original_runtime.txt
-FILE2 = newArray_runtime.txt
+FILE2 = newVariadic_runtime.txt
 FILE3 = newForLoop_runtime.txt
 ITER = 40
 
