@@ -40,8 +40,8 @@ int main() {
     const std::string file1 = "original_runtime.txt";
     const std::string file2 = "newArray_runtime.txt";
     const std::string file3 = "newForLoop_runtime.txt";
-    processFile(file1);
-    processFile(file2);
     processFile(file3);
+    processFile(file2);
+    processFile(file1);
     return 0;
 }
