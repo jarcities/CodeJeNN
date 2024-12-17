@@ -1,5 +1,5 @@
 CXX = clang++
-CXXFLAGS = -std=c++23 -Wall -O3 -march=native
+CXXFLAGS = -std=c++23 -Wall -O3 -ltbb -march=native
 TARGET1 = original_runtime
 TARGET2 = newVariadic_runtime
 TARGET3 = newForLoop_runtime
