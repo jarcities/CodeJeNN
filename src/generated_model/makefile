@@ -1,5 +1,8 @@
 CXX = clang++
-CXXFLAGS = -std=c++23 -Wall -O3 -ltbb -march=native
+# CXXFLAGS = -std=c++23 -Wall -O3 -march=native
+CXXFLAGS = -std=c++23 -O3 -march=native
+IDFLAGS = -I$(CONDA_PREFIX)/Library/include
+LDFLAGS = -L$(CONDA_PREFIX)/Library/lib -ltbb
 TARGET1 = original_runtime
 TARGET2 = newVariadic_runtime
 TARGET3 = newForLoop_runtime
@@ -16,13 +19,13 @@ ITER = 40
 all: $(TARGET1) $(TARGET2) $(TARGET3)
 
 $(TARGET1): $(SRC1)
-	$(CXX) $(CXXFLAGS) -o $(TARGET1) $(SRC1)
+	$(CXX) $(CXXFLAGS) $(IDFLAGS) $(LDFLAGS) -o $(TARGET1) $(SRC1)
 
 $(TARGET2): $(SRC2)
-	$(CXX) $(CXXFLAGS) -o $(TARGET2) $(SRC2)
+	$(CXX) $(CXXFLAGS) $(IDFLAGS) $(LDFLAGS) -o $(TARGET2) $(SRC2)
 
 $(TARGET3): $(SRC3)
-	$(CXX) $(CXXFLAGS) -o $(TARGET3) $(SRC3)
+	$(CXX) $(CXXFLAGS) $(IDFLAGS) $(LDFLAGS) -o $(TARGET3) $(SRC3)
 
 run: all
 	for i in $(shell seq 1 $(ITER)); do ./$(TARGET1) >> $(FILE1); done
