@@ -169,10 +169,8 @@ void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, c
 """
     }
 
-    # set to track functions already added
     added_functions = set()
 
-    # add functions only once
     for func_name in activation_functions:
         if func_name == 'tanh':
             func_name = 'tanhCustom'
@@ -180,9 +178,7 @@ void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, c
             cpp_code += cpp_functions[func_name]
             added_functions.add(func_name)
 
-    # always include 'dotProduct', 'addBias', and 'forwardPass'
-    essential_functions = ['dotProduct', 'addBias', 'forwardPass']
-    for func_name in essential_functions:
+    for func_name in ['dotProduct', 'addBias', 'forwardPass']:
         if func_name not in added_functions:
             cpp_code += cpp_functions[func_name]
             added_functions.add(func_name)

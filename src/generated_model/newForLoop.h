@@ -10,17 +10,15 @@ using activationFunction = void(*)(Scalar&, Scalar, Scalar);
 
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
 
-#pragma once
 template<typename Scalar, int size>
-void BatchNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, const Scalar* mean, const Scalar* variance, const Scalar epsilon) noexcept {
+void batchNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, const Scalar* mean, const Scalar* variance, const Scalar epsilon) noexcept {
     for (int i = 0; i < size; ++i) {
         outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
     }
 }
 
-#pragma once
 template<typename Scalar, int size>
-void LayerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, Scalar epsilon) noexcept {
+void layerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, Scalar epsilon) noexcept {
     Scalar mean = 0;
     Scalar variance = 0;
     for (int i = 0; i < size; ++i) {
@@ -36,23 +34,21 @@ void LayerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gam
     }
 }
 
-#pragma once
 template<typename Scalar, int output_size>
-void ForwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, Scalar alpha) noexcept {
+void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
     for(int i = 0; i < output_size; ++i){
         Scalar sum = 0;
         for(int j = 0; j < input_size; ++j){
-            sum += inputs[j] * weights[j * output_size + i];  // weight matrix multiplication
+            sum += inputs[j] * weights[j * output_size + i];
         }
-        sum += biases[i]; // add bias
-        outputs[i] = sum; // No activation applied here
+        sum += biases[i];
+        activation_function(outputs[i], sum, alpha);
     }
 }
 
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
 
-#pragma once
-template <typename Scalar = float>
+template <typename Scalar = double>
 auto newForLoop(const std::array<Scalar, 3>& initial_input) { 
     
     std::array<Scalar, 3> model_input = initial_input; 
@@ -60,7 +56,7 @@ auto newForLoop(const std::array<Scalar, 3>& initial_input) {
     if (model_input.size() != 3) { throw std::invalid_argument("Invalid input size. Expected size: 3"); } 
 
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
-    
+
     // Constexpr arrays
     constexpr std::array<Scalar, 24> weights_3 = {1.326323599e-01, -4.964405894e-01, -4.476362765e-01, 4.825202525e-01, 4.999661446e-01, 6.104987264e-01, 2.875608206e-01, -3.064861000e-01, 3.347294331e-01, 2.181584835e-01, -3.532409966e-01, 6.674022079e-01, -6.745031476e-01, 3.237143457e-01, -2.341475338e-01, -5.993123055e-01, 1.393576264e-01, 3.206691891e-02, -4.254285693e-01, 6.793647408e-01, -6.585419774e-01, -6.157318950e-01, 1.563780308e-01, -2.918911166e-02};
 
@@ -109,7 +105,7 @@ auto newForLoop(const std::array<Scalar, 3>& initial_input) {
     constexpr std::array<Scalar, 10> biases_14 = {4.376241192e-02, 1.267522275e-01, 8.299290389e-02, 1.029757783e-01, 9.762343019e-02, 1.250658184e-02, 1.064577550e-01, 1.144008860e-01, 9.739450365e-02, 1.170560196e-01};
 
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
-    
+
     auto relu = [](Scalar& output, Scalar input, Scalar alpha = 0.0) noexcept {
         output = input > 0 ? input : 0;
     };
@@ -125,7 +121,7 @@ auto newForLoop(const std::array<Scalar, 3>& initial_input) {
 
     auto tanhCustom = [](Scalar& output, Scalar input, Scalar alpha = 0.0) noexcept {
         output = std::tanh(input);
-    };
+};
 
     auto sigmoid = [](Scalar& output, Scalar input, Scalar alpha = 0.0) noexcept {
         output = 1 / (1 + std::exp(-input));
@@ -136,139 +132,48 @@ auto newForLoop(const std::array<Scalar, 3>& initial_input) {
     };
 
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
-    
-    // layer 1
+
     std::array<Scalar, 3> layer_1_output;
-    relu(layer_1_output[0], model_input[0], 0.0); 
-    relu(layer_1_output[1], model_input[1], 0.0); 
-    relu(layer_1_output[2], model_input[2], 0.0);
+    relu(layer_1_output[0], model_input[0], 0.0); relu(layer_1_output[1], model_input[1], 0.0); relu(layer_1_output[2], model_input[2], 0.0);
 
-    // layer 2
     std::array<Scalar, 3> layer_2_output;
-    linear(layer_2_output[0], layer_1_output[0], 0.0); 
-    linear(layer_2_output[1], layer_1_output[1], 0.0); 
-    linear(layer_2_output[2], layer_1_output[2], 0.0);
+    linear(layer_2_output[0], layer_1_output[0], 0.0); linear(layer_2_output[1], layer_1_output[1], 0.0); linear(layer_2_output[2], layer_1_output[2], 0.0);
 
-    // layer 3
     std::array<Scalar, 8> layer_3_output;
-    ForwardPass<Scalar, 8>(layer_3_output.data(), layer_2_output.data(), weights_3.data(), biases_3.data(), 3, 0.0);
-    linear(layer_3_output[0], layer_3_output[0], 0.0);
-    linear(layer_3_output[1], layer_3_output[1], 0.0);
-    linear(layer_3_output[2], layer_3_output[2], 0.0);
-    linear(layer_3_output[3], layer_3_output[3], 0.0);
-    linear(layer_3_output[4], layer_3_output[4], 0.0);
-    linear(layer_3_output[5], layer_3_output[5], 0.0);
-    linear(layer_3_output[6], layer_3_output[6], 0.0);
-    linear(layer_3_output[7], layer_3_output[7], 0.0);
+    forwardPass<Scalar, 8>(layer_3_output.data(), layer_2_output.data(), weights_3.data(), biases_3.data(), 3, linear, 0.0);
 
-    // layer 4
     std::array<Scalar, 8> layer_4_output;
-    ForwardPass<Scalar, 8>(layer_4_output.data(), layer_3_output.data(), weights_4.data(), biases_4.data(), 8, 0.0);
-    silu(layer_4_output[0], layer_4_output[0], 1.0);
-    silu(layer_4_output[1], layer_4_output[1], 1.0);
-    silu(layer_4_output[2], layer_4_output[2], 1.0);
-    silu(layer_4_output[3], layer_4_output[3], 1.0);
-    silu(layer_4_output[4], layer_4_output[4], 1.0);
-    silu(layer_4_output[5], layer_4_output[5], 1.0);
-    silu(layer_4_output[6], layer_4_output[6], 1.0);
-    silu(layer_4_output[7], layer_4_output[7], 1.0);
+    forwardPass<Scalar, 8>(layer_4_output.data(), layer_3_output.data(), weights_4.data(), biases_4.data(), 8, silu, 0.0);
 
-    // layer 5
     std::array<Scalar, 8> layer_5_output;
-    LayerNormalization<Scalar, 8>(layer_5_output.data(), layer_4_output.data(), gamma_5.data(), beta_5.data(), epsilon_5);
+    layerNormalization<Scalar, 8>(layer_5_output.data(), layer_4_output.data(), gamma_5.data(), beta_5.data(), epsilon_5);
 
-    // layer 6
     std::array<Scalar, 8> layer_6_output;
-    ForwardPass<Scalar, 8>(layer_6_output.data(), layer_5_output.data(), weights_6.data(), biases_6.data(), 8, 0.0);
-    tanhCustom(layer_6_output[0], layer_6_output[0], 0.0);
-    tanhCustom(layer_6_output[1], layer_6_output[1], 0.0);
-    tanhCustom(layer_6_output[2], layer_6_output[2], 0.0);
-    tanhCustom(layer_6_output[3], layer_6_output[3], 0.0);
-    tanhCustom(layer_6_output[4], layer_6_output[4], 0.0);
-    tanhCustom(layer_6_output[5], layer_6_output[5], 0.0);
-    tanhCustom(layer_6_output[6], layer_6_output[6], 0.0);
-    tanhCustom(layer_6_output[7], layer_6_output[7], 0.0);
+    forwardPass<Scalar, 8>(layer_6_output.data(), layer_5_output.data(), weights_6.data(), biases_6.data(), 8, tanhCustom, 0.0);
 
-    // layer 7
     std::array<Scalar, 8> layer_7_output;
-    BatchNormalization<Scalar, 8>(layer_7_output.data(), layer_6_output.data(), gamma_7.data(), beta_7.data(), mean_7.data(), variance_7.data(), epsilon_7);
+    batchNormalization<Scalar, 8>(layer_7_output.data(), layer_6_output.data(), gamma_7.data(), beta_7.data(), mean_7.data(), variance_7.data(), epsilon_7);
 
-    // layer 8
     std::array<Scalar, 8> layer_8_output;
-    ForwardPass<Scalar, 8>(layer_8_output.data(), layer_7_output.data(), weights_8.data(), biases_8.data(), 8, 0.0);
-    linear(layer_8_output[0], layer_8_output[0], 0.0);
-    linear(layer_8_output[1], layer_8_output[1], 0.0);
-    linear(layer_8_output[2], layer_8_output[2], 0.0);
-    linear(layer_8_output[3], layer_8_output[3], 0.0);
-    linear(layer_8_output[4], layer_8_output[4], 0.0);
-    linear(layer_8_output[5], layer_8_output[5], 0.0);
-    linear(layer_8_output[6], layer_8_output[6], 0.0);
-    linear(layer_8_output[7], layer_8_output[7], 0.0);
+    forwardPass<Scalar, 8>(layer_8_output.data(), layer_7_output.data(), weights_8.data(), biases_8.data(), 8, linear, 0.0);
 
-    // layer 9
     std::array<Scalar, 8> layer_9_output;
-    sigmoid(layer_9_output[0], layer_8_output[0], 0.0); 
-    sigmoid(layer_9_output[1], layer_8_output[1], 0.0); 
-    sigmoid(layer_9_output[2], layer_8_output[2], 0.0); 
-    sigmoid(layer_9_output[3], layer_8_output[3], 0.0); 
-    sigmoid(layer_9_output[4], layer_8_output[4], 0.0); 
-    sigmoid(layer_9_output[5], layer_8_output[5], 0.0); 
-    sigmoid(layer_9_output[6], layer_8_output[6], 0.0); 
-    sigmoid(layer_9_output[7], layer_8_output[7], 0.0);
+    sigmoid(layer_9_output[0], layer_8_output[0], 0.0); sigmoid(layer_9_output[1], layer_8_output[1], 0.0); sigmoid(layer_9_output[2], layer_8_output[2], 0.0); sigmoid(layer_9_output[3], layer_8_output[3], 0.0); sigmoid(layer_9_output[4], layer_8_output[4], 0.0); sigmoid(layer_9_output[5], layer_8_output[5], 0.0); sigmoid(layer_9_output[6], layer_8_output[6], 0.0); sigmoid(layer_9_output[7], layer_8_output[7], 0.0);
 
-    // layer 10
     std::array<Scalar, 8> layer_10_output;
-    linear(layer_10_output[0], layer_9_output[0], 0.0); 
-    linear(layer_10_output[1], layer_9_output[1], 0.0); 
-    linear(layer_10_output[2], layer_9_output[2], 0.0); 
-    linear(layer_10_output[3], layer_9_output[3], 0.0); 
-    linear(layer_10_output[4], layer_9_output[4], 0.0); 
-    linear(layer_10_output[5], layer_9_output[5], 0.0); 
-    linear(layer_10_output[6], layer_9_output[6], 0.0); 
-    linear(layer_10_output[7], layer_9_output[7], 0.0);
+    linear(layer_10_output[0], layer_9_output[0], 0.0); linear(layer_10_output[1], layer_9_output[1], 0.0); linear(layer_10_output[2], layer_9_output[2], 0.0); linear(layer_10_output[3], layer_9_output[3], 0.0); linear(layer_10_output[4], layer_9_output[4], 0.0); linear(layer_10_output[5], layer_9_output[5], 0.0); linear(layer_10_output[6], layer_9_output[6], 0.0); linear(layer_10_output[7], layer_9_output[7], 0.0);
 
-    // layer 11
     std::array<Scalar, 8> layer_11_output;
-    elu(layer_11_output[0], layer_10_output[0], 1.0); 
-    elu(layer_11_output[1], layer_10_output[1], 1.0); 
-    elu(layer_11_output[2], layer_10_output[2], 1.0); 
-    elu(layer_11_output[3], layer_10_output[3], 1.0); 
-    elu(layer_11_output[4], layer_10_output[4], 1.0); 
-    elu(layer_11_output[5], layer_10_output[5], 1.0); 
-    elu(layer_11_output[6], layer_10_output[6], 1.0); 
-    elu(layer_11_output[7], layer_10_output[7], 1.0);
+    elu(layer_11_output[0], layer_10_output[0], 1.0); elu(layer_11_output[1], layer_10_output[1], 1.0); elu(layer_11_output[2], layer_10_output[2], 1.0); elu(layer_11_output[3], layer_10_output[3], 1.0); elu(layer_11_output[4], layer_10_output[4], 1.0); elu(layer_11_output[5], layer_10_output[5], 1.0); elu(layer_11_output[6], layer_10_output[6], 1.0); elu(layer_11_output[7], layer_10_output[7], 1.0);
 
-    // layer 12
     std::array<Scalar, 8> layer_12_output;
-    ForwardPass<Scalar, 8>(layer_12_output.data(), layer_11_output.data(), weights_12.data(), biases_12.data(), 8, 0.0);
-    linear(layer_12_output[0], layer_12_output[0], 0.0);
-    linear(layer_12_output[1], layer_12_output[1], 0.0);
-    linear(layer_12_output[2], layer_12_output[2], 0.0);
-    linear(layer_12_output[3], layer_12_output[3], 0.0);
-    linear(layer_12_output[4], layer_12_output[4], 0.0);
-    linear(layer_12_output[5], layer_12_output[5], 0.0);
-    linear(layer_12_output[6], layer_12_output[6], 0.0);
-    linear(layer_12_output[7], layer_12_output[7], 0.0);
+    forwardPass<Scalar, 8>(layer_12_output.data(), layer_11_output.data(), weights_12.data(), biases_12.data(), 8, linear, 0.0);
 
-    // layer 13
     std::array<Scalar, 8> layer_13_output;
-    LayerNormalization<Scalar, 8>(layer_13_output.data(), layer_12_output.data(), gamma_13.data(), beta_13.data(), epsilon_13);
+    layerNormalization<Scalar, 8>(layer_13_output.data(), layer_12_output.data(), gamma_13.data(), beta_13.data(), epsilon_13);
 
-    // layer 14
     std::array<Scalar, 10> layer_14_output;
-    ForwardPass<Scalar, 10>(layer_14_output.data(), layer_13_output.data(), weights_14.data(), biases_14.data(), 8, 0.0);
-    linear(layer_14_output[0], layer_14_output[0], 0.0); 
-    linear(layer_14_output[1], layer_14_output[1], 0.0); 
-    linear(layer_14_output[2], layer_14_output[2], 0.0); 
-    linear(layer_14_output[3], layer_14_output[3], 0.0); 
-    linear(layer_14_output[4], layer_14_output[4], 0.0); 
-    linear(layer_14_output[5], layer_14_output[5], 0.0); 
-    linear(layer_14_output[6], layer_14_output[6], 0.0); 
-    linear(layer_14_output[7], layer_14_output[7], 0.0); 
-    linear(layer_14_output[8], layer_14_output[8], 0.0); 
-    linear(layer_14_output[9], layer_14_output[9], 0.0);
-
-//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+    forwardPass<Scalar, 10>(layer_14_output.data(), layer_13_output.data(), weights_14.data(), biases_14.data(), 8, linear, 0.0);
 
     std::array<Scalar, 10> model_output = layer_14_output; 
 
