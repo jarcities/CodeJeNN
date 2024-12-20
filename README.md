@@ -5,17 +5,15 @@
 _San Diego State University, San Diego, CA_
 
 _Labratories of Computational Physics and Fluid Dynamics, Naval Research Lab, Washington, DC_
+
+__Distribution Statement A: Distribution Statement A. Approved for public release, distribution is unlimited.__
 </div>
 
-## Distribution Statement
-
-Distribution Statement A: Distribution Statement A. Approved for public release, distribution is unlimited.
-
 ## Introduction
-*CodeJeNN is an interface package that can robustly ingest a trained NN to be used on the fly for inference in target computational fluid dynamics software. This abstracts away the need for using third party libraries which are often cumbersome and would require shipping CFD data onto main memory to utilize inference. Instead, we imbed the NN for inference onto the device itself. Currently the NNs are small enough and lean enough from PINN where they can be done directly on device. This will assure scalability and allow for certain optimizations that ML has promised to CFD: smaller look up tables and faster constiutive laws.*
--- ***Ryan F. Johnson, LCP-NRL***
 
-**CodeJeNN works by converting a trained neural net stored in a .onnx, .h5, or a .keras file into a c++ header file that can be used in the users code to predict (perform inference).**
+CodeJeNN is an interface package that can robustly ingest a trained NN to be used on the fly for inference in target computational fluid dynamics software. This abstracts away the need for using third party libraries which are often cumbersome and would require shipping CFD data onto main memory to utilize inference. Instead, we imbed the NN for inference onto the device itself. Currently the NNs are small enough and lean enough from PINN where they can be done directly on device. This will assure scalability and allow for certain optimizations that ML has promised to CFD: smaller look up tables and faster constiutive laws. CodeJeNN works by converting a trained neural net stored in a .onnx, .h5, or a .keras file into a c++ header file that can be used in the users code to predict (perform inference).
+
+**You only need to download the `src` directory, all other files are just auxillary.**
 
 ## File Structure
 ```plaintext
@@ -52,21 +50,3 @@ CodeJeNN/
     * `layers.md` : shows the layers that codejenn can codegenerates and supports for inference.
 * `src/` : source code with its own **README** explaning how to run.
 * `license.txt` : distribution A licensing. 
-
-## Python Environment/Requirements
-
-```bash
-brew install python3.11
-python3.11 -m venv codejenn
-```
-
-
-then source
-
-```bash
-source codejenn/bin/activate
-```
-
-```
-pip3 install -r requirements.txt
-```
