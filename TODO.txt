@@ -1,2 +1,0 @@
-1. Takeout any packages that do not belong there.
-2. implement variadic templating and vectorization for forward propagation.
