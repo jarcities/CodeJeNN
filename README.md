@@ -1,4 +1,4 @@
-![CodeJeNN](others/logo/logo3.png/)
+![CodeJeNN](others/logo.png/)
 
 <div align="center">
 
