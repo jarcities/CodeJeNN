@@ -19,33 +19,30 @@ CodeJeNN is an interface package that can robustly ingest a trained NN to be use
 ```plaintext
 CodeJeNN/
     ├── README.md
-    └── archive/      
-            └── src_v1
-            └── src_v2
-            └── src_v3
     └── examples/
             └── neural_net_builder/
     └── others/
-            └── logo/
+            └── archive/      
+                └── src_v1
+                └── src_v2
+                └── src_v3
+                └── src_v4
             └── h5_file_breakdown.md
             └── layers.md
     └── src/
             └── codegen/
             └── dump_model/
             └── generate.sh
-            └── main.py
-            └── requirements.txt
             └── README.md
     └── license.txt
 ```
 
 ## File Contents
-* `archive/` : previous versions of codejenn.
 * `examples/` : 
     * contains examples of trained neural nets in h5, onnx, keras file formats.
     * `neural_net_builder/` : python scripts to train neural nets and test the outputs.
-* `others/` : 
-    * `logo/` : contains codejenn logo.
+* `others/` :
+    * `archive/` : previous versions of codejenn.
     * `h5_file_breakdown.md` : explanation of how keras saves trained models in a hdf5 file.
     * `layers.md` : shows the layers that codejenn can codegenerates and supports for inference.
 * `src/` : source code with its own **README** explaning how to run.
