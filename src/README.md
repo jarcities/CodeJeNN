@@ -10,51 +10,58 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
 ## Directory Contents
   * **codegen/** ⮕ Folder that holds all methods/function to extract, load, and code generate any model in a directory where your neural nets are stored if they are not stored in **dump_model/**.
-  * **README.md** ⮕ What you are currently reading you goober.
-  * **generate.sh** ⮕ Bash script you can use if you want, or include the contents in your own bash script or makefile.
+
+  * **generate.sh** ⮕ Bash script you can use if you wish to generate c++ files, or include the contents in your own bash script or makefile.
+
   * **dump_model/** ⮕ Default dump folder that you can dump any trained model and link during the code generation process if you wish to not use a seperate directory.
+
   * **generated_model/** ⮕ Default folder where genereated header files are created.
-  * **requirements.txt** are all the necessary python package/library dependicies.
 
 ## Code Generation Explanation
 * CodeJeNN works by reading in a **.keras**,a **.h5**, or a **.onnx**. file that has a trained neural net and codegenerate that into a c++ header file. 
+
 * You link the input folder with all trained models (infinite amount of NN if you please) wanting to be code generated as well as the output folder to save the files. Additionally, the precision for is optional, but only accepts float or double.
+
     * **dump_model/** is the default linked dump folder to place trained models.
+
 * The generated header file and "predict" function will be named after the file name of the trained model that it was code generated from.
-    * Example: `my_model.h5`  will code generate the header file  `my_model.h` and the predict function will be called `auto my_model(inputs)`.
-    * Along with that, a **test.cpp** will also be copied into the desired directory. To make sure logic and accuracy of the trained neural net matches with results during training. 
+
+    * Example: ***my_model.h5***  will code generate the header file  ***my_model.h*** and the predict function will be called ***auto my_model(nn_inputs)***.
+
+    * Along with that, a **test.cpp** will also be copied into the desired directory. This file makes sure logic and accuracy of the trained neural net matches with results during training. 
+
 * CodeJeNN supports normalization and standardization of inputs and outputs. 
+
     * The standardization/normalization values must be stored in a **.txt**, **.dat**, or a **.csv** file with **SPACES AS DELIMITERS**.
+
     * The normalization/standardization file name must match the name of the **.keras**, **.h5**, or **.onnx** file to make sure the proper parameters are generated correctly.
-    * A full example OF HOW TO PROPERLY NAME THE NORMALIZATION PARAMETERS is in the **example.dat** file in **dump_model/**. The important thing to remember is to use space as delimiters, use the correct variable name, and put all array of values in brackets.
-* The necessary python libraries/packages to use codejenn is stated below. **PYTHON 3.11 IS REQUIRED**.
-    ```
-    tensorflow==2.18.0
-    onnx==1.17.0
-    scipy==1.14.1
-    sympy==1.13.3
-    pandas==2.2.3
-    scikit-learn==1.5.2
-    matplotlib==3.9.3
-    ```
+
+    * A full example OF HOW TO PROPERLY NAME THE NORMALIZATION PARAMETERS is in the **example.dat** file in **dump_model/**. The important thing to remember is to use space as delimiters, use the correct variable and file name, and put all array of values in brackets.
 
 ## Code Generation Steps
 1. First create trained neural nets using keras, onnx, or tensorflow and save in the supported file extensions.
+
     * If necessary, save normalization/standardization parameters in a **.dat**, a **.csv**, or a **.txt** file format. 
-1. Install necessary python libraries from above in terminal/shell using `pip install` or whatever package manager you prefer.
+
 1. Put all models wanting to be code generated in the **dump_model/** folder, or whatever directory you wish to link.
-1. Link necessary directories or change the bash script **(generate.sh)** dependicies as stated below. (CHECK BASH SCRIPT "generate.sh" to see an example)
+
+1. Link necessary directories or change the bash script **(generate.sh)** dependicies as stated below.
+
     1. `--input` ⮕ path to folder that holds any and all trained models to be code generated, or use **dump_model/**.
-    1. `--output` ⮕ path to folder to save all generated header files.
+
+    1. `--output` ⮕ path to folder to save all generated header files, or use **generated_model/**.
+
     1. `--precision` ⮕ (OPTIONAL) variable type of precision, either double or float. If not specified, will default to float.
-    ```bash
-    python main.py --input="path_to_input_folder" --output="path_to_output_folder" --precision="desired_precision"
-    ```
+
+        ```bash
+        python main.py --input="path_to_input_folder" --output="path_to_output_folder" --precision="desired_precision"
+        ```
 1. Run **generate.sh** (type `bash generate.sh` in terminal/shell).
+
 1. Once generation is complete. You are done!
 
-## Testing Generated Header (Predict) Files
-1. If you want, you must edit the **test.cpp** source file to check for precision and accuracy of trained neural net. Down below is what you have to change in **test.cpp**
+## Testing Generated Predict Function
+1. If you want, you can edit the **test.cpp** source file to check for precision and accuracy of trained neural net. Down below is what you have to change in **test.cpp**
 
     **Header File** 
     ```c++
@@ -67,8 +74,9 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
     std::array<Scalar, "number_of_input_features"> input = {"input(s)"};
     auto output = "function_name"<Scalar>(input);
     ```
-1. Once done, compile code. Comments on the preferred method to compile and run **test.cpp** is at the bottom of the source file in comments
+1. Once done, compile code. Comments on the preferred method to compile and run **test.cpp** is at the bottom of the source file.
+
 1. Verify that output is correct!
 
-## Try an example already in the `dump_model` folder!
-HOPEFULLY YOU READ ALL THIS, you can now try out the example in the **dump_model/** folder. Just open a terminal/shell in the **src/** directory, KEEP ONE OF THE OPTIONS FOR NORMALIZATION/STANDARDIZATION IN `example.dat` AND DELETE THE REST, link the correct folders in **generate.sh**, type `bash generate.sh` in the terminal/shell, and you are good to go!
+## Try an example already in **dump_model/**
+HOPEFULLY YOU READ ALL THIS, you can now try out the example in **dump_model/**. Just open a terminal/shell in the **src/** directory, KEEP ONE OF THE OPTIONS FOR NORMALIZATION/STANDARDIZATION IN `example.dat` AND DELETE THE REST, link the correct folders in **generate.sh**, type `bash generate.sh` in the terminal/shell, and you are good to go!
