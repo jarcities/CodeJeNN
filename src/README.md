@@ -76,7 +76,7 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
     ```
 1. Once done, compile code. Comments on the preferred method to compile and run **test.cpp** is at the bottom of the source file.
 
-1. Verify that output is correct!
+1. Verify that the output is correct!
 
 ## Try an example already in **dump_model/**
 HOPEFULLY YOU READ ALL THIS, you can now try out the example in **dump_model/**. Just open a terminal/shell in the **src/** directory, KEEP ONE OF THE OPTIONS FOR NORMALIZATION/STANDARDIZATION IN `example.dat` AND DELETE THE REST, link the correct folders in **generate.sh**, type `bash generate.sh` in the terminal/shell, and you are good to go!

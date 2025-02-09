@@ -173,8 +173,8 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
             output_size = last_size
             cpp_code += f"    std::array<Scalar, {output_size}> layer_{layer_index}_output;\n"
             for idx in range(output_size):
-                cpp_code += f"    {mapped_act}(layer_{layer_index}_output[{idx}], {last_layer}[{idx}], {alpha});"
-            cpp_code += "\n\n"
+                cpp_code += f"    {mapped_act}(layer_{layer_index}_output[{idx}], {last_layer}[{idx}], {alpha});\n"
+            cpp_code += "\n"
             last_layer = f"layer_{layer_index}_output"
             last_size = output_size
 
