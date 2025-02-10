@@ -75,7 +75,8 @@ else:
                     input_norms, input_mins, output_norms, output_mins = None, None, None, None
 
                 model, file_extension = loadModel(file_path)
-                weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size = extractModel(model, file_extension)
+                weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size, layer_shape = extractModel(model, file_extension) ## ADDED ##
+                # print(layer_shape) ## ADDED ##
 
                 base_file_name = os.path.splitext(file_name)[0]
                 save_path = os.path.join(save_dir, base_file_name)
@@ -99,7 +100,8 @@ else:
                     input_norms,
                     input_mins,
                     output_norms,
-                    output_mins
+                    output_mins,
+                    layer_shape
                 )
 
                 print()

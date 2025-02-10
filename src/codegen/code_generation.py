@@ -34,7 +34,7 @@ using activationFunction = void(*)(Scalar&, Scalar, Scalar);
     return cpp_code
 
 
-def codeGen(cpp_code, cpp_lambda, precision_type, weights_list, biases_list, activation_functions, alphas, dropout_rates, norm_layer_params, conv_layer_params, input_size, user_file, input_norms, input_mins, output_norms, output_mins):
+def codeGen(cpp_code, cpp_lambda, precision_type, weights_list, biases_list, activation_functions, alphas, dropout_rates, norm_layer_params, conv_layer_params, input_size, user_file, input_norms, input_mins, output_norms, output_mins, layer_shape):
     """
     generate code that uses constexpr arrays and no loops for pure activation application.
     Arrays for weights, biases, gamma, beta, mean, variance should be constexpr.
@@ -130,6 +130,10 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
     cpp_code += cpp_lambda
     cpp_code += """\n    //\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"""
 
+    cpp_code += f"    constexpr std::array<Scalar, {len(layer_shape)}> layer_shape = {{" ## ADDED ##
+    cpp_code += ", ".join(f"{shape}" for shape in layer_shape) ## ADDED ##
+    cpp_code += "};\n\n" ## ADDED ##
+        
     last_layer = "model_input"
     last_size = input_size
     output_size = None
