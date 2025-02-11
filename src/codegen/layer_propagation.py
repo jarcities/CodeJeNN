@@ -10,7 +10,7 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 import os
 import absl.logging
 import warnings
-absl.logging.set_verbosity('error')
+absl.logging.set_verbosity(absl.logging.ERROR)
 warnings.filterwarnings("ignore", category=UserWarning, module='keras')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
