@@ -37,7 +37,7 @@ def create_cnn_model(input_shape=(28, 28, 1), num_classes=10):
         metrics=['accuracy']
     )
 
-    model.save("cnn.h5")
+    model.save("cnn1.h5")
     
     return model
 

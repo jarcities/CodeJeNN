@@ -113,12 +113,8 @@ auto example(const std::array<Scalar, 3>& initial_input) {
         output = input > 0 ? input : alpha * (std::exp(input) - 1);
     };
 
-    auto linear = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = input;
-    };
-
-    auto sigmoid = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = 1 / (1 + std::exp(-input));
+    auto relu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+        output = input > 0 ? input : 0;
     };
 
     auto silu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
@@ -126,8 +122,12 @@ auto example(const std::array<Scalar, 3>& initial_input) {
         output = input * sigmoid;
     };
 
-    auto relu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = input > 0 ? input : 0;
+    auto sigmoid = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+        output = 1 / (1 + std::exp(-input));
+    };
+
+    auto linear = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+        output = input;
     };
 
     auto tanhCustom = [](Scalar& output, Scalar input, Scalar alpha) noexcept {

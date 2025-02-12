@@ -109,9 +109,7 @@ def extractModel(model, file_type):
                     layer_shape.append(0)
                 conv_layer_params.append(None)  # Not a conv layer
 
-            elif isinstance(layer, (keras.layers.Conv2D, keras.layers.SeparableConv2D, keras.layers.ConvLSTM2D,
-                                      keras.layers.Conv1D, keras.layers.Conv3D, keras.layers.Conv2DTranspose,
-                                      keras.layers.DepthwiseConv2D)):
+            elif isinstance(layer, (keras.layers.Conv2D, keras.layers.SeparableConv2D, keras.layers.ConvLSTM2D, keras.layers.Conv1D, keras.layers.Conv3D, keras.layers.Conv2DTranspose, keras.layers.DepthwiseConv2D)) or 'conv' in layer.name.lower():
                 # NEW CODE for convolution layers
                 config = layer.get_config()
                 conv_params = {
