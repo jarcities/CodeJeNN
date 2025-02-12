@@ -8,7 +8,7 @@
 template<typename Scalar>
 using activationFunction = void(*)(Scalar&, Scalar, Scalar);
 
-//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//
 
 template<typename Scalar, int size>
 void layerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, Scalar epsilon) noexcept {
@@ -46,6 +46,169 @@ void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, c
     }
 }
 
+template<typename Scalar, int out_channels, int out_height, int out_width>
+void conv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+                   int in_channels, int in_height, int in_width,
+                   int kernel_h, int kernel_w, int stride_h, int stride_w,
+                   int pad_h, int pad_w,
+                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+    for (int oc = 0; oc < out_channels; ++oc) {
+        for (int oh = 0; oh < out_height; ++oh) {
+            for (int ow = 0; ow < out_width; ++ow) {
+                Scalar sum = 0;
+                for (int ic = 0; ic < in_channels; ++ic) {
+                    for (int kh = 0; kh < kernel_h; ++kh) {
+                        for (int kw = 0; kw < kernel_w; ++kw) {
+                            int in_h = oh * stride_h - pad_h + kh;
+                            int in_w = ow * stride_w - pad_w + kw;
+                            if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width) {
+                                int input_index = (in_h * in_width * in_channels) + (in_w * in_channels) + ic;
+                                int weight_index = (((kh * kernel_w + kw) * in_channels + ic) * out_channels) + oc;
+                                sum += inputs[input_index] * weights[weight_index];
+                            }
+                        }
+                    }
+                }
+                sum += biases[oc];
+                activation_function(outputs[(oh * out_width * out_channels) + (ow * out_channels) + oc], sum, alpha);
+            }
+        }
+    }
+}
+
+template<typename Scalar, int out_channels, int out_height, int out_width>
+void conv2DTransposeForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+                            int in_channels, int in_height, int in_width,
+                            int kernel_h, int kernel_w, int stride_h, int stride_w,
+                            int pad_h, int pad_w,
+                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+    // Simplified implementation for transposed convolution (stub)
+    for (int i = 0; i < out_height * out_width * out_channels; ++i) {
+        outputs[i] = 0;
+    }
+    // ... (proper transposed convolution implementation would go here)
+    for (int i = 0; i < out_height * out_width * out_channels; ++i) {
+        activation_function(outputs[i], outputs[i], alpha);
+    }
+}
+
+template<typename Scalar, int out_size>
+void conv1DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+                   int in_size, int kernel_size, int stride, int pad,
+                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+    for (int o = 0; o < out_size; ++o) {
+        Scalar sum = 0;
+        for (int k = 0; k < kernel_size; ++k) {
+            int in_index = o * stride - pad + k;
+            if(in_index >= 0 && in_index < in_size){
+                int weight_index = k * out_size + o;
+                sum += inputs[in_index] * weights[weight_index];
+            }
+        }
+        sum += biases[o];
+        activation_function(outputs[o], sum, alpha);
+    }
+}
+
+template<typename Scalar, int out_channels, int out_depth, int out_height, int out_width>
+void conv3DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+                   int in_channels, int in_depth, int in_height, int in_width,
+                   int kernel_d, int kernel_h, int kernel_w, int stride_d, int stride_h, int stride_w,
+                   int pad_d, int pad_h, int pad_w,
+                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+    // Simplified 3D convolution implementation
+    for (int oc = 0; oc < out_channels; ++oc) {
+        for (int od = 0; od < out_depth; ++od) {
+            for (int oh = 0; oh < out_height; ++oh) {
+                for (int ow = 0; ow < out_width; ++ow) {
+                    Scalar sum = 0;
+                    for (int ic = 0; ic < in_channels; ++ic) {
+                        for (int kd = 0; kd < kernel_d; ++kd) {
+                            for (int kh = 0; kh < kernel_h; ++kh) {
+                                for (int kw = 0; kw < kernel_w; ++kw) {
+                                    int in_d = od * stride_d - pad_d + kd;
+                                    int in_h = oh * stride_h - pad_h + kh;
+                                    int in_w = ow * stride_w - pad_w + kw;
+                                    if(in_d >= 0 && in_d < in_depth && in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width){
+                                        int input_index = ((in_d * in_height * in_width * in_channels) + (in_h * in_width * in_channels) + (in_w * in_channels) + ic);
+                                        int weight_index = (((((kd * kernel_h + kh) * kernel_w + kw) * in_channels + ic) * out_channels) + oc);
+                                        sum += inputs[input_index] * weights[weight_index];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    sum += biases[oc];
+                    int output_index = ((od * out_height * out_width * out_channels) + (oh * out_width * out_channels) + (ow * out_channels) + oc);
+                    activation_function(outputs[output_index], sum, alpha);
+                }
+            }
+        }
+    }
+}
+
+template<typename Scalar, int out_channels, int out_height, int out_width>
+void depthwiseConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+                            int in_channels, int in_height, int in_width,
+                            int kernel_h, int kernel_w, int stride_h, int stride_w,
+                            int pad_h, int pad_w,
+                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+    // Simplified depthwise convolution implementation (each input channel is convolved independently)
+    for (int c = 0; c < in_channels; ++c) {
+        for (int oh = 0; oh < out_height; ++oh) {
+            for (int ow = 0; ow < out_width; ++ow) {
+                Scalar sum = 0;
+                for (int kh = 0; kh < kernel_h; ++kh) {
+                    for (int kw = 0; kw < kernel_w; ++kw) {
+                        int in_h = oh * stride_h - pad_h + kh;
+                        int in_w = ow * stride_w - pad_w + kw;
+                        if(in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width){
+                            int input_index = (in_h * in_width * in_channels) + (in_w * in_channels) + c;
+                            int weight_index = (kh * kernel_w + kw) * in_channels + c;
+                            sum += inputs[input_index] * weights[weight_index];
+                        }
+                    }
+                }
+                sum += biases[c];
+                int output_index = (oh * out_width * in_channels) + (ow * in_channels) + c;
+                activation_function(outputs[output_index], sum, alpha);
+            }
+        }
+    }
+}
+
+template<typename Scalar, int out_channels, int out_height, int out_width>
+void separableConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* depthwise_weights, const Scalar* pointwise_weights, const Scalar* biases,
+                            int in_channels, int in_height, int in_width,
+                            int kernel_h, int kernel_w, int stride_h, int stride_w,
+                            int pad_h, int pad_w,
+                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+    // First perform depthwise convolution (this is a simplified approach)
+    const int depthwise_output_size = in_height * in_width * in_channels; // assuming same spatial dims for simplicity
+    Scalar depthwise_output[depthwise_output_size];
+    depthwiseConv2DForward<Scalar, in_channels, in_height, in_width>(depthwise_output, inputs, depthwise_weights, biases, in_channels, in_height, in_width, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w, linear, 0.0);
+    // Then perform pointwise convolution
+    for (int oc = 0; oc < out_channels; ++oc) {
+        for (int i = 0; i < in_height * in_width; ++i) {
+            Scalar sum = 0;
+            for (int ic = 0; ic < in_channels; ++ic) {
+                int index = i * in_channels + ic;
+                int weight_index = ic * out_channels + oc;
+                sum += depthwise_output[index] * pointwise_weights[weight_index];
+            }
+            sum += biases[oc];
+            outputs[i * out_channels + oc] = sum;
+            activation_function(outputs[i * out_channels + oc], sum, alpha);
+        }
+    }
+}
+
+template<typename Scalar>
+void convLSTM2DForward(/* parameters */) noexcept {
+    // Stub for ConvLSTM2D.
+    // A full implementation would require handling time steps and cell states.
+}
+
 template <typename Scalar = double>
 auto cnn1(const std::array<Scalar, 28>& initial_input) { 
 
@@ -53,7 +216,7 @@ auto cnn1(const std::array<Scalar, 28>& initial_input) {
 
     if (model_input.size() != 28) { throw std::invalid_argument("Invalid input size. Expected size: 28"); }
 
-    //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
+    //\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\// 
 
     constexpr std::array<Scalar, 288> weights_1 = {1.381137818e-01, 1.064206958e-01, -5.808985233e-02, 3.290894628e-02, 9.191396832e-02, 2.093055844e-02, -2.063614130e-02, -1.053822190e-01, -4.541178048e-02, 8.330866694e-03, 7.397170365e-02, 8.453966677e-02, 6.553541124e-02, -4.088365287e-02, 4.999776185e-02, -1.090023667e-01, 7.490186393e-02, -1.417142153e-02, -1.033432484e-01, 1.331923157e-01, 1.163582951e-01, 7.453660667e-02, -5.591059476e-02, 1.937444508e-02, -8.758352697e-02, 1.217964739e-01, 7.580682635e-02, 4.631982744e-02, 1.258884370e-02, -4.406635463e-02, -3.715150803e-02, -4.139646888e-03, 1.122539192e-01, 1.324421614e-01, 3.035694361e-03, 1.395711154e-01, -1.165121421e-01, -9.199365973e-03, 1.332151443e-01, -1.295541525e-01, -8.101603389e-02, -1.878511161e-02, 1.293167323e-01, 5.503484607e-02, 5.716960132e-02, 1.161515862e-01, -1.171213984e-01, -8.503116667e-02, -1.390141100e-01, -1.382912248e-01, 1.254903525e-01, 1.282582730e-01, 1.413275748e-01, 1.341752708e-02, 9.338988364e-02, 2.697439492e-02, 1.337810904e-01, -2.357650548e-02, 8.487200737e-02, 4.246473312e-02, -9.514294565e-02, -2.315565944e-02, -1.243203953e-01, 4.133659601e-02, 2.748060226e-02, 9.300641716e-02, -9.998928010e-02, -3.772091866e-02, -3.618747741e-02, 7.938417792e-02, -4.075989872e-02, -6.107427925e-02, -8.074581623e-03, -1.207219064e-02, 1.254753023e-01, -5.476746708e-02, -4.521205276e-02, 1.269690245e-01, 1.154808849e-01, -8.805991709e-02, 1.828509569e-02, -6.062086672e-02, 3.757947683e-02, -6.000238657e-02, -1.175374389e-01, -1.010344028e-01, -1.204832643e-01, -1.021085232e-01, 1.371994764e-01, -4.669092596e-02, -4.097387195e-03, 6.991477311e-02, 1.204855293e-01, -5.064483732e-02, 7.673788071e-02, 1.132586449e-01, 1.217055470e-01, -7.243175805e-02, -6.882556528e-02, 1.161879748e-01, 7.421535254e-02, 9.155793488e-02, -3.624030948e-02, 1.407765895e-01, 1.060869992e-01, 3.956422210e-02, -4.709686339e-02, -8.984473348e-02, -1.319800913e-01, 1.305913180e-01, -5.239335448e-02, -2.087134868e-02, 1.283026785e-01, 9.560436010e-02, 1.849363744e-02, 4.102246463e-02, 7.261660695e-02, -1.364633441e-02, -1.307399124e-01, -1.341207474e-01, 7.808752358e-02, -4.233596474e-02, -4.158268124e-02, 1.363710612e-01, 1.171241552e-01, -1.379640400e-01, -2.177966386e-02, 6.773622334e-02, 9.652115405e-02, 2.363950014e-03, -1.317017674e-01, 1.323676258e-01, 3.903424740e-02, 1.154772937e-02, 1.028196216e-01, -2.293420583e-02, -3.740237653e-02, 3.965494037e-02, -7.764118910e-02, -2.375767380e-02, 2.184310555e-02, 8.289426565e-03, -1.045695618e-01, 8.655568957e-02, -1.313961744e-01, 6.564527750e-02, -9.040227532e-02, 1.111174971e-01, 2.654337883e-02, 1.139283627e-01, 3.396192193e-02, 1.399462968e-01, -8.956211060e-02, 1.450209320e-02, 1.312140375e-01, -1.223627180e-01, -1.410043538e-01, -3.270202875e-02, 6.618201733e-03, 1.358848959e-01, 9.594957530e-02, 1.293355078e-01, 4.364573956e-02, -8.391275257e-02, -7.618829608e-03, 3.995463252e-02, -8.677603304e-02, 1.061035395e-01, 1.045733243e-01, -1.180820018e-01, -7.407759875e-02, 9.389951825e-03, 1.048532277e-01, -1.091459095e-01, -3.971606493e-02, -6.633674353e-02, 4.552967846e-02, 5.512000620e-02, -9.487744421e-02, 4.427978396e-02, 1.069457382e-01, -1.388546377e-01, -1.046970487e-02, -1.079872400e-01, 9.198695421e-02, 1.835690439e-02, 1.418743879e-01, 1.692442596e-02, 2.642823756e-02, -1.307177097e-01, -3.433269262e-02, 1.310125142e-01, 4.888968170e-02, -1.239133030e-01, 1.166649610e-01, 5.071786046e-02, -6.498626620e-02, -4.791843146e-02, -1.283949763e-01, -4.233586043e-02, 9.395119548e-02, -2.775278687e-02, 5.847871304e-03, -8.701255918e-02, 7.142899930e-02, -1.043257713e-01, 1.758316159e-02, 3.995907307e-02, 9.512394667e-02, -4.823999107e-02, -2.915325016e-02, 1.272775084e-01, -5.398443341e-02, 5.812251568e-02, 1.023922861e-02, 1.221040636e-01, -8.075235039e-02, -5.190192163e-02, -1.033265069e-01, -3.611651808e-02, 6.007725000e-02, 5.321447551e-02, 1.386083215e-01, -1.048017591e-01, 4.035517573e-02, -1.284367889e-01, -8.314144611e-02, -3.927749395e-02, -1.312799454e-01, -4.759602994e-02, 1.309891790e-01, -8.914536238e-02, -4.986447841e-02, 4.707510769e-02, 5.278813839e-02, -1.817527413e-02, -1.349811107e-01, -9.100947529e-02, 5.879504979e-02, 6.259948015e-02, -6.919731200e-02, 7.919044793e-02, 7.048042119e-02, 4.693675041e-02, 9.955018759e-04, 8.711425960e-02, 3.168897331e-02, 1.088721007e-01, -8.693177998e-02, 1.341363937e-01, -4.653484374e-02, -2.118317783e-02, -1.204789579e-01, -1.129525751e-01, -2.165269107e-02, 7.540673018e-02, -1.396221817e-01, 1.062723994e-02, -3.720752150e-02, 1.211666614e-01, 3.519523144e-02, -1.363130957e-01, 5.806992948e-02, -7.869562507e-02, 1.411267072e-01, -6.541551650e-02, -7.140289992e-02, -1.301415563e-01, -8.481158316e-02, -2.782069147e-02, -2.364289761e-02, 6.065931916e-02, 1.021178067e-01, 2.267743647e-02, 1.109966636e-02, 4.234185815e-02, -9.709775448e-03, -1.356099248e-01, 1.809194684e-02, 1.220941693e-01, 8.011147380e-02, 3.805959225e-02, 2.927443385e-02, 7.326409221e-02, -1.039900184e-01, -8.495350182e-02, 6.436973810e-03, -9.779924154e-02};
 
@@ -71,7 +234,7 @@ auto cnn1(const std::array<Scalar, 28>& initial_input) {
 
     constexpr std::array<Scalar, 10> biases_7 = {0.000000000e+00, 0.000000000e+00, 0.000000000e+00, 0.000000000e+00, 0.000000000e+00, 0.000000000e+00, 0.000000000e+00, 0.000000000e+00, 0.000000000e+00, 0.000000000e+00};
 
-    //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
+    //\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//
 
     auto relu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
         output = input > 0 ? input : 0;
@@ -81,31 +244,55 @@ auto cnn1(const std::array<Scalar, 28>& initial_input) {
         output = input;
     };
 
-    //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
+    //\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\// 
 
-    constexpr std::array<Scalar, 10> layer_shape = {(0, 28), ((3, 3, 1, 32), (32,)), 0, ((3, 3, 32, 64), (64,)), 0, 0, ((1600, 128), (128,)), 0, ((128, 10), (10,)), 0};
+    // NEW CODE: Convolution layer processing for layer 1
+    // TODO: Specify input dimensions for convolution layer 1
+    constexpr int in_height_1 = /* input height */ 0;
+    constexpr int in_width_1 = /* input width */ 0;
+    constexpr int in_channels_1 = /* input channels */ 0;
+    constexpr int kernel_h_1 = 3;
+    constexpr int kernel_w_1 = 3;
+    constexpr int stride_h_1 = 1;
+    constexpr int stride_w_1 = 1;
+    constexpr int pad_h_1 = 0;
+    constexpr int pad_w_1 = 0;
+    constexpr int out_height_1 = (in_height_1 + 2 * pad_h_1 - kernel_h_1) / stride_h_1 + 1;
+    constexpr int out_width_1 = (in_width_1 + 2 * pad_w_1 - kernel_w_1) / stride_w_1 + 1;
+    std::array<Scalar, out_height_1 * out_width_1 * 32> layer_1_output;
+    conv2DForward<Scalar, 32, out_height_1, out_width_1>(layer_1_output.data(), model_input.data(), weights_1.data(), biases_1.data(), in_channels_1, in_height_1, in_width_1, kernel_h_1, kernel_w_1, stride_h_1, stride_w_1, pad_h_1, pad_w_1, relu, 0.0);
 
-    std::array<Scalar, 3> layer_1_output;
-    forwardPass<Scalar, 3>(layer_1_output.data(), model_input.data(), weights_1.data(), biases_1.data(), 28, relu, 0.0);
+    std::array<Scalar, out_height_1 * out_width_1 * 32> layer_2_output;
+    for (int i = 0; i < out_height_1 * out_width_1 * 32; i++) {
+        linear(layer_2_output[i], layer_1_output[i], 0.0);
+    }
 
-    std::array<Scalar, 3> layer_2_output;
-    linear(layer_2_output[0], layer_1_output[0], 0.0);
-    linear(layer_2_output[1], layer_1_output[1], 0.0);
-    linear(layer_2_output[2], layer_1_output[2], 0.0);
+    // NEW CODE: Convolution layer processing for layer 3
+    // TODO: Specify input dimensions for convolution layer 3
+    constexpr int in_height_3 = /* input height */ 0;
+    constexpr int in_width_3 = /* input width */ 0;
+    constexpr int in_channels_3 = /* input channels */ 0;
+    constexpr int kernel_h_3 = 3;
+    constexpr int kernel_w_3 = 3;
+    constexpr int stride_h_3 = 1;
+    constexpr int stride_w_3 = 1;
+    constexpr int pad_h_3 = 0;
+    constexpr int pad_w_3 = 0;
+    constexpr int out_height_3 = (in_height_3 + 2 * pad_h_3 - kernel_h_3) / stride_h_3 + 1;
+    constexpr int out_width_3 = (in_width_3 + 2 * pad_w_3 - kernel_w_3) / stride_w_3 + 1;
+    std::array<Scalar, out_height_3 * out_width_3 * 64> layer_3_output;
+    conv2DForward<Scalar, 64, out_height_3, out_width_3>(layer_3_output.data(), layer_2_output.data(), weights_3.data(), biases_3.data(), in_channels_3, in_height_3, in_width_3, kernel_h_3, kernel_w_3, stride_h_3, stride_w_3, pad_h_3, pad_w_3, relu, 0.0);
 
-    std::array<Scalar, 3> layer_3_output;
-    forwardPass<Scalar, 3>(layer_3_output.data(), layer_2_output.data(), weights_3.data(), biases_3.data(), 3, relu, 0.0);
-
-    std::array<Scalar, 3> layer_4_output;
-    linear(layer_4_output[0], layer_3_output[0], 0.0);
-    linear(layer_4_output[1], layer_3_output[1], 0.0);
-    linear(layer_4_output[2], layer_3_output[2], 0.0);
+    std::array<Scalar, out_height_3 * out_width_3 * 64> layer_4_output;
+    for (int i = 0; i < out_height_3 * out_width_3 * 64; i++) {
+        linear(layer_4_output[i], layer_3_output[i], 0.0);
+    }
 
     // Flatten layer not explicitly handled, assuming no-op
-    std::array<Scalar, 3> layer_5_output = layer_4_output;
+    std::array<Scalar, out_height_3 * out_width_3 * 64> layer_5_output = layer_4_output;
 
     std::array<Scalar, 128> layer_6_output;
-    forwardPass<Scalar, 128>(layer_6_output.data(), layer_5_output.data(), weights_6.data(), biases_6.data(), 3, relu, 0.0);
+    forwardPass<Scalar, 128>(layer_6_output.data(), layer_5_output.data(), weights_6.data(), biases_6.data(), out_height_3 * out_width_3 * 64, relu, 0.0);
 
     std::array<Scalar, 10> layer_7_output;
     forwardPass<Scalar, 10>(layer_7_output.data(), layer_6_output.data(), weights_7.data(), biases_7.data(), 128, linear, 0.0);

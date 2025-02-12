@@ -76,8 +76,8 @@ else:
 
                 model, file_extension = loadModel(file_path)
                 weights_list, biases_list, activation_functions, alphas, dropout_rates, batch_norm_params, conv_layer_params, input_size, layer_shape = extractModel(model, file_extension)  ## ADDED ##    
-                print()            
-                print(conv_layer_params) ## ADDED ##
+                # print()            
+                # print(conv_layer_params) ## ADDED ##
 
                 base_file_name = os.path.splitext(file_name)[0]
                 save_path = os.path.join(save_dir, base_file_name)
