@@ -4,3 +4,4 @@ pandas==2.2.3
 pip==25.0
 scikit-learn==1.6.1
 tensorflow==2.18.0
+sympy==1.13.3
