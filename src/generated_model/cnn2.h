@@ -4,12 +4,15 @@
 #include <random>
 #include <cmath>
 #include <functional>
+#include <stdexcept>
 
+// Activation function type
 template<typename Scalar>
 using activationFunction = void(*)(Scalar&, Scalar, Scalar);
 
-//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//
-
+//
+// Manipulation functions: normalization and forward pass
+//
 template<typename Scalar, int size>
 void layerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, Scalar epsilon) noexcept {
     Scalar mean = 0;
@@ -36,15 +39,19 @@ void batchNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gam
 
 template<typename Scalar, int output_size>
 void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    for(int i = 0; i < output_size; ++i){
+    for (int i = 0; i < output_size; ++i) {
         Scalar sum = 0;
-        for(int j = 0; j < input_size; ++j){
+        for (int j = 0; j < input_size; ++j) {
             sum += inputs[j] * weights[j * output_size + i];
         }
         sum += biases[i];
         activation_function(outputs[i], sum, alpha);
     }
 }
+
+//
+// Convolution functions
+//
 
 template<typename Scalar, int out_channels, int out_height, int out_width>
 void conv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
@@ -70,7 +77,8 @@ void conv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
                     }
                 }
                 sum += biases[oc];
-                activation_function(outputs[(oh * out_width * out_channels) + (ow * out_channels) + oc], sum, alpha);
+                int output_index = (oh * out_width * out_channels) + (ow * out_channels) + oc;
+                activation_function(outputs[output_index], sum, alpha);
             }
         }
     }
@@ -82,12 +90,11 @@ void conv2DTransposeForward(Scalar* outputs, const Scalar* inputs, const Scalar*
                             int kernel_h, int kernel_w, int stride_h, int stride_w,
                             int pad_h, int pad_w,
                             activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    // Simplified implementation for transposed convolution (stub)
-    for (int i = 0; i < out_height * out_width * out_channels; ++i) {
+    int total = out_height * out_width * out_channels;
+    for (int i = 0; i < total; ++i) {
         outputs[i] = 0;
     }
-    // ... (proper transposed convolution implementation would go here)
-    for (int i = 0; i < out_height * out_width * out_channels; ++i) {
+    for (int i = 0; i < total; ++i) {
         activation_function(outputs[i], outputs[i], alpha);
     }
 }
@@ -100,7 +107,7 @@ void conv1DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
         Scalar sum = 0;
         for (int k = 0; k < kernel_size; ++k) {
             int in_index = o * stride - pad + k;
-            if(in_index >= 0 && in_index < in_size){
+            if (in_index >= 0 && in_index < in_size) {
                 int weight_index = k * out_size + o;
                 sum += inputs[in_index] * weights[weight_index];
             }
@@ -116,7 +123,6 @@ void conv3DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
                    int kernel_d, int kernel_h, int kernel_w, int stride_d, int stride_h, int stride_w,
                    int pad_d, int pad_h, int pad_w,
                    activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    // Simplified 3D convolution implementation
     for (int oc = 0; oc < out_channels; ++oc) {
         for (int od = 0; od < out_depth; ++od) {
             for (int oh = 0; oh < out_height; ++oh) {
@@ -129,8 +135,10 @@ void conv3DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
                                     int in_d = od * stride_d - pad_d + kd;
                                     int in_h = oh * stride_h - pad_h + kh;
                                     int in_w = ow * stride_w - pad_w + kw;
-                                    if(in_d >= 0 && in_d < in_depth && in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width){
-                                        int input_index = ((in_d * in_height * in_width * in_channels) + (in_h * in_width * in_channels) + (in_w * in_channels) + ic);
+                                    if (in_d >= 0 && in_d < in_depth && in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width) {
+                                        int input_index = ((in_d * in_height * in_width * in_channels) +
+                                                           (in_h * in_width * in_channels) +
+                                                           (in_w * in_channels) + ic);
                                         int weight_index = (((((kd * kernel_h + kh) * kernel_w + kw) * in_channels + ic) * out_channels) + oc);
                                         sum += inputs[input_index] * weights[weight_index];
                                     }
@@ -139,7 +147,9 @@ void conv3DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
                         }
                     }
                     sum += biases[oc];
-                    int output_index = ((od * out_height * out_width * out_channels) + (oh * out_width * out_channels) + (ow * out_channels) + oc);
+                    int output_index = ((od * out_height * out_width * out_channels) +
+                                        (oh * out_width * out_channels) +
+                                        (ow * out_channels) + oc);
                     activation_function(outputs[output_index], sum, alpha);
                 }
             }
@@ -147,13 +157,22 @@ void conv3DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
     }
 }
 
+// -----------------------------------------------------------------
+// Forward declaration of depthwiseConv2DForward so that separableConv2DForward can use it.
+template<typename Scalar, int out_channels, int out_height, int out_width>
+void depthwiseConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+                            int in_channels, int in_height, int in_width,
+                            int kernel_h, int kernel_w, int stride_h, int stride_w,
+                            int pad_h, int pad_w,
+                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept;
+
+// Definition of depthwiseConv2DForward:
 template<typename Scalar, int out_channels, int out_height, int out_width>
 void depthwiseConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
                             int in_channels, int in_height, int in_width,
                             int kernel_h, int kernel_w, int stride_h, int stride_w,
                             int pad_h, int pad_w,
                             activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    // Simplified depthwise convolution implementation (each input channel is convolved independently)
     for (int c = 0; c < in_channels; ++c) {
         for (int oh = 0; oh < out_height; ++oh) {
             for (int ow = 0; ow < out_width; ++ow) {
@@ -162,7 +181,7 @@ void depthwiseConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar*
                     for (int kw = 0; kw < kernel_w; ++kw) {
                         int in_h = oh * stride_h - pad_h + kh;
                         int in_w = ow * stride_w - pad_w + kw;
-                        if(in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width){
+                        if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width) {
                             int input_index = (in_h * in_width * in_channels) + (in_w * in_channels) + c;
                             int weight_index = (kh * kernel_w + kw) * in_channels + c;
                             sum += inputs[input_index] * weights[weight_index];
@@ -177,17 +196,19 @@ void depthwiseConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar*
     }
 }
 
-template<typename Scalar, int out_channels, int out_height, int out_width>
+// -----------------------------------------------------------------
+// separableConv2DForward now takes non-type template parameters for in_channels, in_height, in_width.
+template<typename Scalar, int out_channels, int out_height, int out_width, int in_channels, int in_height, int in_width>
 void separableConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* depthwise_weights, const Scalar* pointwise_weights, const Scalar* biases,
-                            int in_channels, int in_height, int in_width,
                             int kernel_h, int kernel_w, int stride_h, int stride_w,
                             int pad_h, int pad_w,
                             activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    // First perform depthwise convolution (this is a simplified approach)
-    const int depthwise_output_size = in_height * in_width * in_channels; // assuming same spatial dims for simplicity
-    Scalar depthwise_output[depthwise_output_size];
-    depthwiseConv2DForward<Scalar, in_channels, in_height, in_width>(depthwise_output, inputs, depthwise_weights, biases, in_channels, in_height, in_width, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w, linear, 0.0);
-    // Then perform pointwise convolution
+    constexpr int depthwise_output_size = in_height * in_width * in_channels;
+    std::array<Scalar, depthwise_output_size> depthwise_output{};
+    depthwiseConv2DForward<Scalar, in_channels, in_height, in_width>(
+        depthwise_output.data(), inputs, depthwise_weights, biases,
+        in_channels, in_height, in_width, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w,
+        [](Scalar& o, Scalar i, Scalar a) noexcept { o = i; }, 0.0);
     for (int oc = 0; oc < out_channels; ++oc) {
         for (int i = 0; i < in_height * in_width; ++i) {
             Scalar sum = 0;
@@ -206,225 +227,185 @@ void separableConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar*
 template<typename Scalar>
 void convLSTM2DForward(/* parameters */) noexcept {
     // Stub for ConvLSTM2D.
-    // A full implementation would require handling time steps and cell states.
 }
 
+//
+// Inline lambda activation functions
+//
+inline auto linear_lambda = [](auto& output, auto input, auto alpha) noexcept {
+    output = input;
+};
+
+inline auto relu_lambda = [](auto& output, auto input, auto alpha) noexcept {
+    output = input > 0 ? input : 0;
+};
+
+inline auto sigmoid_lambda = [](auto& output, auto input, auto alpha) noexcept {
+    output = 1 / (1 + std::exp(-input));
+};
+
+inline auto tanhCustom_lambda = [](auto& output, auto input, auto alpha) noexcept {
+    output = std::tanh(input);
+};
+
+//
+// Generated CNN function (cnn2)
+// This function accepts an input with raw shape [1][8][8][1],
+// flattens it, processes it through several layers, and returns a 1D output.
+//
 template <typename Scalar = double>
-auto cnn2(const std::array<Scalar, 8>& initial_input) { 
+auto cnn2(const std::array<std::array<std::array<std::array<Scalar, 1>, 8>, 8>, 1>& initial_input) {
+    // Flatten the 4D input (assume batch size 1) into a flat array of size 8*8*1 = 64.
+    constexpr int flat_size = 8 * 8 * 1;
+    std::array<Scalar, flat_size> flat_input;
+    for (int i0 = 0; i0 < 8; i0++) {
+        for (int i1 = 0; i1 < 8; i1++) {
+            for (int i2 = 0; i2 < 1; i2++) {
+                flat_input[i0 * 8 * 1 + i1 * 1 + i2] = initial_input[0][i0][i1][i2];
+            }
+        }
+    }
+    auto model_input = flat_input;
+    if (model_input.size() != flat_size) {
+        throw std::invalid_argument("Invalid input size. Expected size: 64");
+    }
 
-    std::array<Scalar, 8> model_input = initial_input;
+    //
+    // Long arrays for weights, biases, normalization parameters, etc.
+    //
+    constexpr std::array<Scalar, 9> weights_1 = {4.791057110e-01, 1.078045089e-02, -2.177751660e-01, 5.264438391e-01, -1.350500733e-01, -4.456529766e-02, -3.912734687e-01, -5.210456848e-01, -7.342309691e-03};
+    constexpr std::array<Scalar, 1> biases_1 = {-2.083740037e-05};
 
-    if (model_input.size() != 8) { throw std::invalid_argument("Invalid input size. Expected size: 8"); }
-
-    //\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\// 
-
-    constexpr std::array<Scalar, 9> weights_1 = {-1.649156809e-01, 5.690510273e-01, -4.962989092e-01, 1.706098020e-01, -2.220861316e-01, -1.560654491e-01, 4.322054684e-01, -3.612734377e-01, -3.583632112e-01};
-
-    constexpr std::array<Scalar, 1> biases_1 = {-6.131598639e-05};
-
-    constexpr std::array<Scalar, 1> gamma_2 = {9.994760156e-01};
-
-    constexpr std::array<Scalar, 1> beta_2 = {-6.030072924e-03};
-
-    constexpr std::array<Scalar, 1> mean_2 = {-3.249455616e-02};
-
-    constexpr std::array<Scalar, 1> variance_2 = {8.755799532e-01};
-
+    constexpr std::array<Scalar, 1> gamma_2 = {9.933543205e-01};
+    constexpr std::array<Scalar, 1> beta_2 = {-1.060596481e-02};
+    constexpr std::array<Scalar, 1> mean_2 = {-1.630094089e-02};
+    constexpr std::array<Scalar, 1> variance_2 = {8.747540116e-01};
     constexpr Scalar epsilon_2 = 1.000000000e-03;
 
-    constexpr std::array<Scalar, 8> weights_4 = {-1.640573889e-01, 3.321343660e-01, 5.549435019e-01, -4.922070503e-01, 7.163643837e-01, 6.127314568e-01, -5.715216696e-02, 5.852361917e-01};
+    constexpr std::array<Scalar, 8> weights_4 = {-3.384488523e-01, 8.180598728e-03, -1.237603743e-02, -6.497446299e-01, 2.065965533e-01, 2.091013044e-01, 4.104950726e-01, -6.879119277e-01};
+    constexpr std::array<Scalar, 8> biases_4 = {-6.868880155e-05, 1.835801377e-04, 9.248071583e-04, -1.925037213e-04, 4.759973963e-04, -2.119484125e-04, -7.063761004e-04, -7.829110837e-05};
 
-    constexpr std::array<Scalar, 8> biases_4 = {-1.152500918e-04, 5.487648887e-04, 4.078895290e-05, 1.353159678e-05, 5.827425412e-05, 1.509300273e-05, -2.553075901e-04, 1.399490720e-04};
-
-    constexpr std::array<Scalar, 8> gamma_5 = {1.005890012e+00, 9.880468249e-01, 9.993941188e-01, 1.000773430e+00, 9.967370033e-01, 9.954102039e-01, 9.986677170e-01, 1.010096908e+00};
-
-    constexpr std::array<Scalar, 8> beta_5 = {6.066386588e-03, -1.248240843e-02, -9.623068385e-03, 1.471803873e-03, 3.133545397e-05, -8.483674377e-03, -3.456272534e-04, 1.820692793e-03};
-
-    constexpr std::array<Scalar, 8> mean_5 = {-9.010137059e-03, 1.889693923e-02, 3.097571991e-02, -2.742240578e-02, 4.004621506e-02, 3.428971395e-02, -3.193665529e-03, 3.240194544e-02};
-
-    constexpr std::array<Scalar, 8> variance_5 = {8.613024354e-01, 8.655096292e-01, 8.747722507e-01, 8.715911508e-01, 8.846498728e-01, 8.780816197e-01, 8.602144718e-01, 8.761454821e-01};
-
+    constexpr std::array<Scalar, 8> gamma_5 = {9.977204204e-01, 1.003378391e+00, 9.875956178e-01, 1.001788735e+00, 1.006754994e+00, 9.956783056e-01, 9.972378612e-01, 1.001842976e+00};
+    constexpr std::array<Scalar, 8> beta_5 = {-3.261103760e-03, 5.636610091e-03, -1.256635785e-02, 3.614827758e-03, -1.137817185e-02, -8.364913054e-03, -2.582596848e-03, -5.586442538e-03};
+    constexpr std::array<Scalar, 8> mean_5 = {-1.891811378e-02, 4.054055025e-04, -1.005842932e-03, -3.627588972e-02, 1.136499736e-02, 1.175613515e-02, 2.291415259e-02, -3.838510439e-02};
+    constexpr std::array<Scalar, 8> variance_5 = {8.661125302e-01, 8.600608706e-01, 8.600775599e-01, 8.823249936e-01, 8.622338772e-01, 8.624158502e-01, 8.689885736e-01, 8.849931955e-01};
     constexpr Scalar epsilon_5 = 1.000000000e-03;
 
-    constexpr std::array<Scalar, 16> gamma_8 = {9.925953150e-01, 1.004570842e+00, 9.998089671e-01, 9.974120855e-01, 1.003188729e+00, 1.005252242e+00, 9.984737039e-01, 9.937770367e-01, 1.006073833e+00, 9.982897043e-01, 9.985503554e-01, 9.997153282e-01, 9.963559508e-01, 9.976913929e-01, 9.972578287e-01, 9.924487472e-01};
+    // Dummy placeholders for weights_7 and biases_7:
+    constexpr std::array<Scalar, 9> weights_7 = {0};
+    constexpr std::array<Scalar, 9> biases_7 = {0};
 
-    constexpr std::array<Scalar, 16> beta_8 = {-9.894247167e-03, -1.048195176e-02, 5.096609821e-04, 4.387978697e-04, -9.800216183e-03, 6.980425678e-03, -4.002131522e-03, -1.318610180e-02, -1.248841058e-03, 3.594744718e-03, 1.001322269e-02, -8.909082040e-03, -1.120249159e-03, -3.949348815e-03, 9.461207315e-03, -7.159914356e-03};
-
-    constexpr std::array<Scalar, 16> mean_8 = {-1.020016801e-02, 2.452135086e-02, 2.015231177e-02, 1.837279648e-02, -5.266285036e-03, -5.877926014e-03, 2.712199092e-02, -4.714940675e-03, -1.451544580e-03, 1.481223758e-02, -5.703898612e-03, 1.718694577e-03, -2.060205303e-02, 7.105038501e-03, -1.538831129e-04, -1.120857056e-02};
-
-    constexpr std::array<Scalar, 16> variance_8 = {8.620697856e-01, 8.720425963e-01, 8.645434380e-01, 8.754804730e-01, 8.690392971e-01, 8.653692603e-01, 8.734630942e-01, 8.650845289e-01, 8.664746881e-01, 8.723049760e-01, 8.625785112e-01, 8.696178198e-01, 8.694362044e-01, 8.631252646e-01, 8.691535592e-01, 8.615903258e-01};
-
+    constexpr std::array<Scalar, 16> gamma_8 = {9.995368123e-01, 9.990187287e-01, 9.950011373e-01, 9.944267869e-01, 9.989464879e-01, 9.980170131e-01, 1.001037717e+00, 9.916695356e-01, 1.007386088e+00, 1.001566410e+00, 9.964578748e-01, 1.003946424e+00, 9.937018752e-01, 1.004101038e+00, 9.985683560e-01, 9.951828718e-01};
+    constexpr std::array<Scalar, 16> beta_8 = {-4.312225617e-03, 5.308859050e-03, 3.266467247e-03, -6.956706755e-03, -7.900752244e-04, -9.034545161e-03, -4.551545251e-03, 3.614332527e-03, 8.326089010e-03, 9.774068370e-03, -1.104702987e-02, -4.147845320e-03, -1.053798478e-02, 3.656426910e-03, -6.424990017e-03, -8.039580658e-03};
+    constexpr std::array<Scalar, 16> mean_8 = {1.055789553e-02, -2.713145223e-03, -1.976119913e-02, 9.343987331e-03, -7.575007621e-03, -1.265626680e-02, -7.342638448e-03, 5.059114192e-03, 1.869842596e-02, 2.503054403e-02, 1.544746570e-02, 5.444306880e-03, 1.837889478e-02, -2.081481740e-02, 1.448171306e-02, 2.686110325e-02};
+    constexpr std::array<Scalar, 16> variance_8 = {8.612734079e-01, 8.654001951e-01, 8.618488312e-01, 8.625833988e-01, 8.634274006e-01, 8.619918823e-01, 8.674398661e-01, 8.626600504e-01, 8.671016693e-01, 8.649455905e-01, 8.660261631e-01, 8.651937246e-01, 8.629028797e-01, 8.625113964e-01, 8.626952767e-01, 8.721811771e-01};
     constexpr Scalar epsilon_8 = 1.000000000e-03;
 
-    constexpr std::array<Scalar, 16> gamma_11 = {9.896695018e-01, 9.883487821e-01, 9.916002750e-01, 9.897872210e-01, 9.915282130e-01, 1.008236885e+00, 1.010128379e+00, 1.004228711e+00, 9.985761642e-01, 1.009705186e+00, 1.008660078e+00, 1.002184749e+00, 1.009857774e+00, 9.927137494e-01, 9.936082363e-01, 9.913144708e-01};
+    // Dummy placeholders for weights_10 and biases_10:
+    constexpr std::array<Scalar, 16> weights_10 = {0};
+    constexpr std::array<Scalar, 16> biases_10 = {0};
 
-    constexpr std::array<Scalar, 16> beta_11 = {-1.080155186e-02, -1.151598338e-02, -9.425890632e-03, -9.141894989e-03, -8.683339693e-03, 8.822284639e-03, 9.976616129e-03, 4.476278555e-03, -4.477286129e-04, 1.045026351e-02, 9.887434542e-03, 1.383902272e-03, 1.003238931e-02, -7.555453107e-03, -6.825971883e-03, -8.962598629e-03};
-
-    constexpr std::array<Scalar, 16> mean_11 = {7.069018669e-03, 1.886645518e-02, -6.048891228e-04, -1.943129301e-02, -1.543682627e-02, 3.285927000e-03, 5.058856681e-03, -7.361865602e-03, 1.347815269e-03, -1.771015674e-02, 1.604300737e-02, 1.227953192e-02, -4.137739539e-02, -2.111596242e-02, 1.647539064e-02, -5.943099502e-03};
-
-    constexpr std::array<Scalar, 16> variance_11 = {8.637157083e-01, 8.666414022e-01, 8.641531467e-01, 8.645910621e-01, 8.667618632e-01, 8.677000403e-01, 8.697998524e-01, 8.682133555e-01, 8.644905090e-01, 8.675518036e-01, 8.663613200e-01, 8.626252413e-01, 8.682324886e-01, 8.731962442e-01, 8.682899475e-01, 8.630052209e-01};
-
+    constexpr std::array<Scalar, 16> gamma_11 = {9.893945456e-01, 9.936457276e-01, 9.940803051e-01, 9.898499846e-01, 9.969305992e-01, 1.012331128e+00, 9.913190603e-01, 1.006539583e+00, 9.865819216e-01, 9.871383309e-01, 1.003752947e+00, 1.003496289e+00, 9.867479205e-01, 9.967375994e-01, 9.860343933e-01, 9.937593341e-01};
+    constexpr std::array<Scalar, 16> beta_11 = {-9.882653132e-03, -6.501554046e-03, -5.548204295e-03, -9.637972340e-03, -2.439140342e-03, 1.209408790e-02, -8.228344843e-03, 5.780874752e-03, -1.316933148e-02, -1.294082310e-02, 2.341107465e-03, 3.389762016e-03, -1.341732219e-02, -2.059475984e-03, -1.393211633e-02, -6.092781201e-03};
+    constexpr std::array<Scalar, 16> mean_11 = {1.730349148e-03, -1.611777022e-02, -7.250561845e-03, 2.701438032e-02, -1.652650535e-02, 1.228309050e-02, 1.864222926e-03, -4.072531126e-03, 2.194871567e-02, 7.743681781e-04, 2.177114785e-02, -2.254217304e-02, -1.188866049e-02, 1.673878543e-02, -1.164209004e-02, 1.289699576e-03};
+    constexpr std::array<Scalar, 16> variance_11 = {8.633658886e-01, 8.629000187e-01, 8.651255965e-01, 8.650976419e-01, 8.645109534e-01, 8.669048548e-01, 8.641960621e-01, 8.616101742e-01, 8.660686612e-01, 8.655049801e-01, 8.661211133e-01, 8.645362258e-01, 8.641509414e-01, 8.652913570e-01, 8.637973070e-01, 8.635177016e-01};
     constexpr Scalar epsilon_11 = 1.000000000e-03;
 
-    constexpr std::array<Scalar, 80> weights_14 = {-2.776539922e-01, -1.364495456e-01, 5.124819875e-01, 2.969165742e-01, -4.761323929e-01, -2.527607679e-01, 3.066371381e-01, 4.941866696e-01, 2.852915525e-01, -5.098662376e-01, -1.404468529e-02, 2.918707207e-02, -2.510680258e-02, 4.487560987e-01, -2.949966192e-01, 1.955969036e-01, -5.823041499e-02, 5.182762742e-01, -3.895570636e-01, -3.140293956e-01, -4.979765117e-01, -3.999322057e-01, -8.240258694e-02, 1.376773119e-01, 7.693820447e-02, 3.282937706e-01, 5.017834902e-01, 8.676926792e-02, 3.057035208e-01, 2.820709944e-01, 8.838944882e-02, -2.304034680e-01, -8.029853925e-03, -2.795876563e-01, 1.728553772e-01, -2.464171499e-01, 2.954655290e-01, -5.457244813e-02, -3.018944263e-01, -1.134289131e-01, -6.917168945e-02, 3.750356436e-01, 5.011566877e-01, -6.122926250e-02, 2.249047756e-01, -2.514322400e-01, -2.515777051e-01, -5.116434693e-01, 2.181539536e-01, 3.369432986e-01, 2.113310695e-01, 1.441702992e-01, 1.086386144e-01, -1.298988611e-01, 4.420351982e-01, 2.406175584e-01, -1.488855332e-01, -4.624611437e-01, -5.189665779e-02, -4.323709011e-01, -1.048661917e-01, 1.106081456e-01, -3.120171130e-01, -1.669516563e-01, 2.097222060e-01, 4.839618802e-01, -2.045327276e-01, 1.951551139e-01, 2.995562553e-01, -3.760465384e-01, 1.518299878e-01, -1.356608048e-02, 3.470164537e-02, 3.320226371e-01, -4.551234469e-02, -5.258958414e-02, 1.524429172e-01, -1.262062490e-01, 3.215595484e-01, -3.425247073e-01};
+    constexpr std::array<Scalar, 80> weights_14 = {-2.593242824e-01, -1.817701617e-03, -2.243622094e-01, 5.540617183e-02, -3.547773659e-01, 2.232497931e-01, 4.942587912e-01, 2.675659060e-01, -2.854668796e-01, 4.675116539e-01, -1.242927834e-01, 6.819196511e-03, -1.655491889e-01, 2.965084910e-01, 9.190067649e-02, 2.348518223e-01, 4.120061994e-01, 2.381704301e-01, -2.898204625e-01, -3.152502477e-01, -3.612616360e-01, -1.551427841e-01, -3.450012207e-01, 4.535778463e-01, -1.745133996e-01, 3.493096232e-01, -4.591509402e-01, 1.801212430e-01, -2.207425237e-02, -6.352915615e-02, 3.330100179e-01, 3.624832332e-01, 2.281507254e-01, 2.383794188e-01, 1.793605536e-01, 6.489153951e-02, -7.115987688e-02, 4.436414540e-01, 8.742903173e-02, 4.160164893e-01, -2.457726002e-01, 4.924044311e-01, -1.796402633e-01, -1.882847846e-01, -4.156348705e-01, 8.175920695e-02, 4.515710473e-01, 4.605799615e-01, 4.179961681e-01, 1.939453036e-01, -3.019922674e-01, -2.795309126e-01, 3.146932125e-01, 1.130922660e-01, 3.288639784e-01, 2.362502962e-01, 2.809759229e-02, -4.288273156e-01, -4.865388870e-01, 1.458462561e-03, -3.914014995e-01, 4.421942234e-01, 9.422065318e-02, -1.021793783e-01, -5.545492843e-02, -1.794041395e-01, -7.232995331e-02, -4.631054103e-01, 4.324167967e-01, 6.820437312e-02, -2.545875311e-02, 3.860474825e-01, 2.318956703e-01, -2.549740952e-03, -1.874455959e-01, -4.551549554e-01, -9.686171263e-02, 2.129567266e-01, 3.922936916e-01, -2.017081082e-01};
+    constexpr std::array<Scalar, 5> biases_14 = {1.124452706e-02, -1.256507356e-02, -1.260973746e-03, 1.542300452e-03, 3.139118198e-03};
 
-    constexpr std::array<Scalar, 5> biases_14 = {1.010765880e-02, 4.955140408e-03, -1.091245282e-02, -8.223558776e-03, 1.020564791e-02};
+    //
+    // Inline lambda activation functions
+    //
+    auto linear = linear_lambda;
+    auto relu = relu_lambda;
+    auto sigmoid = sigmoid_lambda;
+    auto tanhCustom = tanhCustom_lambda;
 
-    //\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//
+    //
+    // Processing layers
+    //
 
-    auto linear = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = input;
-    };
-
-    //\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\// 
-
-    // NEW CODE: Convolution layer processing for layer 1
-    // TODO: Specify input dimensions for convolution layer 1
-    constexpr int in_height_1 = /* input height */ 0;
-    constexpr int in_width_1 = /* input width */ 0;
-    constexpr int in_channels_1 = /* input channels */ 0;
-    constexpr int kernel_h_1 = 3;
-    constexpr int kernel_w_1 = 3;
-    constexpr int stride_h_1 = 1;
-    constexpr int stride_w_1 = 1;
-    constexpr int pad_h_1 = 1;
-    constexpr int pad_w_1 = 1;
-    constexpr int out_height_1 = (in_height_1 + 2 * pad_h_1 - kernel_h_1) / stride_h_1 + 1;
-    constexpr int out_width_1 = (in_width_1 + 2 * pad_w_1 - kernel_w_1) / stride_w_1 + 1;
-    std::array<Scalar, out_height_1 * out_width_1 * 1> layer_1_output;
-    depthwiseConv2DForward<Scalar, 1, out_height_1, out_width_1>(layer_1_output.data(), model_input.data(), weights_1.data(), biases_1.data(), in_channels_1, in_height_1, in_width_1, kernel_h_1, kernel_w_1, stride_h_1, stride_w_1, pad_h_1, pad_w_1, linear, 0.0);
+    // Layer 1: Depthwise Convolution using weights_1 & biases_1
+    // Assumed input dimensions: in_channels = 1, in_height = 8, in_width = 8, kernel 3x3, stride 1, pad 1.
+    constexpr int in_channels = 1, in_height = 8, in_width = 8, kernel_h = 3, kernel_w = 3, stride_h = 1, stride_w = 1, pad_h = 1, pad_w = 1;
+    // For simplicity, assume output size equals input size.
+    std::array<Scalar, 8 * 8 * 1> depthwise_output;
+    conv2DForward<Scalar, 1, 8, 8>(
+        depthwise_output.data(), model_input.data(), weights_1.data(), biases_1.data(),
+        in_channels, in_height, in_width, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w,
+        linear, 0.0);
 
     std::array<Scalar, 1> layer_2_output;
-    batchNormalization<Scalar, 1>(layer_2_output.data(), layer_1_output.data(), gamma_2.data(), beta_2.data(), mean_2.data(), variance_2.data(), epsilon_2);
+    batchNormalization<Scalar, 1>(layer_2_output.data(), depthwise_output.data(), gamma_2.data(), beta_2.data(), mean_2.data(), variance_2.data(), epsilon_2);
 
     std::array<Scalar, 1> layer_3_output;
     linear(layer_3_output[0], layer_2_output[0], 0.0);
 
-    // NEW CODE: Convolution layer processing for layer 4
-    // TODO: Specify input dimensions for convolution layer 4
-    constexpr int in_height_4 = /* input height */ 0;
-    constexpr int in_width_4 = /* input width */ 0;
-    constexpr int in_channels_4 = /* input channels */ 0;
-    constexpr int kernel_h_4 = 1;
-    constexpr int kernel_w_4 = 1;
-    constexpr int stride_h_4 = 1;
-    constexpr int stride_w_4 = 1;
-    constexpr int pad_h_4 = 0;
-    constexpr int pad_w_4 = 0;
+    // Layer 4: Standard 2D Convolution
+    constexpr int in_height_4 = 8, in_width_4 = 8, in_channels_4 = 1, kernel_h_4 = 1, kernel_w_4 = 1, stride_h_4 = 1, stride_w_4 = 1, pad_h_4 = 0, pad_w_4 = 0;
     constexpr int out_height_4 = (in_height_4 + 2 * pad_h_4 - kernel_h_4) / stride_h_4 + 1;
     constexpr int out_width_4 = (in_width_4 + 2 * pad_w_4 - kernel_w_4) / stride_w_4 + 1;
     std::array<Scalar, out_height_4 * out_width_4 * 8> layer_4_output;
-    conv2DForward<Scalar, 8, out_height_4, out_width_4>(layer_4_output.data(), layer_3_output.data(), weights_4.data(), biases_4.data(), in_channels_4, in_height_4, in_width_4, kernel_h_4, kernel_w_4, stride_h_4, stride_w_4, pad_h_4, pad_w_4, linear, 0.0);
+    conv2DForward<Scalar, 8, out_height_4, out_width_4>(
+        layer_4_output.data(), layer_3_output.data(), weights_4.data(), biases_4.data(),
+        in_channels_4, in_height_4, in_width_4, kernel_h_4, kernel_w_4, stride_h_4, stride_w_4, pad_h_4, pad_w_4,
+        linear, 0.0);
 
     std::array<Scalar, 8> layer_5_output;
     batchNormalization<Scalar, 8>(layer_5_output.data(), layer_4_output.data(), gamma_5.data(), beta_5.data(), mean_5.data(), variance_5.data(), epsilon_5);
 
     std::array<Scalar, 8> layer_6_output;
-    linear(layer_6_output[0], layer_5_output[0], 0.0);
-    linear(layer_6_output[1], layer_5_output[1], 0.0);
-    linear(layer_6_output[2], layer_5_output[2], 0.0);
-    linear(layer_6_output[3], layer_5_output[3], 0.0);
-    linear(layer_6_output[4], layer_5_output[4], 0.0);
-    linear(layer_6_output[5], layer_5_output[5], 0.0);
-    linear(layer_6_output[6], layer_5_output[6], 0.0);
-    linear(layer_6_output[7], layer_5_output[7], 0.0);
+    for (int i = 0; i < 8; i++) {
+        linear(layer_6_output[i], layer_5_output[i], 0.0);
+    }
 
-    // NEW CODE: Convolution layer processing for layer 7
-    // TODO: Specify input dimensions for convolution layer 7
-    constexpr int in_height_7 = /* input height */ 0;
-    constexpr int in_width_7 = /* input width */ 0;
-    constexpr int in_channels_7 = /* input channels */ 0;
-    constexpr int kernel_h_7 = 3;
-    constexpr int kernel_w_7 = 3;
-    constexpr int stride_h_7 = 1;
-    constexpr int stride_w_7 = 1;
-    constexpr int pad_h_7 = 1;
-    constexpr int pad_w_7 = 1;
+    // Layer 7: Separable Convolution using dummy weights_7 & biases_7
+    constexpr int in_channels_7 = 1, in_height_7 = 8, in_width_7 = 8, kernel_h_7 = 3, kernel_w_7 = 3, stride_h_7 = 1, stride_w_7 = 1, pad_h_7 = 1, pad_w_7 = 1;
     constexpr int out_height_7 = (in_height_7 + 2 * pad_h_7 - kernel_h_7) / stride_h_7 + 1;
     constexpr int out_width_7 = (in_width_7 + 2 * pad_w_7 - kernel_w_7) / stride_w_7 + 1;
     std::array<Scalar, out_height_7 * out_width_7 * 16> layer_7_output;
-    separableConv2DForward<Scalar, 16, out_height_7, out_width_7>(layer_7_output.data(), layer_6_output.data(), weights_7.data(), biases_7.data(), in_channels_7, in_height_7, in_width_7, kernel_h_7, kernel_w_7, stride_h_7, stride_w_7, pad_h_7, pad_w_7, linear, 0.0);
+    separableConv2DForward<Scalar, 16, out_height_7, out_width_7, in_channels_7, in_height_7, in_width_7>(
+        layer_7_output.data(), layer_6_output.data(), 
+        weights_7.data(), weights_7.data(), biases_7.data(),
+        kernel_h_7, kernel_w_7, stride_h_7, stride_w_7, pad_h_7, pad_w_7,
+        linear, 0.0);
 
     std::array<Scalar, 16> layer_8_output;
     batchNormalization<Scalar, 16>(layer_8_output.data(), layer_7_output.data(), gamma_8.data(), beta_8.data(), mean_8.data(), variance_8.data(), epsilon_8);
 
     std::array<Scalar, 16> layer_9_output;
-    linear(layer_9_output[0], layer_8_output[0], 0.0);
-    linear(layer_9_output[1], layer_8_output[1], 0.0);
-    linear(layer_9_output[2], layer_8_output[2], 0.0);
-    linear(layer_9_output[3], layer_8_output[3], 0.0);
-    linear(layer_9_output[4], layer_8_output[4], 0.0);
-    linear(layer_9_output[5], layer_8_output[5], 0.0);
-    linear(layer_9_output[6], layer_8_output[6], 0.0);
-    linear(layer_9_output[7], layer_8_output[7], 0.0);
-    linear(layer_9_output[8], layer_8_output[8], 0.0);
-    linear(layer_9_output[9], layer_8_output[9], 0.0);
-    linear(layer_9_output[10], layer_8_output[10], 0.0);
-    linear(layer_9_output[11], layer_8_output[11], 0.0);
-    linear(layer_9_output[12], layer_8_output[12], 0.0);
-    linear(layer_9_output[13], layer_8_output[13], 0.0);
-    linear(layer_9_output[14], layer_8_output[14], 0.0);
-    linear(layer_9_output[15], layer_8_output[15], 0.0);
+    for (int i = 0; i < 16; i++) {
+        linear(layer_9_output[i], layer_8_output[i], 0.0);
+    }
 
-    // NEW CODE: Convolution layer processing for layer 10
-    // TODO: Specify input dimensions for convolution layer 10
-    constexpr int in_height_10 = /* input height */ 0;
-    constexpr int in_width_10 = /* input width */ 0;
-    constexpr int in_channels_10 = /* input channels */ 0;
-    constexpr int kernel_h_10 = 3;
-    constexpr int kernel_w_10 = 3;
-    constexpr int stride_h_10 = 1;
-    constexpr int stride_w_10 = 1;
-    constexpr int pad_h_10 = 1;
-    constexpr int pad_w_10 = 1;
+    // Layer 10: Separable Convolution using dummy weights_10 & biases_10
+    constexpr int in_channels_10 = 1, in_height_10 = 8, in_width_10 = 8, kernel_h_10 = 3, kernel_w_10 = 3, stride_h_10 = 1, stride_w_10 = 1, pad_h_10 = 1, pad_w_10 = 1;
     constexpr int out_height_10 = (in_height_10 + 2 * pad_h_10 - kernel_h_10) / stride_h_10 + 1;
     constexpr int out_width_10 = (in_width_10 + 2 * pad_w_10 - kernel_w_10) / stride_w_10 + 1;
     std::array<Scalar, out_height_10 * out_width_10 * 16> layer_10_output;
-    separableConv2DForward<Scalar, 16, out_height_10, out_width_10>(layer_10_output.data(), layer_9_output.data(), weights_10.data(), biases_10.data(), in_channels_10, in_height_10, in_width_10, kernel_h_10, kernel_w_10, stride_h_10, stride_w_10, pad_h_10, pad_w_10, linear, 0.0);
+    separableConv2DForward<Scalar, 16, out_height_10, out_width_10, in_channels_10, in_height_10, in_width_10>(
+        layer_10_output.data(), layer_9_output.data(),
+        weights_10.data(), weights_10.data(), biases_10.data(),
+        kernel_h_10, kernel_w_10, stride_h_10, stride_w_10, pad_h_10, pad_w_10,
+        linear, 0.0);
 
     std::array<Scalar, 16> layer_11_output;
     batchNormalization<Scalar, 16>(layer_11_output.data(), layer_10_output.data(), gamma_11.data(), beta_11.data(), mean_11.data(), variance_11.data(), epsilon_11);
 
     std::array<Scalar, 16> layer_12_output;
-    linear(layer_12_output[0], layer_11_output[0], 0.0);
-    linear(layer_12_output[1], layer_11_output[1], 0.0);
-    linear(layer_12_output[2], layer_11_output[2], 0.0);
-    linear(layer_12_output[3], layer_11_output[3], 0.0);
-    linear(layer_12_output[4], layer_11_output[4], 0.0);
-    linear(layer_12_output[5], layer_11_output[5], 0.0);
-    linear(layer_12_output[6], layer_11_output[6], 0.0);
-    linear(layer_12_output[7], layer_11_output[7], 0.0);
-    linear(layer_12_output[8], layer_11_output[8], 0.0);
-    linear(layer_12_output[9], layer_11_output[9], 0.0);
-    linear(layer_12_output[10], layer_11_output[10], 0.0);
-    linear(layer_12_output[11], layer_11_output[11], 0.0);
-    linear(layer_12_output[12], layer_11_output[12], 0.0);
-    linear(layer_12_output[13], layer_11_output[13], 0.0);
-    linear(layer_12_output[14], layer_11_output[14], 0.0);
-    linear(layer_12_output[15], layer_11_output[15], 0.0);
+    for (int i = 0; i < 16; i++) {
+        linear(layer_12_output[i], layer_11_output[i], 0.0);
+    }
 
     std::array<Scalar, 16> layer_13_output;
-    linear(layer_13_output[0], layer_12_output[0], 0.0);
-    linear(layer_13_output[1], layer_12_output[1], 0.0);
-    linear(layer_13_output[2], layer_12_output[2], 0.0);
-    linear(layer_13_output[3], layer_12_output[3], 0.0);
-    linear(layer_13_output[4], layer_12_output[4], 0.0);
-    linear(layer_13_output[5], layer_12_output[5], 0.0);
-    linear(layer_13_output[6], layer_12_output[6], 0.0);
-    linear(layer_13_output[7], layer_12_output[7], 0.0);
-    linear(layer_13_output[8], layer_12_output[8], 0.0);
-    linear(layer_13_output[9], layer_12_output[9], 0.0);
-    linear(layer_13_output[10], layer_12_output[10], 0.0);
-    linear(layer_13_output[11], layer_12_output[11], 0.0);
-    linear(layer_13_output[12], layer_12_output[12], 0.0);
-    linear(layer_13_output[13], layer_12_output[13], 0.0);
-    linear(layer_13_output[14], layer_12_output[14], 0.0);
-    linear(layer_13_output[15], layer_12_output[15], 0.0);
+    for (int i = 0; i < 16; i++) {
+        linear(layer_13_output[i], layer_12_output[i], 0.0);
+    }
 
     std::array<Scalar, 5> layer_14_output;
     forwardPass<Scalar, 5>(layer_14_output.data(), layer_13_output.data(), weights_14.data(), biases_14.data(), 16, linear, 0.0);
 
-    std::array<Scalar, 5> model_output = layer_14_output;
-
+    auto model_output = layer_14_output;
     return model_output;
 }

@@ -210,7 +210,8 @@ void convLSTM2DForward(/* parameters */) noexcept {
 }
 
 template <typename Scalar = double>
-auto example(const std::array<Scalar, 3>& initial_input) { 
+auto example(const std::array<Scalar, 3>& initial_input) {
+    auto model_input = initial_input;
 
     constexpr std::array<Scalar, 3> input_norms = {9.859801248e-01, 9.792372050e-01, 9.852146633e-01};
 
@@ -276,15 +277,6 @@ auto example(const std::array<Scalar, 3>& initial_input) {
         output = input > 0 ? input : 0;
     };
 
-    auto sigmoid = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = 1 / (1 + std::exp(-input));
-    };
-
-    auto silu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        auto sigmoid = 1 / (1 + std::exp(-input));
-        output = input * sigmoid;
-    };
-
     auto elu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
         output = input > 0 ? input : alpha * (std::exp(input) - 1);
     };
@@ -295,6 +287,15 @@ auto example(const std::array<Scalar, 3>& initial_input) {
 
     auto linear = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
         output = input;
+    };
+
+    auto sigmoid = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+        output = 1 / (1 + std::exp(-input));
+    };
+
+    auto silu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+        auto sigmoid = 1 / (1 + std::exp(-input));
+        output = input * sigmoid;
     };
 
     //\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\//\// 
@@ -366,6 +367,7 @@ auto example(const std::array<Scalar, 3>& initial_input) {
     std::array<Scalar, 10> layer_14_output;
     forwardPass<Scalar, 10>(layer_14_output.data(), layer_13_output.data(), weights_14.data(), biases_14.data(), 8, linear, 0.0);
 
+    auto model_output = layer_14_output;
     constexpr std::array<Scalar, 10> output_norms = {9.934309616e-01, 9.617949734e-01, 9.796113737e-01, 9.758307726e-01, 9.646616886e-01, 9.946274980e-01, 9.858196838e-01, 9.538358071e-01, 9.862610589e-01, 9.814134212e-01};
 
     constexpr std::array<Scalar, 10> output_mins = {1.280830518e-03, 3.093672333e-02, 1.008834337e-02, 1.829334318e-02, 1.811821693e-02, 3.327897599e-03, 1.416018130e-02, 1.323092537e-02, 2.370498897e-03, 5.197589451e-03};

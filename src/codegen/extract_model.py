@@ -14,6 +14,7 @@ import os
 import absl.logging
 import warnings
 from tensorflow import keras
+import numpy as np
 
 absl.logging.set_verbosity('error')
 warnings.filterwarnings("ignore", category=UserWarning, module='keras')
@@ -35,14 +36,24 @@ def extractModel(model, file_type):
 
     if file_type in ['.h5', '.keras']:
 
-        input_size = model.layers[0].input_shape[1] if hasattr(model.layers[0], 'input_shape') else model.input_shape[1]
-        input_row = model.input_shape[0]
-        input_col = model.input_shape[1]
-        if model.input_shape[0] == "None" or model.input_shape[0] is None:
-            input_row = 0
-        if model.input_shape[1] is None or model.input_shape[1] == "None":
-            input_col = 0
-        layer_shape.append((input_row, input_col))
+        # input_size = model.layers[0].input_shape[1] if hasattr(model.layers[0], 'input_shape') else model.input_shape[1]
+        # input_row = model.input_shape[0]
+        # input_col = model.input_shape[1]
+        # if model.input_shape[0] == "None" or model.input_shape[0] is None:
+        #     input_row = 0
+        # if model.input_shape[1] is None or model.input_shape[1] == "None":
+        #     input_col = 0
+        # layer_shape.append((input_row, input_col))
+
+        # NEW CODE: Extract the full raw input shape (excluding batch dimension)
+        raw_input_shape = model.input_shape  # e.g., (None, 28, 28, 1) or (28, 28, 1)
+        if raw_input_shape[0] is None or raw_input_shape[0] == "None":
+            processed_shape = raw_input_shape[1:]
+        else:
+            processed_shape = raw_input_shape
+        input_size = int(np.prod(processed_shape))  # e.g., 28*28*1 = 784
+        layer_shape.append(tuple(processed_shape))  # Save full raw shape (e.g., (28, 28, 1))
+
 
         for layer in model.layers:
             layer_weights = layer.get_weights()

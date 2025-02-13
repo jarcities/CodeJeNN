@@ -1,6 +1,7 @@
 import os
 import absl.logging
 import warnings
+import numpy as np
 absl.logging.set_verbosity('error')
 warnings.filterwarnings("ignore", category=UserWarning, module='keras')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -50,11 +51,54 @@ def codeGen(cpp_code, cpp_lambda, precision_type, weights_list, biases_list, act
     name_space = os.path.splitext(os.path.basename(user_file))[0]
     name_space = name_space.replace("-", "_").replace(" ", "_")
 
+    # NEW CODE: Build the input type based on the raw shape.
+    # If the raw input shape (layer_shape[0]) is a tuple with more than one element,
+    # generate a nested std::array type; otherwise, use a flat std::array.
+    if isinstance(layer_shape[0], tuple) and len(layer_shape[0]) > 1:
+        dims = layer_shape[0]
+        # Build nested type string from outermost dimension to innermost.
+        input_type = "std::array<Scalar"
+        for d in reversed(dims):
+            input_type = f"std::array<{input_type}, {d}>"
+    else:
+        input_type = f"std::array<Scalar, {input_size}>"
+
+
+#     cpp_code += f"""
+# template <typename Scalar = {precision_type}>
+# auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ 
+
+# """
+
     cpp_code += f"""
 template <typename Scalar = {precision_type}>
-auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{ 
-
+auto {name_space}(const {input_type}& initial_input) {{
 """
+
+    # // NEW CODE: Flatten the multi-dimensional input if necessary.
+    # // If the raw input is multi-dimensional, copy it into a flat array.
+    if isinstance(layer_shape[0], tuple) and len(layer_shape[0]) > 1:
+        dims = layer_shape[0]
+        cpp_code += f"    constexpr int flat_size = {input_size};\n"
+        cpp_code += "    std::array<Scalar, flat_size> flat_input;\n"
+        # Generate nested loops based on the number of dimensions.
+        loop_vars = [f"i{j}" for j in range(len(dims))]
+        for idx, d in enumerate(dims):
+            indent = "    " * (idx + 1)
+            cpp_code += f"{indent}for (int {loop_vars[idx]} = 0; {loop_vars[idx]} < {d}; {loop_vars[idx]}++) {{\n"
+        # Compute the flat index in row-major order:
+        index_expr = " + ".join([f"{loop_vars[j]} * {np.prod(dims[j+1:]) if j+1 < len(dims) else 1}" for j in range(len(dims))])
+        cpp_code += "    " * (len(dims) + 1) + "flat_input[" + index_expr + "] = initial_input"
+        for var in loop_vars:
+            cpp_code += f"[{var}]"
+        cpp_code += ";\n"
+        for idx in range(len(dims), 0, -1):
+            indent = "    " * idx
+            cpp_code += f"{indent}}}\n"
+        cpp_code += "    auto model_input = flat_input;\n\n"
+    else:
+        cpp_code += f"    auto model_input = initial_input;\n\n"
+
 
     if input_norms is not None:
         cpp_code += f"    constexpr std::array<Scalar, {len(input_norms)}> input_norms = {{"
@@ -236,6 +280,20 @@ auto {name_space}(const std::array<Scalar, {input_size}>& initial_input) {{
                 cpp_code += "    }\n\n"
             last_layer = f"layer_{layer_index}_output"
             # last_size remains unchanged.
+
+    # // NEW CODE: Reshape the flat output back to the expected raw output shape.
+    if isinstance(layer_shape[-1], tuple) and len(layer_shape[-1]) > 1:
+        dims_out = layer_shape[-1]
+        out_flat = int(np.prod(dims_out))
+        cpp_code += f"    constexpr int out_flat_size = {out_flat};\n"
+        cpp_code += f"    std::array<Scalar, out_flat_size> flat_output = {last_layer};\n"
+        # Here you would generate nested loops to build a nested array type matching dims_out.
+        # For brevity, we insert a placeholder comment:
+        cpp_code += f"    // TODO: Reshape flat_output into a nested structure with shape {dims_out}\n"
+        cpp_code += f"    auto model_output = flat_output; // Replace with the properly reshaped output\n"
+    else:
+        cpp_code += f"    auto model_output = {last_layer};\n"
+
     
     if output_norms is not None:
         cpp_code += f"    constexpr std::array<Scalar, {len(output_norms)}> output_norms = {{"
