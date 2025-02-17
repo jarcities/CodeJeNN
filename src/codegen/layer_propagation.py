@@ -115,9 +115,8 @@ void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, c
 }
 """
 
-    # // OLD CODE: No convolution functions existed previously.
-    # // NEW CODE: Add convolution function definitions
-
+    # OLD CODE: No convolution functions existed previously.
+    # NEW CODE: Add convolution function definitions
     conv2DForward = """
 template<typename Scalar, int out_channels, int out_height, int out_width>
 void conv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
@@ -269,7 +268,10 @@ void separableConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar*
     // First perform depthwise convolution (this is a simplified approach)
     const int depthwise_output_size = in_height * in_width * in_channels; // assuming same spatial dims for simplicity
     Scalar depthwise_output[depthwise_output_size];
-    depthwiseConv2DForward<Scalar, in_channels, in_height, in_width>(depthwise_output, inputs, depthwise_weights, biases, in_channels, in_height, in_width, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w, linear, 0.0);
+    depthwiseConv2DForward<Scalar, in_channels, in_height, in_width>(depthwise_output, inputs, depthwise_weights, biases,
+                                                                     in_channels, in_height, in_width,
+                                                                     kernel_h, kernel_w, stride_h, stride_w,
+                                                                     pad_h, pad_w, linear, 0.0);
     // Then perform pointwise convolution
     for (int oc = 0; oc < out_channels; ++oc) {
         for (int i = 0; i < in_height * in_width; ++i) {
@@ -295,6 +297,78 @@ void convLSTM2DForward(/* parameters */) noexcept {
 }
 """
 
+    # New: Pooling functions
+
+    maxPooling2D = """
+template<typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
+void maxPooling2D(Scalar* outputs, const Scalar* inputs, int in_height, int in_width, int channels) noexcept {
+    // Calculate output dimensions (assumes no padding)
+    int out_height = (in_height - pool_height) / stride_h + 1;
+    int out_width = (in_width - pool_width) / stride_w + 1;
+    for (int c = 0; c < channels; ++c) {
+        for (int oh = 0; oh < out_height; ++oh) {
+            for (int ow = 0; ow < out_width; ++ow) {
+                Scalar max_val = -std::numeric_limits<Scalar>::infinity();
+                for (int ph = 0; ph < pool_height; ++ph) {
+                    for (int pw = 0; pw < pool_width; ++pw) {
+                        int in_h = oh * stride_h + ph;
+                        int in_w = ow * stride_w + pw;
+                        int idx = (in_h * in_width * channels) + (in_w * channels) + c;
+                        if (inputs[idx] > max_val) {
+                            max_val = inputs[idx];
+                        }
+                    }
+                }
+                int out_idx = (oh * out_width * channels) + (ow * channels) + c;
+                outputs[out_idx] = max_val;
+            }
+        }
+    }
+}
+"""
+
+    avgPooling2D = """
+template<typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
+void avgPooling2D(Scalar* outputs, const Scalar* inputs, int in_height, int in_width, int channels) noexcept {
+    int out_height = (in_height - pool_height) / stride_h + 1;
+    int out_width = (in_width - pool_width) / stride_w + 1;
+    for (int c = 0; c < channels; ++c) {
+        for (int oh = 0; oh < out_height; ++oh) {
+            for (int ow = 0; ow < out_width; ++ow) {
+                Scalar sum = 0;
+                for (int ph = 0; ph < pool_height; ++ph) {
+                    for (int pw = 0; pw < pool_width; ++pw) {
+                        int in_h = oh * stride_h + ph;
+                        int in_w = ow * stride_w + pw;
+                        int idx = (in_h * in_width * channels) + (in_w * channels) + c;
+                        sum += inputs[idx];
+                    }
+                }
+                int out_idx = (oh * out_width * channels) + (ow * channels) + c;
+                outputs[out_idx] = sum / (pool_height * pool_width);
+            }
+        }
+    }
+}
+"""
+
+    globalAvgPooling2D = """
+template<typename Scalar>
+void globalAvgPooling2D(Scalar* output, const Scalar* inputs, int in_height, int in_width, int channels) noexcept {
+    // Compute global average per channel
+    for (int c = 0; c < channels; ++c) {
+        Scalar sum = 0;
+        for (int h = 0; h < in_height; ++h) {
+            for (int w = 0; w < in_width; ++w) {
+                int idx = (h * in_width * channels) + (w * channels) + c;
+                sum += inputs[idx];
+            }
+        }
+        output[c] = sum / (in_height * in_width);
+    }
+}
+"""
+
     current_activations = set(activation_functions)
     current_activations = {('tanhCustom' if act == 'tanh' else act) for act in current_activations if act is not None}
 
@@ -304,12 +378,10 @@ void convLSTM2DForward(/* parameters */) noexcept {
         if act in lambda_defs:
             cpp_lambda += lambda_defs[act]
             
-    # // Append the old normalization and forward functions first
+    # Append normalization, forward and convolution functions
     cpp_code += layerNormalization
     cpp_code += batchNormalization
     cpp_code += forwardPass
-    # // OLD CODE: (No conv functions existed previously.)
-    # // NEW CODE: Append our newly added convolution functions
     cpp_code += conv2DForward
     cpp_code += conv2DTransposeForward
     cpp_code += conv1DForward
@@ -317,5 +389,9 @@ void convLSTM2DForward(/* parameters */) noexcept {
     cpp_code += depthwiseConv2DForward
     cpp_code += separableConv2DForward
     cpp_code += convLSTM2DForward
+    # Append pooling functions
+    cpp_code += maxPooling2D
+    cpp_code += avgPooling2D
+    cpp_code += globalAvgPooling2D
 
     return cpp_code, lambda_defs
