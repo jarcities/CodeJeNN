@@ -78,7 +78,8 @@ else:
                  batch_norm_params,
                  conv_layer_params,
                  input_size,
-                 layer_shape) = extractModel(model, file_extension)
+                 layer_shape,
+                 layer_type) = extractModel(model, file_extension)
 
                 # Now generate code
                 base_file_name = os.path.splitext(file_name)[0]
@@ -86,7 +87,8 @@ else:
                 cpp_code = preambleHeader()
 
                 # activationFunctions returns (cpp_code, lambda_defs)
-                cpp_code, cpp_lambda = activationFunctions(cpp_code, activation_functions)
+                cpp_code, cpp_lambda = activationFunctions(cpp_code, activation_functions, layer_type)
+                print(cpp_lambda)
 
                 # pass conv_layer_params to codeGen
                 cpp_code = codeGen(

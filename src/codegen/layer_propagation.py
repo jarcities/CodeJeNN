@@ -6,12 +6,30 @@ warnings.filterwarnings("ignore", category=UserWarning, module='keras')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
-def activationFunctions(cpp_code, activation_functions):
+def activationFunctions(cpp_code, activation_functions, layer_type):
     """
     Generate C++ lambda-based activation functions (with no indentation for the lambdas)
     and normalization functions. ForwardPass also remains as Code 2 style.
     """
-    lambda_defs = {
+
+    # regular forward pass
+    forwardPass = """
+    template<typename Scalar, int output_size>
+    void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+        for(int i = 0; i < output_size; ++i){
+            Scalar sum = 0;
+            for(int j = 0; j < input_size; ++j){
+                sum += inputs[j] * weights[j * output_size + i];
+            }
+            sum += biases[i];
+            activation_function(outputs[i], sum, alpha);
+        }
+    }
+    """
+
+    # lambda activation functions
+    lambda_functions = {
+
         'relu': """
     auto relu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
         output = input > 0 ? input : 0;
@@ -70,10 +88,30 @@ def activationFunctions(cpp_code, activation_functions):
         auto sigmoid = 1 / (1 + std::exp(-input));
         output = input * sigmoid;
     };
+""",
+        'softmax': """
+    auto softmax = [](const Scalar* input, Scalar* output, int size) noexcept {
+        Scalar max_val = input[0];
+        for (int i = 1; i < size; ++i) {
+            if (input[i] > max_val)
+                max_val = input[i];
+        }
+        Scalar sum = 0;
+        for (int i = 0; i < size; ++i) {
+            output[i] = std::exp(input[i] - max_val);
+            sum += output[i];
+        }
+        for (int i = 0; i < size; ++i) {
+            output[i] /= sum;
+        }
+    };
 """
     }
 
-    layerNormalization = """
+    # normalization functions
+    normalization_functions = {
+
+    'layerNormalization':  """
 template<typename Scalar, int size>
 void layerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, Scalar epsilon) noexcept {
     Scalar mean = 0;
@@ -90,9 +128,8 @@ void layerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gam
         outputs[i] = gamma[i] * ((inputs[i] - mean) / std::sqrt(variance + epsilon)) + beta[i];
     }
 }
-"""
-
-    batchNormalization = """
+""",
+    'batchNormalization': """
 template<typename Scalar, int size>
 void batchNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, const Scalar* mean, const Scalar* variance, const Scalar epsilon) noexcept {
     for (int i = 0; i < size; ++i) {
@@ -100,24 +137,12 @@ void batchNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gam
     }
 }
 """
-
-    forwardPass = """
-template<typename Scalar, int output_size>
-void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    for(int i = 0; i < output_size; ++i){
-        Scalar sum = 0;
-        for(int j = 0; j < input_size; ++j){
-            sum += inputs[j] * weights[j * output_size + i];
-        }
-        sum += biases[i];
-        activation_function(outputs[i], sum, alpha);
     }
-}
-"""
 
-    # OLD CODE: No convolution functions existed previously.
-    # NEW CODE: Add convolution function definitions
-    conv2DForward = """
+    # convolution functions
+    convolution_functions = {
+
+    'conv2DForward': """
 template<typename Scalar, int out_channels, int out_height, int out_width>
 void conv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
                    int in_channels, int in_height, int in_width,
@@ -147,9 +172,9 @@ void conv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
         }
     }
 }
-"""
+""",
 
-    conv2DTransposeForward = """
+    'conv2DTransposeForward': """
 template<typename Scalar, int out_channels, int out_height, int out_width>
 void conv2DTransposeForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
                             int in_channels, int in_height, int in_width,
@@ -165,9 +190,9 @@ void conv2DTransposeForward(Scalar* outputs, const Scalar* inputs, const Scalar*
         activation_function(outputs[i], outputs[i], alpha);
     }
 }
-"""
+""",
 
-    conv1DForward = """
+    'conv1DForward': """
 template<typename Scalar, int out_size>
 void conv1DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
                    int in_size, int kernel_size, int stride, int pad,
@@ -185,9 +210,9 @@ void conv1DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
         activation_function(outputs[o], sum, alpha);
     }
 }
-"""
+""",
 
-    conv3DForward = """
+    'conv3DForward': """
 template<typename Scalar, int out_channels, int out_depth, int out_height, int out_width>
 void conv3DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
                    int in_channels, int in_depth, int in_height, int in_width,
@@ -224,16 +249,16 @@ void conv3DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
         }
     }
 }
-"""
+""",
 
-    depthwiseConv2DForward = """
-template<typename Scalar, int out_channels, int out_height, int out_width>
+    'depthwiseConv2DForward': """
+template<typename Scalar>
 void depthwiseConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+                            int out_channels, int out_height, int out_width,
                             int in_channels, int in_height, int in_width,
                             int kernel_h, int kernel_w, int stride_h, int stride_w,
                             int pad_h, int pad_w,
                             activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    // Simplified depthwise convolution implementation (each input channel is convolved independently)
     for (int c = 0; c < in_channels; ++c) {
         for (int oh = 0; oh < out_height; ++oh) {
             for (int ow = 0; ow < out_width; ++ow) {
@@ -242,7 +267,7 @@ void depthwiseConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar*
                     for (int kw = 0; kw < kernel_w; ++kw) {
                         int in_h = oh * stride_h - pad_h + kh;
                         int in_w = ow * stride_w - pad_w + kw;
-                        if(in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width){
+                        if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width) {
                             int input_index = (in_h * in_width * in_channels) + (in_w * in_channels) + c;
                             int weight_index = (kh * kernel_w + kw) * in_channels + c;
                             sum += inputs[input_index] * weights[weight_index];
@@ -256,22 +281,26 @@ void depthwiseConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar*
         }
     }
 }
-"""
+""",
 
-    separableConv2DForward = """
+    'separableConv2DForward': """
 template<typename Scalar, int out_channels, int out_height, int out_width>
 void separableConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* depthwise_weights, const Scalar* pointwise_weights, const Scalar* biases,
                             int in_channels, int in_height, int in_width,
                             int kernel_h, int kernel_w, int stride_h, int stride_w,
                             int pad_h, int pad_w,
                             activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    // First perform depthwise convolution (this is a simplified approach)
-    const int depthwise_output_size = in_height * in_width * in_channels; // assuming same spatial dims for simplicity
-    Scalar depthwise_output[depthwise_output_size];
-    depthwiseConv2DForward<Scalar, in_channels, in_height, in_width>(depthwise_output, inputs, depthwise_weights, biases,
-                                                                     in_channels, in_height, in_width,
-                                                                     kernel_h, kernel_w, stride_h, stride_w,
-                                                                     pad_h, pad_w, linear, 0.0);
+    // Use std::vector instead of VLA
+    std::vector<Scalar> depthwise_output(in_height * in_width * in_channels, 0);
+
+    // Call depthwiseConv2DForward with runtime parameters
+    depthwiseConv2DForward(
+        depthwise_output.data(), inputs, depthwise_weights, biases,
+        in_channels, in_height, in_width,  // Pass out_channels as in_channels
+        in_channels, in_height, in_width,  // Pass correct in_channels and dimensions
+        kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w,
+        activation_function, alpha);    
+
     // Then perform pointwise convolution
     for (int oc = 0; oc < out_channels; ++oc) {
         for (int i = 0; i < in_height * in_width; ++i) {
@@ -287,19 +316,20 @@ void separableConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar*
         }
     }
 }
-"""
+""",
 
-    convLSTM2DForward = """
+    'convLSTM2DForward': """
 template<typename Scalar>
 void convLSTM2DForward(/* parameters */) noexcept {
     // Stub for ConvLSTM2D.
     // A full implementation would require handling time steps and cell states.
 }
 """
+    }
 
-    # New: Pooling functions
+    pooling_functions = {
 
-    maxPooling2D = """
+    'maxPooling2D': """
 template<typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
 void maxPooling2D(Scalar* outputs, const Scalar* inputs, int in_height, int in_width, int channels) noexcept {
     // Calculate output dimensions (assumes no padding)
@@ -325,9 +355,9 @@ void maxPooling2D(Scalar* outputs, const Scalar* inputs, int in_height, int in_w
         }
     }
 }
-"""
+""",
 
-    avgPooling2D = """
+    'avgPooling2D': """
 template<typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
 void avgPooling2D(Scalar* outputs, const Scalar* inputs, int in_height, int in_width, int channels) noexcept {
     int out_height = (in_height - pool_height) / stride_h + 1;
@@ -350,9 +380,9 @@ void avgPooling2D(Scalar* outputs, const Scalar* inputs, int in_height, int in_w
         }
     }
 }
-"""
+""",
 
-    globalAvgPooling2D = """
+    'globalAvgPooling2D': """
 template<typename Scalar>
 void globalAvgPooling2D(Scalar* output, const Scalar* inputs, int in_height, int in_width, int channels) noexcept {
     // Compute global average per channel
@@ -368,30 +398,45 @@ void globalAvgPooling2D(Scalar* output, const Scalar* inputs, int in_height, int
     }
 }
 """
+    }
 
+    # set every function and append it to cpp_code
     current_activations = set(activation_functions)
     current_activations = {('tanhCustom' if act == 'tanh' else act) for act in current_activations if act is not None}
 
-    cpp_lambda = """    //\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n"""
+    cpp_lambda = """//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n"""
+
+    cpp_code += forwardPass
 
     for act in current_activations:
-        if act in lambda_defs:
-            cpp_lambda += lambda_defs[act]
+        if act in lambda_functions:
+            cpp_lambda += lambda_functions[act]
+    
+    for type in layer_type:
+        if type in normalization_functions:
+            cpp_code += normalization_functions[type]
+        if type in convolution_functions:
+            cpp_code += convolution_functions[type]
+        if type in pooling_functions:
+            cpp_code += pooling_functions[type]
+        if type == 'convForward':
+            cpp_code += convolution_functions['conv1DForward']
+            cpp_code += convolution_functions['conv2DForward']
+            cpp_code += convolution_functions['conv3DForward']
             
     # Append normalization, forward and convolution functions
-    cpp_code += layerNormalization
-    cpp_code += batchNormalization
-    cpp_code += forwardPass
-    cpp_code += conv2DForward
-    cpp_code += conv2DTransposeForward
-    cpp_code += conv1DForward
-    cpp_code += conv3DForward
-    cpp_code += depthwiseConv2DForward
-    cpp_code += separableConv2DForward
-    cpp_code += convLSTM2DForward
+    # cpp_code += layerNormalization
+    # cpp_code += batchNormalization
+    # cpp_code += conv2DForward
+    # cpp_code += conv2DTransposeForward
+    # cpp_code += conv1DForward
+    # cpp_code += conv3DForward
+    # cpp_code += depthwiseConv2DForward
+    # cpp_code += separableConv2DForward
+    # cpp_code += convLSTM2DForward
     # Append pooling functions
-    cpp_code += maxPooling2D
-    cpp_code += avgPooling2D
-    cpp_code += globalAvgPooling2D
+    # cpp_code += maxPooling2D
+    # cpp_code += avgPooling2D
+    # cpp_code += globalAvgPooling2D
 
-    return cpp_code, lambda_defs
+    return cpp_code, lambda_functions
