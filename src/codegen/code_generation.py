@@ -21,8 +21,6 @@ def preambleHeader():
 template<typename Scalar>
 using activationFunction = void(*)(Scalar&, Scalar, Scalar);
 
-// If you have any extra includes or definitions, put them here.
-
 """
     return cpp_code
 
@@ -50,7 +48,6 @@ def codeGen(cpp_code,
     Now we also handle dictionary-based conv_layer_params (for conv/pooling layers) and pure activation layers.
     """
 
-    # This map is for standard layer-based activation
     activation_func_map = {
         'relu': 'relu',
         'sigmoid': 'sigmoid',
@@ -58,7 +55,7 @@ def codeGen(cpp_code,
         'linear': 'linear',
         'leakyRelu': 'leakyRelu',
         'elu': 'elu',
-        'softmax': 'linear',  # sometimes you treat softmax as linear then do it manually
+        'softmax': 'softmax',  # sometimes you treat softmax as linear then do it manually
         'selu': 'selu',
         'swish': 'swish',
         'silu': 'silu',
