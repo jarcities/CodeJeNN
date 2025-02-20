@@ -326,53 +326,8 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
 
     // Insert activation function definitions:
 
-    auto relu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = input > 0 ? input : 0;
-    };
-
-    auto sigmoid = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = 1 / (1 + std::exp(-input));
-    };
-
-    auto tanhCustom = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = std::tanh(input);
-    };
-
-    // OLD CODE:
-    // auto leakyRelu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-    //     output = input > 0 ? input : alpha * input;
-    // };
-    // NEW CODE:
-    auto leakyRelu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = input > 0 ? input : alpha * input;
-    };
-
     auto linear = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
         output = input;
-    };
-
-    auto elu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = input > 0 ? input : alpha * (std::exp(input) - 1);
-    };
-
-    template<typename T> constexpr T SELU_LAMBDA = static_cast<T>(1.0507009873554804934193349852946);
-    template<typename T> constexpr T SELU_ALPHA = static_cast<T>(1.6732632423543772848170429916717);
-    auto selu = [](Scalar& output, Scalar input, Scalar alpha = SELU_ALPHA<double>) noexcept {
-        using Scalar = decltype(input);
-        output = SELU_LAMBDA<Scalar> * (input > 0 ? input : alpha * (std::exp(input) - 1));
-    };
-
-    auto swish = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = input / (1 + std::exp(-alpha * input));
-    };
-
-    auto prelu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = input > 0 ? input : alpha * input;
-    };
-
-    auto silu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        auto sigmoid = 1 / (1 + std::exp(-input));
-        output = input * sigmoid;
     };
 
     auto softmax = [](const Scalar* input, Scalar* output, int size) noexcept {
@@ -390,13 +345,16 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
             output[i] /= sum;
         }
     };
-
-    // --------------------------------------------------------------------------
-    // Now we do the actual forward pass logic.
-    // For each layer i, based on the parameters, we call the appropriate function.
-
-    // DepthwiseConv2D call for layer 1
-    // TODO: Define proper dimensions for depthwiseConv2DForward
+    
+    // depthwiseConv2DForward call for layer 1
+    std::array<Scalar, /* out_size */> layer_1_output;
+    depthwiseConv2DForward(
+        layer_1_output.data(), model_input.data(),
+        depthwiseKernel_1.data(), depthwiseBias_1.data(),
+        /* out_channels (usually same as in_channels unless multiplied) */, /* out_height */, /* out_width */,
+        /* in_channels */, /* in_height */, /* in_width */,
+        3, 3, 1, 1, 1, 1,
+        linear, 0.0);
 
     std::array<Scalar, 1> layer_2_output;
     batchNormalization<Scalar, 1>(
@@ -412,8 +370,13 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     }
 
     // conv2DForward call for layer 4
-    // TODO: Define dimensions (in_channels, in_height, in_width, kernel size, etc.)
-    // For now, this is a placeholder.
+    std::array<Scalar, /* out_size */> layer_4_output;
+    conv2DForward<Scalar, 8, /* out_height */, /* out_width */>(
+        layer_4_output.data(), layer_3_output.data(),
+        convKernel_4.data(), convBias_4.data(),
+        /* in_channels */, /* in_height */, /* in_width */,
+        1, 1, 1, 1, 0, 0,
+        linear, 0.0);
 
     std::array<Scalar, 8> layer_5_output;
     batchNormalization<Scalar, 8>(
@@ -428,8 +391,14 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         linear(layer_6_output[i], layer_5_output[i], 0.0);
     }
 
-    // SeparableConv2D call for layer 7
-    // TODO: Define dimensions for separableConv2DForward
+    // separableConv2DForward call for layer 7
+    std::array<Scalar, /* out_size */> layer_7_output;
+    separableConv2DForward<Scalar, 16, /* out_height */, /* out_width */>(
+        layer_7_output.data(), layer_6_output.data(),
+        sepDepthwise_7.data(), sepPointwise_7.data(), sepPointwiseBias_7.data(),
+        /* in_channels */, /* in_height */, /* in_width */,
+        3, 3, 1, 1, 1, 1,
+        linear, 0.0);
 
     std::array<Scalar, 16> layer_8_output;
     batchNormalization<Scalar, 16>(
@@ -444,8 +413,14 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         linear(layer_9_output[i], layer_8_output[i], 0.0);
     }
 
-    // SeparableConv2D call for layer 10
-    // TODO: Define dimensions for separableConv2DForward
+    // separableConv2DForward call for layer 10
+    std::array<Scalar, /* out_size */> layer_10_output;
+    separableConv2DForward<Scalar, 16, /* out_height */, /* out_width */>(
+        layer_10_output.data(), layer_9_output.data(),
+        sepDepthwise_10.data(), sepPointwise_10.data(), sepPointwiseBias_10.data(),
+        /* in_channels */, /* in_height */, /* in_width */,
+        3, 3, 1, 1, 1, 1,
+        linear, 0.0);
 
     std::array<Scalar, 16> layer_11_output;
     batchNormalization<Scalar, 16>(
@@ -460,14 +435,16 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         linear(layer_12_output[i], layer_11_output[i], 0.0);
     }
 
-    // GlobalAveragePooling2D call for layer 13
-    // TODO: Call globalAvgPooling2D with proper dimensions
+    // globalAvgPooling2D call for layer 13
+    std::array<Scalar, /* channels */> layer_13_output;
+    globalAvgPooling2D(
+        layer_13_output.data(), layer_12_output.data(), /* in_height */, /* in_width */, /* channels */);
 
     std::array<Scalar, 5> layer_14_output;
     forwardPass<Scalar, 5>(
         layer_14_output.data(), layer_13_output.data(),
         weights_14.data(), biases_14.data(),
-        some_size, softmax, 0.0);
+        /* channels */, softmax, 0.0);
 
     // final placeholder
     std::array<Scalar, 10> model_output{}; // example
