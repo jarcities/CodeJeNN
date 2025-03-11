@@ -1,6 +1,6 @@
 #include <iostream>
 #include <array>
-#include "cnn2_gpt.h"  // Your generated header with cnn2(...) definition
+#include "cnn2_edited.h"  // Your generated header with cnn2(...) definition
 
 using Scalar = double;
 
