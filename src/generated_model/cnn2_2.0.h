@@ -6,45 +6,54 @@
 #include <functional>
 #include <stdexcept>
 
-template<typename Scalar>
-using activationFunction = void(*)(Scalar&, Scalar, Scalar);
+template <typename Scalar>
+using activationFunction = void (*)(Scalar &, Scalar, Scalar);
 
-
-template<typename Scalar, int size>
-void layerNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, Scalar epsilon) noexcept {
+template <typename Scalar, int size>
+void layerNormalization(Scalar *outputs, const Scalar *inputs, const Scalar *gamma, const Scalar *beta, Scalar epsilon) noexcept
+{
     Scalar mean = 0;
     Scalar variance = 0;
-    for (int i = 0; i < size; ++i) {
+    for (int i = 0; i < size; ++i)
+    {
         mean += inputs[i];
     }
     mean /= size;
-    for (int i = 0; i < size; ++i) {
+    for (int i = 0; i < size; ++i)
+    {
         variance += (inputs[i] - mean) * (inputs[i] - mean);
     }
     variance /= size;
-    for (int i = 0; i < size; ++i) {
+    for (int i = 0; i < size; ++i)
+    {
         outputs[i] = gamma[i] * ((inputs[i] - mean) / std::sqrt(variance + epsilon)) + beta[i];
     }
 }
 
-template<typename Scalar, int size>
-void batchNormalization(Scalar* outputs, const Scalar* inputs, const Scalar* gamma, const Scalar* beta, const Scalar* mean, const Scalar* variance, const Scalar epsilon) noexcept {
-    for (int i = 0; i < size; ++i) {
+template <typename Scalar, int size>
+void batchNormalization(Scalar *outputs, const Scalar *inputs, const Scalar *gamma, const Scalar *beta, const Scalar *mean, const Scalar *variance, const Scalar epsilon) noexcept
+{
+    for (int i = 0; i < size; ++i)
+    {
         outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
     }
 }
 
 /*===================================================================*/
-template<typename Scalar, int channels, int height, int width>
-void batchNormalization2D(Scalar* outputs, const Scalar* inputs,
-                          const Scalar* gamma, const Scalar* beta,
-                          const Scalar* mean, const Scalar* variance,
-                          Scalar epsilon) noexcept {
-    for (int c = 0; c < channels; ++c) {
-        for (int i = 0; i < height * width; ++i) {
+template <typename Scalar, int channels, int height, int width>
+void batchNormalization2D(Scalar *outputs, const Scalar *inputs,
+                          const Scalar *gamma, const Scalar *beta,
+                          const Scalar *mean, const Scalar *variance,
+                          Scalar epsilon) noexcept
+{
+    for (int c = 0; c < channels; ++c)
+    {
+        for (int i = 0; i < height * width; ++i)
+        {
             int idx = i * channels + c;
             outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) /
-                               std::sqrt(variance[c] + epsilon)) + beta[c];
+                                       std::sqrt(variance[c] + epsilon)) +
+                           beta[c];
         }
     }
 }
@@ -54,11 +63,14 @@ void batchNormalization2D(Scalar* outputs, const Scalar* inputs,
 // Basic Layer Forward Passes
 // -----------------------------
 
-template<typename Scalar, int output_size>
-void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    for (int i = 0; i < output_size; ++i) {
+template <typename Scalar, int output_size>
+void forwardPass(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+{
+    for (int i = 0; i < output_size; ++i)
+    {
         Scalar sum = 0;
-        for (int j = 0; j < input_size; ++j) {
+        for (int j = 0; j < input_size; ++j)
+        {
             sum += inputs[j] * weights[j * output_size + i];
         }
         sum += biases[i];
@@ -66,22 +78,30 @@ void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, c
     }
 }
 
-template<typename Scalar, int out_channels, int out_height, int out_width>
-void conv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+template <typename Scalar, int out_channels, int out_height, int out_width>
+void conv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                    int in_channels, int in_height, int in_width,
                    int kernel_h, int kernel_w, int stride_h, int stride_w,
                    int pad_h, int pad_w,
-                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    for (int oc = 0; oc < out_channels; ++oc) {
-        for (int oh = 0; oh < out_height; ++oh) {
-            for (int ow = 0; ow < out_width; ++ow) {
+                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+{
+    for (int oc = 0; oc < out_channels; ++oc)
+    {
+        for (int oh = 0; oh < out_height; ++oh)
+        {
+            for (int ow = 0; ow < out_width; ++ow)
+            {
                 Scalar sum = 0;
-                for (int ic = 0; ic < in_channels; ++ic) {
-                    for (int kh = 0; kh < kernel_h; ++kh) {
-                        for (int kw = 0; kw < kernel_w; ++kw) {
+                for (int ic = 0; ic < in_channels; ++ic)
+                {
+                    for (int kh = 0; kh < kernel_h; ++kh)
+                    {
+                        for (int kw = 0; kw < kernel_w; ++kw)
+                        {
                             int in_h = oh * stride_h - pad_h + kh;
                             int in_w = ow * stride_w - pad_w + kw;
-                            if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width) {
+                            if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width)
+                            {
                                 int input_index = (in_h * in_width * in_channels) + (in_w * in_channels) + ic;
                                 int weight_index = (((kh * kernel_w + kw) * in_channels + ic) * out_channels) + oc;
                                 sum += inputs[input_index] * weights[weight_index];
@@ -96,32 +116,39 @@ void conv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
     }
 }
 
-template<typename Scalar, int out_channels, int out_height, int out_width>
-void conv2DTransposeForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+template <typename Scalar, int out_channels, int out_height, int out_width>
+void conv2DTransposeForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                             int in_channels, int in_height, int in_width,
                             int kernel_h, int kernel_w, int stride_h, int stride_w,
                             int pad_h, int pad_w,
-                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+{
     // Simplified implementation for transposed convolution (stub)
     int total = out_height * out_width * out_channels;
-    for (int i = 0; i < total; ++i) {
+    for (int i = 0; i < total; ++i)
+    {
         outputs[i] = 0;
     }
     // A full implementation would perform proper transposed convolution here.
-    for (int i = 0; i < total; ++i) {
+    for (int i = 0; i < total; ++i)
+    {
         activation_function(outputs[i], outputs[i], alpha);
     }
 }
 
-template<typename Scalar, int out_size>
-void conv1DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+template <typename Scalar, int out_size>
+void conv1DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                    int in_size, int kernel_size, int stride, int pad,
-                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    for (int o = 0; o < out_size; ++o) {
+                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+{
+    for (int o = 0; o < out_size; ++o)
+    {
         Scalar sum = 0;
-        for (int k = 0; k < kernel_size; ++k) {
+        for (int k = 0; k < kernel_size; ++k)
+        {
             int in_index = o * stride - pad + k;
-            if (in_index >= 0 && in_index < in_size) {
+            if (in_index >= 0 && in_index < in_size)
+            {
                 int weight_index = k * out_size + o;
                 sum += inputs[in_index] * weights[weight_index];
             }
@@ -131,28 +158,38 @@ void conv1DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
     }
 }
 
-template<typename Scalar, int out_channels, int out_depth, int out_height, int out_width>
-void conv3DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+template <typename Scalar, int out_channels, int out_depth, int out_height, int out_width>
+void conv3DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                    int in_channels, int in_depth, int in_height, int in_width,
                    int kernel_d, int kernel_h, int kernel_w, int stride_d, int stride_h, int stride_w,
                    int pad_d, int pad_h, int pad_w,
-                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+{
     // Simplified 3D convolution implementation
-    for (int oc = 0; oc < out_channels; ++oc) {
-        for (int od = 0; od < out_depth; ++od) {
-            for (int oh = 0; oh < out_height; ++oh) {
-                for (int ow = 0; ow < out_width; ++ow) {
+    for (int oc = 0; oc < out_channels; ++oc)
+    {
+        for (int od = 0; od < out_depth; ++od)
+        {
+            for (int oh = 0; oh < out_height; ++oh)
+            {
+                for (int ow = 0; ow < out_width; ++ow)
+                {
                     Scalar sum = 0;
-                    for (int ic = 0; ic < in_channels; ++ic) {
-                        for (int kd = 0; kd < kernel_d; ++kd) {
-                            for (int kh = 0; kh < kernel_h; ++kh) {
-                                for (int kw = 0; kw < kernel_w; ++kw) {
+                    for (int ic = 0; ic < in_channels; ++ic)
+                    {
+                        for (int kd = 0; kd < kernel_d; ++kd)
+                        {
+                            for (int kh = 0; kh < kernel_h; ++kh)
+                            {
+                                for (int kw = 0; kw < kernel_w; ++kw)
+                                {
                                     int in_d = od * stride_d - pad_d + kd;
                                     int in_h = oh * stride_h - pad_h + kh;
                                     int in_w = ow * stride_w - pad_w + kw;
                                     if (in_d >= 0 && in_d < in_depth &&
                                         in_h >= 0 && in_h < in_height &&
-                                        in_w >= 0 && in_w < in_width) {
+                                        in_w >= 0 && in_w < in_width)
+                                    {
                                         int input_index = ((in_d * in_height * in_width * in_channels) +
                                                            (in_h * in_width * in_channels) +
                                                            (in_w * in_channels) + ic);
@@ -178,22 +215,29 @@ void conv3DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights,
 // Specialized Convolutions
 // -----------------------------
 
-template<typename Scalar>
-void depthwiseConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases,
+template <typename Scalar>
+void depthwiseConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                             int out_channels, int out_height, int out_width,
                             int in_channels, int in_height, int in_width,
                             int kernel_h, int kernel_w, int stride_h, int stride_w,
                             int pad_h, int pad_w,
-                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    for (int c = 0; c < in_channels; ++c) {
-        for (int oh = 0; oh < out_height; ++oh) {
-            for (int ow = 0; ow < out_width; ++ow) {
+                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+{
+    for (int c = 0; c < in_channels; ++c)
+    {
+        for (int oh = 0; oh < out_height; ++oh)
+        {
+            for (int ow = 0; ow < out_width; ++ow)
+            {
                 Scalar sum = 0;
-                for (int kh = 0; kh < kernel_h; ++kh) {
-                    for (int kw = 0; kw < kernel_w; ++kw) {
+                for (int kh = 0; kh < kernel_h; ++kh)
+                {
+                    for (int kw = 0; kw < kernel_w; ++kw)
+                    {
                         int in_h = oh * stride_h - pad_h + kh;
                         int in_w = ow * stride_w - pad_w + kw;
-                        if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width) {
+                        if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width)
+                        {
                             int input_index = (in_h * in_width * in_channels) + (in_w * in_channels) + c;
                             int weight_index = (kh * kernel_w + kw) * in_channels + c;
                             sum += inputs[input_index] * weights[weight_index];
@@ -240,12 +284,14 @@ void depthwiseConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar*
 //     }
 // }
 
-template<typename Scalar, int out_channels, int out_height, int out_width>
-void separableConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* depthwise_weights, const Scalar* pointwise_weights, const Scalar* biases,
+template <typename Scalar, int out_channels, int out_height, int out_width>
+void separableConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *depthwise_weights, const Scalar *pointwise_weights, const Scalar *biases,
                             int in_channels, int in_height, int in_width,
                             int kernel_h, int kernel_w, int stride_h, int stride_w,
                             int pad_h, int pad_w,
-                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+{
+
     // Allocate temporary storage for depthwise output.
     std::vector<Scalar> depthwise_output(in_height * in_width * in_channels, 0);
 
@@ -254,17 +300,20 @@ void separableConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar*
 
     // Perform depthwise convolution without bias.
     depthwiseConv2DForward(
-        depthwise_output.data(), inputs, depthwise_weights, zero_bias.data(),  // Use zero_bias instead of biases
-        in_channels, in_height, in_width,   // For depthwise, output channel count equals in_channels.
+        depthwise_output.data(), inputs, depthwise_weights, zero_bias.data(), // Use zero_bias instead of biases
+        in_channels, in_height, in_width,                                     // For depthwise, output channel count equals in_channels.
         in_channels, in_height, in_width,
         kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w,
         activation_function, alpha);
 
     // Now perform the pointwise convolution.
-    for (int oc = 0; oc < out_channels; ++oc) {
-        for (int i = 0; i < in_height * in_width; ++i) {
+    for (int oc = 0; oc < out_channels; ++oc)
+    {
+        for (int i = 0; i < in_height * in_width; ++i)
+        {
             Scalar sum = 0;
-            for (int ic = 0; ic < in_channels; ++ic) {
+            for (int ic = 0; ic < in_channels; ++ic)
+            {
                 int index = i * in_channels + ic;
                 int weight_index = ic * out_channels + oc;
                 sum += depthwise_output[index] * pointwise_weights[weight_index];
@@ -278,8 +327,9 @@ void separableConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar*
 }
 
 // Stub for ConvLSTM2D (you can expand this later if needed)
-template<typename Scalar>
-void convLSTM2DForward(/* parameters */) noexcept {
+template <typename Scalar>
+void convLSTM2DForward(/* parameters */) noexcept
+{
     // Stub for ConvLSTM2D.
     // A full implementation would require handling time steps and cell states.
 }
@@ -288,20 +338,27 @@ void convLSTM2DForward(/* parameters */) noexcept {
 // Pooling Layers
 // -----------------------------
 
-template<typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
-void maxPooling2D(Scalar* outputs, const Scalar* inputs, int in_height, int in_width, int channels) noexcept {
+template <typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
+void maxPooling2D(Scalar *outputs, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
+{
     int out_height = (in_height - pool_height) / stride_h + 1;
     int out_width = (in_width - pool_width) / stride_w + 1;
-    for (int c = 0; c < channels; ++c) {
-        for (int oh = 0; oh < out_height; ++oh) {
-            for (int ow = 0; ow < out_width; ++ow) {
+    for (int c = 0; c < channels; ++c)
+    {
+        for (int oh = 0; oh < out_height; ++oh)
+        {
+            for (int ow = 0; ow < out_width; ++ow)
+            {
                 Scalar max_val = -std::numeric_limits<Scalar>::infinity();
-                for (int ph = 0; ph < pool_height; ++ph) {
-                    for (int pw = 0; pw < pool_width; ++pw) {
+                for (int ph = 0; ph < pool_height; ++ph)
+                {
+                    for (int pw = 0; pw < pool_width; ++pw)
+                    {
                         int in_h = oh * stride_h + ph;
                         int in_w = ow * stride_w + pw;
                         int idx = (in_h * in_width * channels) + (in_w * channels) + c;
-                        if (inputs[idx] > max_val) {
+                        if (inputs[idx] > max_val)
+                        {
                             max_val = inputs[idx];
                         }
                     }
@@ -313,16 +370,22 @@ void maxPooling2D(Scalar* outputs, const Scalar* inputs, int in_height, int in_w
     }
 }
 
-template<typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
-void avgPooling2D(Scalar* outputs, const Scalar* inputs, int in_height, int in_width, int channels) noexcept {
+template <typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
+void avgPooling2D(Scalar *outputs, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
+{
     int out_height = (in_height - pool_height) / stride_h + 1;
     int out_width = (in_width - pool_width) / stride_w + 1;
-    for (int c = 0; c < channels; ++c) {
-        for (int oh = 0; oh < out_height; ++oh) {
-            for (int ow = 0; ow < out_width; ++ow) {
+    for (int c = 0; c < channels; ++c)
+    {
+        for (int oh = 0; oh < out_height; ++oh)
+        {
+            for (int ow = 0; ow < out_width; ++ow)
+            {
                 Scalar sum = 0;
-                for (int ph = 0; ph < pool_height; ++ph) {
-                    for (int pw = 0; pw < pool_width; ++pw) {
+                for (int ph = 0; ph < pool_height; ++ph)
+                {
+                    for (int pw = 0; pw < pool_width; ++pw)
+                    {
                         int in_h = oh * stride_h + ph;
                         int in_w = ow * stride_w + pw;
                         int idx = (in_h * in_width * channels) + (in_w * channels) + c;
@@ -336,13 +399,17 @@ void avgPooling2D(Scalar* outputs, const Scalar* inputs, int in_height, int in_w
     }
 }
 
-template<typename Scalar>
-void globalAvgPooling2D(Scalar* output, const Scalar* inputs, int in_height, int in_width, int channels) noexcept {
+template <typename Scalar>
+void globalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
+{
     // Compute global average per channel.
-    for (int c = 0; c < channels; ++c) {
+    for (int c = 0; c < channels; ++c)
+    {
         Scalar sum = 0;
-        for (int h = 0; h < in_height; ++h) {
-            for (int w = 0; w < in_width; ++w) {
+        for (int h = 0; h < in_height; ++h)
+        {
+            for (int w = 0; w < in_width; ++w)
+            {
                 int idx = (h * in_width * channels) + (w * channels) + c;
                 sum += inputs[idx];
             }
@@ -352,27 +419,34 @@ void globalAvgPooling2D(Scalar* output, const Scalar* inputs, int in_height, int
 }
 
 template <typename Scalar = double>
-auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_input) {
+auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8> &initial_input)
+{
 
-        constexpr int flat_size = 64; // e.g. 64
-        std::array<Scalar, flat_size> model_input;
-        int idx = 0;
-        for (int i0 = 0; i0 < 8; i0++) {
-        for (int i1 = 0; i1 < 8; i1++) {
-            for (int i2 = 0; i2 < 1; i2++) {
+    constexpr int flat_size = 64; // e.g. 64
+    std::array<Scalar, flat_size> model_input;
+    int idx = 0;
+    for (int i0 = 0; i0 < 8; i0++)
+    {
+        for (int i1 = 0; i1 < 8; i1++)
+        {
+            for (int i2 = 0; i2 < 1; i2++)
+            {
                 int flatIndex = i0 * 8 + i1 * 1 + i2 * 1;
                 model_input[flatIndex] = initial_input[i0][i1][i2];
             }
         }
     }
 
-        // // check size
-        // if (model_input.size() != flat_size) {
-        //     throw std::invalid_argument("Invalid input size. Expected size: 64");
-        // }
-        // std::array<Scalar, 64> model_input = initial_input;
+    // // check size
+    // if (model_input.size() != flat_size) {
+    //     throw std::invalid_argument("Invalid input size. Expected size: 64");
+    // }
+    // std::array<Scalar, 64> model_input = initial_input;
 
-    if (model_input.size() != 64) { throw std::invalid_argument("Invalid input size. Expected size: 64"); }
+    if (model_input.size() != 64)
+    {
+        throw std::invalid_argument("Invalid input size. Expected size: 64");
+    }
 
     // --------------------------------------------------------------------------
     // Print out the old weights/biases for dense layers if needed
@@ -428,18 +502,20 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     constexpr std::array<Scalar, 80> weights_14 = {4.073008299e-01, 2.981559932e-01, -4.104058072e-02, 5.829665810e-02, -8.241007477e-02, 2.595603168e-01, 2.929798067e-01, -2.275074422e-01, 2.219552398e-01, -5.032736436e-02, 4.536517262e-01, 4.696661234e-02, -5.013157129e-01, -4.160146415e-01, -3.366550803e-01, -4.967922270e-01, 5.040151477e-01, 3.519393802e-01, -4.119922221e-01, 2.868688107e-01, 1.537361741e-01, 8.358039707e-02, -2.924937941e-02, 3.716203272e-01, 4.219487309e-01, 1.469447166e-01, -4.007726312e-01, -2.513175309e-01, 2.055896223e-01, 2.367607504e-01, 1.896027923e-01, -2.851406932e-01, 3.021302521e-01, -2.287694067e-01, 3.551514745e-01, 4.821354747e-01, 4.815050215e-02, -1.485974044e-01, -1.767424308e-02, 5.128350854e-01, 4.647957534e-02, -1.906232983e-01, 3.685574532e-01, -8.824869245e-02, 4.387775362e-01, 7.590501755e-02, 4.851160944e-01, 1.225465834e-01, 1.554915961e-02, 9.733609855e-02, -1.632785052e-01, 3.418226242e-01, 2.684315145e-01, 4.546738267e-01, 4.525983036e-01, -3.231490254e-01, -2.593229413e-01, 2.903413177e-01, -9.581410885e-02, 1.842256039e-01, -2.149466984e-02, 1.779597998e-01, -1.013906896e-01, 3.696494997e-01, 4.120369256e-01, -3.291851580e-01, -1.010589302e-01, -2.624639571e-01, -4.865613878e-01, 2.309296429e-01, -2.897442318e-02, -2.878875732e-01, 6.979771703e-02, -5.474642292e-02, 3.435767069e-02, 1.055654064e-01, -1.885283440e-01, -3.318193853e-01, 1.278941780e-01, 1.274130791e-01};
     constexpr std::array<Scalar, 5> biases_14 = {-2.393361181e-03, 7.217437960e-03, 1.232613157e-02, 2.909902949e-03, -1.314988639e-02};
 
-
     // Insert activation function definitions:
 
-    auto relu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto relu = [](Scalar &output, Scalar input, Scalar alpha) noexcept
+    {
         output = input > 0 ? input : 0;
     };
 
-    auto sigmoid = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto sigmoid = [](Scalar &output, Scalar input, Scalar alpha) noexcept
+    {
         output = 1 / (1 + std::exp(-input));
     };
 
-    auto tanhCustom = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto tanhCustom = [](Scalar &output, Scalar input, Scalar alpha) noexcept
+    {
         output = std::tanh(input);
     };
 
@@ -448,15 +524,18 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     //     output = input > 0 ? input : alpha * input;
     // };
     // NEW CODE:
-    auto leakyRelu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto leakyRelu = [](Scalar &output, Scalar input, Scalar alpha) noexcept
+    {
         output = input > 0 ? input : alpha * input;
     };
 
-    auto linear = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto linear = [](Scalar &output, Scalar input, Scalar alpha) noexcept
+    {
         output = input;
     };
 
-    auto elu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto elu = [](Scalar &output, Scalar input, Scalar alpha) noexcept
+    {
         output = input > 0 ? input : alpha * (std::exp(input) - 1);
     };
 
@@ -467,31 +546,38 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     //     output = SELU_LAMBDA<Scalar> * (input > 0 ? input : alpha * (std::exp(input) - 1));
     // };
 
-    auto swish = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto swish = [](Scalar &output, Scalar input, Scalar alpha) noexcept
+    {
         output = input / (1 + std::exp(-alpha * input));
     };
 
-    auto prelu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto prelu = [](Scalar &output, Scalar input, Scalar alpha) noexcept
+    {
         output = input > 0 ? input : alpha * input;
     };
 
-    auto silu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto silu = [](Scalar &output, Scalar input, Scalar alpha) noexcept
+    {
         auto sigmoid = 1 / (1 + std::exp(-input));
         output = input * sigmoid;
     };
 
-    auto softmax = [](const Scalar* input, Scalar* output, int size) noexcept {
+    auto softmax = [](const Scalar *input, Scalar *output, int size) noexcept
+    {
         Scalar max_val = input[0];
-        for (int i = 1; i < size; ++i) {
+        for (int i = 1; i < size; ++i)
+        {
             if (input[i] > max_val)
                 max_val = input[i];
         }
         Scalar sum = 0;
-        for (int i = 0; i < size; ++i) {
+        for (int i = 0; i < size; ++i)
+        {
             output[i] = std::exp(input[i] - max_val);
             sum += output[i];
         }
-        for (int i = 0; i < size; ++i) {
+        for (int i = 0; i < size; ++i)
+        {
             output[i] /= sum;
         }
     };
@@ -507,9 +593,9 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         1, 8, 8, 1, 8, 8, 3, 3, 1, 1, 1, 1,
         static_cast<activationFunction<Scalar>>(linear), 0.0);
     std::cout << "Layer 1 output: ";
-    for (const auto& val : layer_1_output) std::cout << val << " ";
+    for (const auto &val : layer_1_output)
+        std::cout << val << " ";
     std::cout << std::endl;
-
 
     // std::array<Scalar, 1> layer_2_output;
     // batchNormalization<Scalar, 1>(
@@ -520,16 +606,19 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     std::array<Scalar, 64> layer_2_output;
     batchNormalization2D<Scalar, 1, 8, 8>(layer_2_output.data(), layer_1_output.data(), gamma_2.data(), beta_2.data(), mean_2.data(), variance_2.data(), epsilon_2);
     std::cout << "Layer 2 output: ";
-    for (const auto& val : layer_2_output) std::cout << val << " ";
+    for (const auto &val : layer_2_output)
+        std::cout << val << " ";
     std::cout << std::endl;
 
     // Pure activation layer 3
     std::array<Scalar, 64> layer_3_output;
-    for (int i = 0; i < 64; ++i) {
+    for (int i = 0; i < 64; ++i)
+    {
         relu(layer_3_output[i], layer_2_output[i], 1.0);
     }
     std::cout << "Layer 3 output: ";
-    for (const auto& val : layer_3_output) std::cout << val << " ";
+    for (const auto &val : layer_3_output)
+        std::cout << val << " ";
     std::cout << std::endl;
 
     // // conv2DForward call for layer 4
@@ -542,17 +631,15 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     conv2DForward<Scalar, 8, 8, 8>(
         layer_4_output.data(), layer_3_output.data(),
         convKernel_4.data(), convBias_4.data(),
-        1, 8, 8,       // in_channels, in_height, in_width
-        1, 1,          // kernel_h, kernel_w
-        1, 1,          // stride_h, stride_w
-        0, 0,          // pad_h, pad_w
+        1, 8, 8, // in_channels, in_height, in_width
+        1, 1,    // kernel_h, kernel_w
+        1, 1,    // stride_h, stride_w
+        0, 0,    // pad_h, pad_w
         static_cast<activationFunction<Scalar>>(linear), 0.0);
     std::cout << "Layer 4 output: ";
-    for (const auto& val : layer_4_output) std::cout << val << " ";
+    for (const auto &val : layer_4_output)
+        std::cout << val << " ";
     std::cout << std::endl;
-    
-    
-
 
     // std::array<Scalar, 8> layer_5_output;
     // batchNormalization<Scalar, 8>(
@@ -562,21 +649,24 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     //     epsilon_5);
     std::array<Scalar, 512> layer_5_output;
     batchNormalization2D<Scalar, 8, 8, 8>(layer_5_output.data(), layer_4_output.data(),
-                                       gamma_5.data(), beta_5.data(),
-                                       mean_5.data(), variance_5.data(),
-                                       epsilon_5);
+                                          gamma_5.data(), beta_5.data(),
+                                          mean_5.data(), variance_5.data(),
+                                          epsilon_5);
 
     std::cout << "Layer 5 output: ";
-    for (const auto& val : layer_5_output) std::cout << val << " ";
+    for (const auto &val : layer_5_output)
+        std::cout << val << " ";
     std::cout << std::endl;
 
     // Pure activation layer 6
     std::array<Scalar, 512> layer_6_output;
-    for (int i = 0; i < 512; ++i) {
+    for (int i = 0; i < 512; ++i)
+    {
         relu(layer_6_output[i], layer_5_output[i], 1.0);
     }
     std::cout << "Layer 6 output: ";
-    for (const auto& val : layer_6_output) std::cout << val << " ";
+    for (const auto &val : layer_6_output)
+        std::cout << val << " ";
     std::cout << std::endl;
 
     // // SeparableConv2D call for layer 7
@@ -589,17 +679,15 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     separableConv2DForward<Scalar, 16, 8, 8>(
         layer_7_output.data(), layer_6_output.data(),
         sepDepthwise_7.data(), sepPointwise_7.data(), sepPointwiseBias_7.data(),
-        8, 8, 8,       // in_channels, in_height, in_width
-        3, 3,          // kernel_h, kernel_w
-        1, 1,          // stride_h, stride_w
-        1, 1,          // pad_h, pad_w
+        8, 8, 8, // in_channels, in_height, in_width
+        3, 3,    // kernel_h, kernel_w
+        1, 1,    // stride_h, stride_w
+        1, 1,    // pad_h, pad_w
         static_cast<activationFunction<Scalar>>(linear), 0.00);
     std::cout << "Layer 7 output: ";
-    for (const auto& val : layer_7_output) std::cout << val << " ";
+    for (const auto &val : layer_7_output)
+        std::cout << val << " ";
     std::cout << std::endl;
-    
-    
-
 
     // std::array<Scalar, 16> layer_8_output;
     // batchNormalization<Scalar, 16>(
@@ -609,21 +697,24 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     //     epsilon_8);
     std::array<Scalar, 1024> layer_8_output;
     batchNormalization2D<Scalar, 16, 8, 8>(layer_8_output.data(), layer_7_output.data(),
-                                        gamma_8.data(), beta_8.data(),
-                                        mean_8.data(), variance_8.data(),
-                                        epsilon_8);
+                                           gamma_8.data(), beta_8.data(),
+                                           mean_8.data(), variance_8.data(),
+                                           epsilon_8);
 
     std::cout << "Layer 8 output: ";
-    for (const auto& val : layer_8_output) std::cout << val << " ";
+    for (const auto &val : layer_8_output)
+        std::cout << val << " ";
     std::cout << std::endl;
 
     // Pure activation layer 9
     std::array<Scalar, 1024> layer_9_output;
-    for (int i = 0; i < 1024; ++i) {
+    for (int i = 0; i < 1024; ++i)
+    {
         relu(layer_9_output[i], layer_8_output[i], 1.0);
     }
     std::cout << "Layer 9 output: ";
-    for (const auto& val : layer_9_output) std::cout << val << " ";
+    for (const auto &val : layer_9_output)
+        std::cout << val << " ";
     std::cout << std::endl;
 
     // // SeparableConv2D call for layer 10
@@ -636,16 +727,15 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     separableConv2DForward<Scalar, 16, 8, 8>(
         layer_10_output.data(), layer_9_output.data(),
         sepDepthwise_10.data(), sepPointwise_10.data(), sepPointwiseBias_10.data(),
-        16, 8, 8,      // in_channels, in_height, in_width
-        3, 3,          // kernel_h, kernel_w
-        1, 1,          // stride_h, stride_w
-        1, 1,          // pad_h, pad_w
+        16, 8, 8, // in_channels, in_height, in_width
+        3, 3,     // kernel_h, kernel_w
+        1, 1,     // stride_h, stride_w
+        1, 1,     // pad_h, pad_w
         static_cast<activationFunction<Scalar>>(linear), 0.00);
     std::cout << "Layer 10 output: ";
-    for (const auto& val : layer_10_output) std::cout << val << " ";
+    for (const auto &val : layer_10_output)
+        std::cout << val << " ";
     std::cout << std::endl;
-    
-    
 
     // std::array<Scalar, 16> layer_11_output;
     // batchNormalization<Scalar, 16>(
@@ -655,21 +745,24 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     //     epsilon_11);
     std::array<Scalar, 1024> layer_11_output;
     batchNormalization2D<Scalar, 16, 8, 8>(layer_11_output.data(), layer_10_output.data(),
-                                         gamma_11.data(), beta_11.data(),
-                                         mean_11.data(), variance_11.data(),
-                                         epsilon_11);
+                                           gamma_11.data(), beta_11.data(),
+                                           mean_11.data(), variance_11.data(),
+                                           epsilon_11);
 
     std::cout << "Layer 11 output: ";
-    for (const auto& val : layer_11_output) std::cout << val << " ";
+    for (const auto &val : layer_11_output)
+        std::cout << val << " ";
     std::cout << std::endl;
 
     // Pure activation layer 12
     std::array<Scalar, 1024> layer_12_output;
-    for (int i = 0; i < 1024; ++i) {
+    for (int i = 0; i < 1024; ++i)
+    {
         relu(layer_12_output[i], layer_11_output[i], 1.0);
     }
     std::cout << "Layer 12 output: ";
-    for (const auto& val : layer_12_output) std::cout << val << " ";
+    for (const auto &val : layer_12_output)
+        std::cout << val << " ";
     std::cout << std::endl;
 
     // GlobalAveragePooling2D call for layer 13
@@ -678,7 +771,8 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         layer_13_output.data(), layer_12_output.data(),
         8, 8, 16);
     std::cout << "Layer 13 output: ";
-    for (const auto& val : layer_13_output) std::cout << val << " ";
+    for (const auto &val : layer_13_output)
+        std::cout << val << " ";
     std::cout << std::endl;
 
     // std::array<Scalar, 5> layer_14_output;
@@ -686,7 +780,7 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     //     layer_14_output.data(), layer_13_output.data(),
     //     weights_14.data(), biases_14.data(),
     //     16, linear, 0.0);
-        // --- Dense layer (pre-softmax) for layer 14 ---
+    // --- Dense layer (pre-softmax) for layer 14 ---
     std::array<Scalar, 5> dense_output;
     forwardPass<Scalar, 5>(
         dense_output.data(), layer_13_output.data(),
@@ -697,9 +791,9 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     std::array<Scalar, 5> layer_14_output;
     softmax(dense_output.data(), layer_14_output.data(), 5);
 
-
     std::cout << "Layer 14 output: ";
-    for (const auto& val : layer_14_output) std::cout << val << " ";
+    for (const auto &val : layer_14_output)
+        std::cout << val << " ";
     std::cout << std::endl;
 
     // final placeholder
