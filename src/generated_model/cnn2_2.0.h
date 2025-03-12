@@ -468,7 +468,7 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         layer_1_output.data(), model_input.data(),
         depthwiseKernel_1.data(), depthwiseBias_1.data(),
         1, 8, 8, 1, 8, 8, 3, 3, 1, 1, 1, 1,
-        static_cast<activationFunction<Scalar>>(leakyRelu), 0.01);
+        static_cast<activationFunction<Scalar>>(linear), 0.0);
     std::cout << "Layer 1 output: ";
     for (const auto& val : layer_1_output) std::cout << val << " ";
     std::cout << std::endl;
@@ -489,7 +489,7 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     // Pure activation layer 3
     std::array<Scalar, 64> layer_3_output;
     for (int i = 0; i < 64; ++i) {
-        linear(layer_3_output[i], layer_2_output[i], 0.0);
+        relu(layer_3_output[i], layer_2_output[i], 1.0);
     }
     std::cout << "Layer 3 output: ";
     for (const auto& val : layer_3_output) std::cout << val << " ";
@@ -509,7 +509,7 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         1, 1,          // kernel_h, kernel_w
         1, 1,          // stride_h, stride_w
         0, 0,          // pad_h, pad_w
-        static_cast<activationFunction<Scalar>>(leakyRelu), 0.01);
+        static_cast<activationFunction<Scalar>>(linear), 0.0);
     std::cout << "Layer 4 output: ";
     for (const auto& val : layer_4_output) std::cout << val << " ";
     std::cout << std::endl;
@@ -536,7 +536,7 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     // Pure activation layer 6
     std::array<Scalar, 512> layer_6_output;
     for (int i = 0; i < 512; ++i) {
-        linear(layer_6_output[i], layer_5_output[i], 0.0);
+        relu(layer_6_output[i], layer_5_output[i], 1.0);
     }
     std::cout << "Layer 6 output: ";
     for (const auto& val : layer_6_output) std::cout << val << " ";
@@ -556,7 +556,7 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         3, 3,          // kernel_h, kernel_w
         1, 1,          // stride_h, stride_w
         1, 1,          // pad_h, pad_w
-        static_cast<activationFunction<Scalar>>(leakyRelu), 0.01);
+        static_cast<activationFunction<Scalar>>(linear), 0.00);
     std::cout << "Layer 7 output: ";
     for (const auto& val : layer_7_output) std::cout << val << " ";
     std::cout << std::endl;
@@ -583,7 +583,7 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     // Pure activation layer 9
     std::array<Scalar, 1024> layer_9_output;
     for (int i = 0; i < 1024; ++i) {
-        linear(layer_9_output[i], layer_8_output[i], 0.0);
+        relu(layer_9_output[i], layer_8_output[i], 1.0);
     }
     std::cout << "Layer 9 output: ";
     for (const auto& val : layer_9_output) std::cout << val << " ";
@@ -603,7 +603,7 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         3, 3,          // kernel_h, kernel_w
         1, 1,          // stride_h, stride_w
         1, 1,          // pad_h, pad_w
-        static_cast<activationFunction<Scalar>>(leakyRelu), 0.01);
+        static_cast<activationFunction<Scalar>>(linear), 0.00);
     std::cout << "Layer 10 output: ";
     for (const auto& val : layer_10_output) std::cout << val << " ";
     std::cout << std::endl;
@@ -629,7 +629,7 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     // Pure activation layer 12
     std::array<Scalar, 1024> layer_12_output;
     for (int i = 0; i < 1024; ++i) {
-        linear(layer_12_output[i], layer_11_output[i], 0.0);
+        relu(layer_12_output[i], layer_11_output[i], 1.0);
     }
     std::cout << "Layer 12 output: ";
     for (const auto& val : layer_12_output) std::cout << val << " ";
