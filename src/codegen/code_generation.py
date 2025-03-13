@@ -91,7 +91,7 @@ auto {name_space}(const {input_type}& initial_input) {{
     
     # Immediately after "auto {name_space}(const {input_type}& initial_input) {"
     cpp_code += f"""
-        constexpr int flat_size = {input_size}; // e.g. 64
+        constexpr int flat_size = {input_size}; 
         std::array<Scalar, flat_size> model_input;
         int idx = 0;
     """
@@ -123,13 +123,6 @@ auto {name_space}(const {input_type}& initial_input) {{
         # fallback 1D
         cpp_code += f"    for (int i=0; i<flat_size; i++) {{ model_input[i] = initial_input[i]; }}\n"
 
-    cpp_code += f"""
-        // check size
-        if (model_input.size() != flat_size) {{
-            throw std::invalid_argument("Invalid input size. Expected size: {input_size}");
-        }}
-    """
-
     # Optional: input normalization arrays
     if input_norms is not None:
         cpp_code += f"    constexpr std::array<Scalar, {len(input_norms)}> input_norms = {{"
@@ -149,11 +142,6 @@ auto {name_space}(const {input_type}& initial_input) {{
         cpp_code += f"    std::array<Scalar, {input_size}> model_input = initial_input;\n\n"
         cpp_code += f"    if (model_input.size() != {input_size}) {{ throw std::invalid_argument(\"Invalid input size. Expected size: {input_size}\"); }}\n\n"
 
-    cpp_code += "    // --------------------------------------------------------------------------\n"
-    cpp_code += "    // Print out the old weights/biases for dense layers if needed\n"
-    cpp_code += "    // plus define the new conv (and pooling) dictionaries.\n"
-    cpp_code += "    // --------------------------------------------------------------------------\n\n"
-
     #
     # 1) Print old style arrays for dense layers, BN, etc.
     #
@@ -165,7 +153,7 @@ auto {name_space}(const {input_type}& initial_input) {{
             # Flatten them
             wflat = w.flatten()
             bflat = b.flatten()
-            cpp_code += f"    // Dense or other layer {layer_idx}\n"
+            cpp_code += f"    // Dense layer {layer_idx}\n"
             cpp_code += f"    constexpr std::array<Scalar, {len(wflat)}> weights_{layer_idx} = {{"
             cpp_code += ", ".join(f"{val:10.9e}" for val in wflat)
             cpp_code += "};\n"
@@ -176,6 +164,8 @@ auto {name_space}(const {input_type}& initial_input) {{
         # If norm_params exist => BN or LN
         if norm_params is not None:
             gamma, beta, mean, var, eps = norm_params
+            cpp_code += f"    // Layer {layer_idx}: Normalization\n"
+
             if gamma is not None:
                 gflat = gamma.flatten()
                 cpp_code += f"    constexpr std::array<Scalar, {len(gflat)}> gamma_{layer_idx} = {{"
@@ -201,7 +191,7 @@ auto {name_space}(const {input_type}& initial_input) {{
         # If conv_dict is not None => print separate arrays for each scenario
         if conv_dict is not None:
             ltype = conv_dict.get('layer_type', None)
-            cpp_code += f"    // Layer {layer_idx} of type {ltype}\n"
+            cpp_code += f"    // Layer {layer_idx}: {ltype}\n"
 
             if ltype in ['Conv1D', 'Conv2D', 'Conv3D']:
                 kernel = conv_dict.get('weights', None)
@@ -269,11 +259,8 @@ auto {name_space}(const {input_type}& initial_input) {{
                 cpp_code += f"    constexpr std::array<int, 2> poolStrides_{layer_idx} = {{{strides[0]}, {strides[1]}}};\n"
                 cpp_code += f"    constexpr const char* poolPadding_{layer_idx} = \"{padding}\";\n\n"
 
-            elif ltype == 'GlobalAveragePooling2D':
-                cpp_code += f"    // Global average pooling layer for layer {layer_idx} (no extra parameters needed)\n\n"
-
     # Insert the activation lambda definitions
-    cpp_code += "\n    // Insert activation function definitions:\n"
+    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n"
     if isinstance(cpp_lambda, dict):
         relevant_activations = set(activation_functions)
         for key, val in cpp_lambda.items():
@@ -281,219 +268,6 @@ auto {name_space}(const {input_type}& initial_input) {{
                 cpp_code += val
     else:
         cpp_code += cpp_lambda
-
-
-
-
-
-
-
-
-
-
-    # # Keep track of the output of the previous layer.
-    # last_layer = "model_input"
-    # last_size = input_size
-
-    # for i, (w, b, norm_params, conv_dict, act_func, alpha) in enumerate(zip(
-    #         weights_list, biases_list, norm_layer_params, conv_layer_params,
-    #         activation_functions, alphas)):
-
-    #     layer_idx = i + 1
-    #     mapped_act = activation_func_map.get(act_func, 'linear')
-
-    #     # Case 1: Convolutional or pooling layer
-    #     if conv_dict is not None:
-    #         ltype = conv_dict.get('layer_type', None)
-
-    #         # -- Standard Convolution (Conv1D, Conv2D, Conv3D) --
-    #         if ltype in ['Conv1D', 'Conv2D', 'Conv3D']:
-    #             if ltype == 'Conv1D':
-    #                 # Extract parameters; note that real dimensions should be computed from previous layer's shape.
-    #                 kernel_size = conv_dict.get('kernel_size', 3)
-    #                 stride   = conv_dict.get('strides', 1)
-    #                 pad      = 0  # assuming 'valid' padding
-    #                 # Placeholder for output size
-    #                 out_size = "/* computed out_size */"
-    #                 cpp_code += f"    // conv1DForward call for layer {layer_idx}\n"
-    #                 cpp_code += f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-    #                 cpp_code += f"    conv1DForward<Scalar, {out_size}>(\n"
-    #                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-    #                 cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
-    #                 cpp_code += f"        {last_size}, {kernel_size}, {stride}, {pad},\n"
-    #                 cpp_code += f"        {mapped_act}, {alpha});\n\n"
-    #                 last_layer = f"layer_{layer_idx}_output"
-    #                 last_size = out_size
-
-    #             elif ltype == 'Conv2D':
-    #                 kernel_size = conv_dict.get('kernel_size', (3,3))
-    #                 strides   = conv_dict.get('strides', (1,1))
-    #                 padding   = conv_dict.get('padding', 'valid')
-    #                 # Compute padding amounts based on padding type:
-    #                 pad_h = 0
-    #                 pad_w = 0
-    #                 if padding == 'same':
-    #                     pad_h = kernel_size[0] // 2
-    #                     pad_w = kernel_size[1] // 2
-    #                 # Placeholders for dimensions – you should compute these from the previous layer shape:
-    #                 in_channels  = "/* in_channels */"
-    #                 in_height    = "/* in_height */"
-    #                 in_width     = "/* in_width */"
-    #                 out_channels = conv_dict.get('filters', "/* out_channels */")
-    #                 out_height   = "/* out_height */"
-    #                 out_width    = "/* out_width */"
-    #                 cpp_code += f"    // conv2DForward call for layer {layer_idx}\n"
-    #                 cpp_code += f"    std::array<Scalar, /* out_size */> layer_{layer_idx}_output;\n"
-    #                 cpp_code += f"    conv2DForward<Scalar, {out_channels}, {out_height}, {out_width}>(\n"
-    #                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-    #                 cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
-    #                 cpp_code += f"        {in_channels}, {in_height}, {in_width},\n"
-    #                 cpp_code += f"        {kernel_size[0]}, {kernel_size[1]}, {strides[0]}, {strides[1]}, {pad_h}, {pad_w},\n"
-    #                 cpp_code += f"        {mapped_act}, {alpha});\n\n"
-    #                 last_layer = f"layer_{layer_idx}_output"
-    #                 last_size = "/* out_size */"
-
-    #             elif ltype == 'Conv3D':
-    #                 # Similar to Conv2D but with an extra depth dimension.
-    #                 cpp_code += f"    // conv3DForward call for layer {layer_idx}\n"
-    #                 cpp_code += f"    // TODO: Extract conv3D parameters and compute dimensions\n\n"
-    #                 last_layer = f"layer_{layer_idx}_output"
-    #                 last_size = "/* out_size */"
-    #             continue
-
-    #         # -- Depthwise Convolution --
-    #         elif ltype == 'DepthwiseConv2D':
-    #             kernel_size = conv_dict.get('kernel_size', (3,3))
-    #             strides   = conv_dict.get('strides', (1,1))
-    #             padding   = conv_dict.get('padding', 'valid')
-    #             pad_h = 0
-    #             pad_w = 0
-    #             if padding == 'same':
-    #                 pad_h = kernel_size[0] // 2
-    #                 pad_w = kernel_size[1] // 2
-    #             # Placeholders for dimensions:
-    #             in_channels  = "/* in_channels */"
-    #             in_height    = "/* in_height */"
-    #             in_width     = "/* in_width */"
-    #             out_channels = "/* out_channels (usually same as in_channels unless multiplied) */"
-    #             out_height   = "/* out_height */"
-    #             out_width    = "/* out_width */"
-    #             cpp_code += f"    // depthwiseConv2DForward call for layer {layer_idx}\n"
-    #             cpp_code += f"    std::array<Scalar, /* out_size */> layer_{layer_idx}_output;\n"
-    #             cpp_code += f"    depthwiseConv2DForward(\n"
-    #             cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-    #             cpp_code += f"        depthwiseKernel_{layer_idx}.data(), depthwiseBias_{layer_idx}.data(),\n"
-    #             cpp_code += f"        {out_channels}, {out_height}, {out_width},\n"
-    #             cpp_code += f"        {in_channels}, {in_height}, {in_width},\n"
-    #             cpp_code += f"        {kernel_size[0]}, {kernel_size[1]}, {strides[0]}, {strides[1]}, {pad_h}, {pad_w},\n"
-    #             cpp_code += f"        {mapped_act}, {alpha});\n\n"
-    #             last_layer = f"layer_{layer_idx}_output"
-    #             last_size = "/* out_size */"
-    #             continue
-
-    #         # -- Separable Convolution --
-    #         elif ltype == 'SeparableConv2D':
-    #             kernel_size = conv_dict.get('kernel_size', (3,3))
-    #             strides  = conv_dict.get('strides', (1,1))
-    #             padding  = conv_dict.get('padding', 'valid')
-    #             pad_h = 0
-    #             pad_w = 0
-    #             if padding == 'same':
-    #                 pad_h = kernel_size[0] // 2
-    #                 pad_w = kernel_size[1] // 2
-    #             in_channels  = "/* in_channels */"
-    #             in_height    = "/* in_height */"
-    #             in_width     = "/* in_width */"
-    #             out_channels = conv_dict.get('filters', "/* out_channels */")
-    #             out_height   = "/* out_height */"
-    #             out_width    = "/* out_width */"
-    #             cpp_code += f"    // separableConv2DForward call for layer {layer_idx}\n"
-    #             cpp_code += f"    std::array<Scalar, /* out_size */> layer_{layer_idx}_output;\n"
-    #             cpp_code += f"    separableConv2DForward<Scalar, {out_channels}, {out_height}, {out_width}>(\n"
-    #             cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-    #             cpp_code += f"        sepDepthwise_{layer_idx}.data(), sepPointwise_{layer_idx}.data(), sepPointwiseBias_{layer_idx}.data(),\n"
-    #             cpp_code += f"        {in_channels}, {in_height}, {in_width},\n"
-    #             cpp_code += f"        {kernel_size[0]}, {kernel_size[1]}, {strides[0]}, {strides[1]}, {pad_h}, {pad_w},\n"
-    #             cpp_code += f"        {mapped_act}, {alpha});\n\n"
-    #             last_layer = f"layer_{layer_idx}_output"
-    #             last_size = "/* out_size */"
-    #             continue
-
-    #         # -- Pooling Layers --
-    #         elif ltype in ['MaxPooling2D', 'AveragePooling2D']:
-    #             # Get pooling parameters defined earlier (if any)
-    #             pool_size = conv_dict.get('pool_size', (2,2))
-    #             strides   = conv_dict.get('strides', pool_size)
-    #             # Dimension placeholders – these would be computed from the previous layer’s spatial shape:
-    #             in_height = "/* in_height */"
-    #             in_width  = "/* in_width */"
-    #             channels  = "/* channels */"
-    #             if ltype == 'MaxPooling2D':
-    #                 cpp_code += f"    // maxPooling2D call for layer {layer_idx}\n"
-    #                 cpp_code += f"    std::array<Scalar, /* out_size */> layer_{layer_idx}_output;\n"
-    #                 cpp_code += f"    maxPooling2D<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
-    #                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_height}, {in_width}, {channels});\n\n"
-    #             else:
-    #                 cpp_code += f"    // avgPooling2D call for layer {layer_idx}\n"
-    #                 cpp_code += f"    std::array<Scalar, /* out_size */> layer_{layer_idx}_output;\n"
-    #                 cpp_code += f"    avgPooling2D<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
-    #                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_height}, {in_width}, {channels});\n\n"
-    #             last_layer = f"layer_{layer_idx}_output"
-    #             last_size = "/* out_size */"
-    #             continue
-
-    #         elif ltype == 'GlobalAveragePooling2D':
-    #             # For global pooling, output size equals the number of channels.
-    #             channels = "/* channels */"
-    #             cpp_code += f"    // globalAvgPooling2D call for layer {layer_idx}\n"
-    #             cpp_code += f"    std::array<Scalar, {channels}> layer_{layer_idx}_output;\n"
-    #             cpp_code += f"    globalAvgPooling2D(\n"
-    #             cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), /* in_height */, /* in_width */, {channels});\n\n"
-    #             last_layer = f"layer_{layer_idx}_output"
-    #             last_size = channels
-    #             continue
-
-    #     # Case 2: Dense/Pure activation or normalization layers (handled later)
-    #     elif w is not None and b is not None:
-    #         out_size = w.shape[1]
-    #         cpp_code += f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-    #         cpp_code += f"    forwardPass<Scalar, {out_size}>(\n"
-    #         cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-    #         cpp_code += f"        weights_{layer_idx}.data(), biases_{layer_idx}.data(),\n"
-    #         cpp_code += f"        {last_size}, {mapped_act}, {alpha});\n\n"
-    #         last_layer = f"layer_{layer_idx}_output"
-    #         last_size = out_size
-    #         continue
-
-    #     # Case 3: BatchNormalization/LayerNormalization
-    #     elif act_func == 'batchNormalization' and norm_params is not None:
-    #         gamma, beta, mean, var, eps = norm_params
-    #         out_size = len(gamma)
-    #         cpp_code += f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-    #         cpp_code += f"    batchNormalization<Scalar, {out_size}>(\n"
-    #         cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-    #         cpp_code += f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
-    #         cpp_code += f"        mean_{layer_idx}.data(), variance_{layer_idx}.data(),\n"
-    #         cpp_code += f"        epsilon_{layer_idx});\n\n"
-    #         last_layer = f"layer_{layer_idx}_output"
-    #         last_size = out_size
-    #         continue
-
-    #     elif act_func is not None:
-    #         # Pure activation layer (no weights/parameters)
-    #         cpp_code += f"    // Pure activation layer {layer_idx}\n"
-    #         cpp_code += f"    std::array<Scalar, {last_size}> layer_{layer_idx}_output;\n"
-    #         cpp_code += f"    for (int i = 0; i < {last_size}; ++i) {{\n"
-    #         cpp_code += f"        {mapped_act}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
-    #         cpp_code += f"    }}\n\n"
-    #         last_layer = f"layer_{layer_idx}_output"
-    #         continue
-
-    #     else:
-    #         cpp_code += f"    // Skipping layer {layer_idx} (no operation defined)\n"
-    #         continue
-
-# ...existing code...
 
     # Initialize last_layer (for data pointer) and last_shape (for dimensions) using the input layer shape.
     last_layer = "model_input"
@@ -560,7 +334,7 @@ auto {name_space}(const {input_type}& initial_input) {{
                         pad_h = kernel_size[0] // 2
                         pad_w = kernel_size[1] // 2
                     cpp_code += f"    // conv2DForward call for layer {layer_idx}\n"
-                    cpp_code += f"    std::array<Scalar, {out_height * out_width * out_channels}> layer_{layer_idx}_output;\n"
+                    cpp_code += f"    std::array<Scalar, ({out_height} * {out_width} * {in_channels})> layer_{layer_idx}_output;\n"
                     cpp_code += f"    conv2DForward<Scalar, {out_channels}, {out_height}, {out_width}>(\n"
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                     cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
@@ -571,7 +345,7 @@ auto {name_space}(const {input_type}& initial_input) {{
                     last_shape = current_shape if current_shape is not None else last_shape
 
                 elif ltype == 'Conv3D':
-                    cpp_code += f"    // conv3DForward call for layer {layer_idx}\n"
+                    cpp_code += f"    // conv3DForward call for layer {layer_idx}\n" 
                     # Assume current_shape = (D_out, H_out, W_out, out_channels) and last_shape = (D_in, H_in, W_in, in_channels)
                     # Similarly extract dimensions:
                     if isinstance(last_shape, (list, tuple)) and len(last_shape) >= 4:
@@ -588,7 +362,7 @@ auto {name_space}(const {input_type}& initial_input) {{
                         out_channels = current_shape[3]
                     else:
                         out_depth, out_height, out_width, out_channels = "/* out_depth */", "/* out_height */", "/* out_width */", "/* out_channels */"
-                    cpp_code += f"    std::array<Scalar, {out_depth * out_height * out_width * out_channels}> layer_{layer_idx}_output;\n"
+                    cpp_code += f"    std::array<Scalar, ({out_depth * {out_height} * out_width * out_channels})> layer_{layer_idx}_output;\n"
                     cpp_code += f"    conv3DForward<Scalar, {out_channels}, {out_depth}, {out_height}, {out_width}>(\n"
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                     cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
@@ -611,7 +385,7 @@ auto {name_space}(const {input_type}& initial_input) {{
                     pad_h = kernel_size[0] // 2
                     pad_w = kernel_size[1] // 2
                 cpp_code += f"    // depthwiseConv2DForward call for layer {layer_idx}\n"
-                cpp_code += f"    std::array<Scalar, {out_height * out_width * in_channels}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    std::array<Scalar, ({out_height} * {out_width} * {in_channels})> layer_{layer_idx}_output;\n"
                 cpp_code += f"    depthwiseConv2DForward(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 cpp_code += f"        depthwiseKernel_{layer_idx}.data(), depthwiseBias_{layer_idx}.data(),\n"
@@ -633,7 +407,7 @@ auto {name_space}(const {input_type}& initial_input) {{
                     pad_h = kernel_size[0] // 2
                     pad_w = kernel_size[1] // 2
                 cpp_code += f"    // separableConv2DForward call for layer {layer_idx}\n"
-                cpp_code += f"    std::array<Scalar, {out_height * out_width * out_channels}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    std::array<Scalar, ({out_height} * {out_width} * {out_channels})> layer_{layer_idx}_output;\n"
                 cpp_code += f"    separableConv2DForward<Scalar, {out_channels}, {out_height}, {out_width}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 cpp_code += f"        sepDepthwise_{layer_idx}.data(), sepPointwise_{layer_idx}.data(), sepPointwiseBias_{layer_idx}.data(),\n"
@@ -649,7 +423,7 @@ auto {name_space}(const {input_type}& initial_input) {{
                 pool_size = conv_dict.get('pool_size', (2,2))
                 strides   = conv_dict.get('strides', pool_size)
                 cpp_code += f"    // {'max' if ltype=='MaxPooling2D' else 'avg'}Pooling2D call for layer {layer_idx}\n"
-                cpp_code += f"    std::array<Scalar, {out_height * out_width * in_channels}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    std::array<Scalar, ({out_height} * {out_width} * {in_channels})> layer_{layer_idx}_output;\n"
                 if ltype == 'MaxPooling2D':
                     cpp_code += f"    maxPooling2D<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
                 else:

@@ -68,7 +68,7 @@ def extractModel(model, file_type):
             config = layer.get_config()
             raw_act = config.get('activation', 'linear')
             activation = raw_act if isinstance(raw_act, str) else 'linear'
-            # activation = config.get('activation', 'linear') if isinstance(config.get('activation'), str) else config.get('activation', 'linear')
+            activation = config.get('activation', 'linear') if isinstance(config.get('activation'), str) else config.get('activation', 'linear')
             layer_weights = layer.get_weights()
 
             # Check for activation layer
@@ -84,7 +84,7 @@ def extractModel(model, file_type):
                 continue
 
             # Check for flatten layer
-            if isinstance(layer, keras.layers.Flatten):
+            if isinstance(layer, keras.layers.Flatten) or 'flatten' in layer.name.lower():
                 activation_functions.append('flatten')
                 weights_list.append(None)
                 biases_list.append(None)
@@ -96,7 +96,7 @@ def extractModel(model, file_type):
                 continue
 
             # Check for batch norm layer
-            if isinstance(layer, keras.layers.BatchNormalization):
+            if isinstance(layer, keras.layers.BatchNormalization) or 'batchnormalization' in layer.name.lower():
                 if len(layer_weights) == 4:
                     gamma, beta, moving_mean, moving_variance = layer_weights
                     epsilon = config.get('epsilon', 1e-5)
@@ -116,7 +116,7 @@ def extractModel(model, file_type):
                 continue
 
             # Check for layer norm layer
-            if isinstance(layer, keras.layers.LayerNormalization):
+            if isinstance(layer, keras.layers.LayerNormalization) or 'layernormalization' in layer.name.lower():
                 if len(layer_weights) == 2:
                     gamma, beta = layer_weights
                     epsilon = config.get('epsilon', 1e-5)
@@ -135,170 +135,8 @@ def extractModel(model, file_type):
                     layer_type.append(None)
                 continue
 
-            # # Check for DepthwiseConv2D layer
-            # if isinstance(layer, keras.layers.DepthwiseConv2D):
-            #     use_bias = config.get('use_bias', True)
-            #     if use_bias and len(layer_weights) == 2:
-            #         depthwise_kernel, bias = layer_weights
-            #     elif not use_bias and len(layer_weights) == 1:
-            #         depthwise_kernel, bias = layer_weights[0], None
-            #     else:
-            #         depthwise_kernel, bias = None, None
-
-            #     conv_params = {
-            #         'layer_type': 'DepthwiseConv2D',
-            #         'depthwise_kernel': depthwise_kernel,
-            #         'depthwise_bias': bias,
-            #         'pointwise_kernel': None,
-            #         'pointwise_bias': None,
-            #         'filters': config.get('depth_multiplier', 1),
-            #         'kernel_size': config.get('kernel_size', (3,3)),
-            #         'strides': config.get('strides', (1,1)),
-            #         'padding': config.get('padding', 'valid'),
-            #         'dilation_rate': config.get('dilation_rate', (1,1)),
-            #         'use_bias': use_bias
-            #     }
-            #     conv_layer_params[-1] = conv_params
-            #     weights_list.append(None)
-            #     biases_list.append(None)
-            #     norm_layer_params.append(None)
-            #     activation_functions.append(activation)
-            #     alphas.append(getAlphaForActivation(layer, activation))
-            #     dropout_rates.append(0.0)
-            #     layer_shape.append(0)
-            #     layer_type.append('depthwiseConv2DForward')
-            #     continue
-
-            # # Check for SeparableConv2D layer
-            # if isinstance(layer, keras.layers.SeparableConv2D):
-            #     use_bias = config.get('use_bias', True)
-            #     if use_bias and len(layer_weights) == 3:
-            #         depthwise_kernel, pointwise_kernel, bias = layer_weights
-            #     elif not use_bias and len(layer_weights) == 2:
-            #         depthwise_kernel, pointwise_kernel, bias = layer_weights[0], layer_weights[1], None
-            #     else:
-            #         depthwise_kernel, pointwise_kernel, bias = None, None, None
-
-            #     conv_params = {
-            #         'layer_type': 'SeparableConv2D',
-            #         'depthwise_kernel': depthwise_kernel,
-            #         'depthwise_bias': None,   # some Keras versions separate the depthwise bias
-            #         'pointwise_kernel': pointwise_kernel,
-            #         'pointwise_bias': bias,
-            #         'filters': config.get('filters', None),
-            #         'kernel_size': config.get('kernel_size', (3,3)),
-            #         'strides': config.get('strides', (1,1)),
-            #         'padding': config.get('padding', 'valid'),
-            #         'dilation_rate': config.get('dilation_rate', (1,1)),
-            #         'use_bias': use_bias
-            #     }
-            #     conv_layer_params[-1] = conv_params
-            #     weights_list.append(None)
-            #     biases_list.append(None)
-            #     norm_layer_params.append(None)
-            #     activation_functions.append(activation)
-            #     alphas.append(getAlphaForActivation(layer, activation))
-            #     dropout_rates.append(0.0)
-            #     layer_shape.append(0)
-            #     layer_type.append('separableConv2DForward')
-            #     continue
-
-            # # Check for standard Conv1D, Conv2D, Conv3D layers
-            # if isinstance(layer, (keras.layers.Conv1D,
-            #                       keras.layers.Conv2D,
-            #                       keras.layers.Conv3D)):
-            #     use_bias = config.get('use_bias', True)
-            #     if use_bias and len(layer_weights) == 2:
-            #         kernel, bias = layer_weights
-            #     elif not use_bias and len(layer_weights) == 1:
-            #         kernel, bias = layer_weights[0], None
-            #     else:
-            #         kernel, bias = None, None
-
-            #     conv_params = {
-            #         'layer_type': layer.__class__.__name__,
-            #         'weights': kernel,
-            #         'biases': bias,
-            #         'depthwise_kernel': None,
-            #         'depthwise_bias': None,
-            #         'pointwise_kernel': None,
-            #         'pointwise_bias': None,
-            #         'filters': config.get('filters', None),
-            #         'kernel_size': config.get('kernel_size', None),
-            #         'strides': config.get('strides', None),
-            #         'padding': config.get('padding', None),
-            #         'dilation_rate': config.get('dilation_rate', None),
-            #         'use_bias': use_bias
-            #     }
-            #     conv_layer_params[-1] = conv_params
-            #     weights_list.append(None)
-            #     biases_list.append(None)
-            #     norm_layer_params.append(None)
-            #     activation_functions.append(activation)
-            #     alphas.append(getAlphaForActivation(layer, activation))
-            #     dropout_rates.append(0.0)
-            #     layer_shape.append(0)
-            #     layer_type.append('convForward')
-            #     continue
-
-            # # Check for pooling layers: MaxPooling2D and AveragePooling2D
-            # if isinstance(layer, (keras.layers.MaxPooling2D, keras.layers.AveragePooling2D)):
-            #     pool_params = {
-            #         'layer_type': layer.__class__.__name__,
-            #         'pool_size': config.get('pool_size', (2,2)),
-            #         'strides': config.get('strides', config.get('pool_size', (2,2))),
-            #         'padding': config.get('padding', 'valid')
-            #     }
-            #     conv_layer_params[-1] = pool_params
-            #     weights_list.append(None)
-            #     biases_list.append(None)
-            #     norm_layer_params.append(None)
-            #     activation_functions.append(None)
-            #     alphas.append(0.0)
-            #     dropout_rates.append(0.0)
-            #     layer_shape.append(0)
-            #     layer_type.append('avgPooling2D')
-            #     layer_type.append('maxPooling2D')
-            #     continue
-
-            # # Check for global pooling layers: GlobalAveragePooling2D
-            # if isinstance(layer, keras.layers.GlobalAveragePooling2D):
-            #     pool_params = {
-            #         'layer_type': layer.__class__.__name__,
-            #     }
-            #     conv_layer_params[-1] = pool_params
-            #     weights_list.append(None)
-            #     biases_list.append(None)
-            #     norm_layer_params.append(None)
-            #     activation_functions.append(None)
-            #     alphas.append(0.0)
-            #     dropout_rates.append(0.0)
-            #     layer_shape.append(0)
-            #     layer_type.append('globalAvgPooling2D')
-            #     continue
-
-            # # Check for a regular dense layer
-            # if len(layer_weights) == 2:
-            #     w, b = layer_weights
-            #     weights_list.append(w)
-            #     biases_list.append(b)
-            #     norm_layer_params.append(None)
-            #     layer_shape.append((w.shape, b.shape))
-            #     layer_type.append('forwardPass')
-            # else:
-            #     weights_list.append(None)
-            #     biases_list.append(None)
-            #     norm_layer_params.append(None)
-            #     layer_shape.append(0)
-            #     layer_type.append(None)
-
-            # # Activation for standard dense (or others) layers
-            # activation_functions.append(activation if activation != 'linear' else 'linear')
-            # alphas.append(getAlphaForActivation(layer, activation))
-            # dropout_rates.append(0.0)
-
             # Check for DepthwiseConv2D layer
-            if isinstance(layer, keras.layers.DepthwiseConv2D):
+            if isinstance(layer, keras.layers.DepthwiseConv2D) or 'depthwiseconv2d' in layer.name.lower():
                 use_bias = config.get('use_bias', True)
                 if use_bias and len(layer_weights) == 2:
                     depthwise_kernel, bias = layer_weights
@@ -320,22 +158,22 @@ def extractModel(model, file_type):
                     'dilation_rate': config.get('dilation_rate', (1,1)),
                     'use_bias': use_bias,
                     # Record output shape information for later dimension calculations.
-                    'output_shape': layer.output_shape  
+                    # 'output_shape': layer.output_shape  
                 }
                 conv_layer_params[-1] = conv_params
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
-                activation_functions.append(activation)
-                alphas.append(getAlphaForActivation(layer, activation))
+                activation_functions.append(activation if activation != 'linear' else 'linear')
                 dropout_rates.append(0.0)
                 # Use layer.output_shape to capture dimensions for code generation.
-                layer_shape.append(layer.output_shape)
+                # layer_shape.append(layer.output_shape)
+                layer_shape.append(0)
                 layer_type.append('depthwiseConv2DForward')
                 continue
 
             # Check for SeparableConv2D layer
-            if isinstance(layer, keras.layers.SeparableConv2D):
+            if isinstance(layer, keras.layers.SeparableConv2D) or 'separableconv2d' in layer.name.lower():
                 use_bias = config.get('use_bias', True)
                 if use_bias and len(layer_weights) == 3:
                     depthwise_kernel, pointwise_kernel, bias = layer_weights
@@ -356,23 +194,25 @@ def extractModel(model, file_type):
                     'padding': config.get('padding', 'valid'),
                     'dilation_rate': config.get('dilation_rate', (1,1)),
                     'use_bias': use_bias,
-                    'output_shape': layer.output_shape
+                    # 'output_shape': layer.output_shape
                 }
                 conv_layer_params[-1] = conv_params
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
-                activation_functions.append(activation)
+                activation_functions.append(activation if activation != 'linear' else 'linear')
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
-                layer_shape.append(layer.output_shape)
+                # layer_shape.append(layer.output_shape)
+                layer_shape.append(0)
                 layer_type.append('separableConv2DForward')
                 continue
 
             # Check for standard Conv1D, Conv2D, Conv3D layers
-            if isinstance(layer, (keras.layers.Conv1D,
+            if (isinstance(layer, (keras.layers.Conv1D,
                                 keras.layers.Conv2D,
-                                keras.layers.Conv3D)):
+                                keras.layers.Conv3D)) or 
+                any(conv in layer.name.lower() for conv in ['conv1d','conv2d','conv3d'])):
                 use_bias = config.get('use_bias', True)
                 if use_bias and len(layer_weights) == 2:
                     kernel, bias = layer_weights
@@ -395,21 +235,23 @@ def extractModel(model, file_type):
                     'padding': config.get('padding', None),
                     'dilation_rate': config.get('dilation_rate', None),
                     'use_bias': use_bias,
-                    'output_shape': layer.output_shape
+                    # 'output_shape': layer.output_shape
                 }
                 conv_layer_params[-1] = conv_params
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
-                activation_functions.append(activation)
+                activation_functions.append(activation if activation != 'linear' else 'linear')
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
-                layer_shape.append(layer.output_shape)
+                # layer_shape.append(layer.output_shape)
+                layer_shape.append(0)
                 layer_type.append('convForward')
                 continue
 
             # Check for pooling layers: MaxPooling2D and AveragePooling2D
-            if isinstance(layer, (keras.layers.MaxPooling2D, keras.layers.AveragePooling2D)):
+            if (isinstance(layer, (keras.layers.MaxPooling2D, keras.layers.AveragePooling2D)) or 
+                any(pool in layer.name.lower() for pool in ['maxpooling2d','averagepooling2d'])):
                 pool_params = {
                     'layer_type': layer.__class__.__name__,
                     'pool_size': config.get('pool_size', (2,2)),
@@ -425,7 +267,6 @@ def extractModel(model, file_type):
                 alphas.append(0.0)
                 dropout_rates.append(0.0)
                 layer_shape.append(layer.output_shape)
-                # Determine type based on instance type.
                 if isinstance(layer, keras.layers.MaxPooling2D):
                     layer_type.append('maxPooling2D')
                 else:
@@ -433,10 +274,9 @@ def extractModel(model, file_type):
                 continue
 
             # Check for global pooling layers: GlobalAveragePooling2D
-            if isinstance(layer, keras.layers.GlobalAveragePooling2D):
+            if isinstance(layer, keras.layers.GlobalAveragePooling2D) or 'globalaveragepooling2d' in layer.name.lower():
                 pool_params = {
                     'layer_type': layer.__class__.__name__,
-                    'output_shape': layer.output_shape
                 }
                 conv_layer_params[-1] = pool_params
                 weights_list.append(None)
@@ -445,7 +285,7 @@ def extractModel(model, file_type):
                 activation_functions.append(None)
                 alphas.append(0.0)
                 dropout_rates.append(0.0)
-                layer_shape.append(layer.output_shape)
+                layer_shape.append(0)
                 layer_type.append('globalAvgPooling2D')
                 continue
 
@@ -465,10 +305,10 @@ def extractModel(model, file_type):
                 layer_shape.append(0)
                 layer_type.append(None)
 
-            # Activation for standard dense (or others) layers
-            activation_functions.append(activation if activation != 'linear' else 'linear')
-            alphas.append(getAlphaForActivation(layer, activation))
-            dropout_rates.append(0.0)
+                # Activation for standard dense (or others) layers
+                activation_functions.append(activation if activation != 'linear' else 'linear')
+                alphas.append(getAlphaForActivation(layer, activation))
+                dropout_rates.append(0.0)
 
     # elif file_type == '.onnx':
     #     # (Your existing ONNX logic, not changed)

@@ -1,6 +1,6 @@
 #include <iostream>
 #include <array>
-#include "cnn2_edited.h"  // Your generated header with cnn2(...) definition
+#include "cnn2_2.0_edited.h"  // Your generated header with cnn2(...) definition
 
 using Scalar = double;
 
@@ -34,7 +34,7 @@ int main() {
     }};
 
     // Pass the input to your generated CNN function
-    auto output = cnn2<Scalar>(input);
+    auto output = cnn2_2<Scalar>(input);
 
     // Print the results
     std::cout << "Output: ";
