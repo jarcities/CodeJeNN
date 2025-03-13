@@ -492,7 +492,10 @@ void globalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int
         if act in lambda_functions:
             cpp_lambda += lambda_functions[act]
     
-    for type in layer_type:
+    # Deduplicate layer_type list
+    unique_layer_types = set(layer_type)
+    
+    for type in unique_layer_types:
         if type in normalization_functions:
             cpp_code += normalization_functions[type]
         if type in convolution_functions:
@@ -503,6 +506,18 @@ void globalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int
             cpp_code += convolution_functions['conv1DForward']
             cpp_code += convolution_functions['conv2DForward']
             cpp_code += convolution_functions['conv3DForward']
+
+    # for type in layer_type:
+    #     if type in normalization_functions:
+    #         cpp_code += normalization_functions[type]
+    #     if type in convolution_functions:
+    #         cpp_code += convolution_functions[type]
+    #     if type in pooling_functions:
+    #         cpp_code += pooling_functions[type]
+    #     if type == 'convForward':
+    #         cpp_code += convolution_functions['conv1DForward']
+    #         cpp_code += convolution_functions['conv2DForward']
+    #         cpp_code += convolution_functions['conv3DForward']
             
     # Append normalization, forward and convolution functions
     # cpp_code += layerNormalization

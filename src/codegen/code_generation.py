@@ -91,18 +91,18 @@ auto {name_space}(const {input_type}& initial_input) {{
     
     # Immediately after "auto {name_space}(const {input_type}& initial_input) {"
     cpp_code += f"""
-        constexpr int flat_size = {input_size}; 
-        std::array<Scalar, flat_size> model_input;
-        int idx = 0;
+    constexpr int flat_size = {input_size}; 
+    std::array<Scalar, flat_size> model_input;
+    int idx = 0;
     """
     dims = layer_shape[0]
     if isinstance(dims, tuple) and len(dims) > 1:
-        # build nested loops
+        # build nested loops using dynamic indentation for each dimension
         loop_vars = [f"i{j}" for j in range(len(dims))]
-        # e.g. for (int i0=0; i0<8; i0++) ...
         for d_i, d_val in enumerate(dims):
-            cpp_code += "    " * (d_i+1) + f"for (int {loop_vars[d_i]} = 0; {loop_vars[d_i]} < {d_val}; {loop_vars[d_i]}++) {{\n"
-        # inside: compute the 1D index in row-major order
+            indent = "    " * (d_i + 1)  # calculate current indentation for the loop
+            cpp_code += f"{indent}for (int {loop_vars[d_i]} = 0; {loop_vars[d_i]} < {d_val}; {loop_vars[d_i]}++) {{\n"
+        # inside: compute the 1D index in row-major order with extra indentation
         index_expr = ""
         for d_i in range(len(dims)):
             stride = 1
@@ -111,12 +111,12 @@ auto {name_space}(const {input_type}& initial_input) {{
             if d_i > 0:
                 index_expr += " + "
             index_expr += f"{loop_vars[d_i]} * {stride}"
-        cpp_code += "    " * (len(dims)+1) + f"int flatIndex = {index_expr};\n"
-        cpp_code += "    " * (len(dims)+1) + f"model_input[flatIndex] = initial_input"
+        cpp_code += "    " * (len(dims) + 1) + f"int flatIndex = {index_expr};\n"
+        cpp_code += "    " * (len(dims) + 1) + f"model_input[flatIndex] = initial_input"
         for lv in loop_vars:
             cpp_code += f"[{lv}]"
         cpp_code += ";\n"
-        # close loops
+        # close loops using matching indentation levels
         for d_i in range(len(dims), 0, -1):
             cpp_code += "    " * d_i + "}\n"
     else:
@@ -485,21 +485,6 @@ auto {name_space}(const {input_type}& initial_input) {{
         else:
             cpp_code += f"    // Skipping layer {layer_idx} (no operation defined)\n"
             continue
-
-    # ...existing code...
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     # Output normalization if any (not implemented here)
     # final return
