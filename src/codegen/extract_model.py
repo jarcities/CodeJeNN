@@ -5,6 +5,7 @@ import os
 import absl.logging
 import warnings
 import numpy as np
+import math
 from tensorflow import keras
 
 """
@@ -25,6 +26,20 @@ def getAlphaForActivation(layer, activation):
     elif activation == 'elu':
         return layer.get_config().get('alpha', 1.0)
     return 0.0
+
+def compute_output_shape_2d(input_shape, kernel, strides, padding, filters=None, depthwise=False):
+    # input_shape is (H, W, C)
+    H, W, C = input_shape
+    if padding.lower() == 'same':
+        out_H = math.ceil(H/strides[0])
+        out_W = math.ceil(W/strides[1])
+    elif padding.lower() == 'valid':
+        out_H = math.floor((H - kernel[0]) / strides[0]) + 1
+        out_W = math.floor((W - kernel[1]) / strides[1]) + 1
+    else:
+        out_H, out_W = H, W
+    out_C = C if depthwise else (filters if filters is not None else C)
+    return (out_H, out_W, out_C)
 
 def extractModel(model, file_type):
     """
@@ -58,6 +73,8 @@ def extractModel(model, file_type):
 
         input_flat_size = int(np.prod(raw_shape))
         layer_shape.append(tuple(raw_shape))  # store the tuple e.g. (8, 8, 1)
+
+        current_shape = model.input_shape[1:]  # e.g. (H, W, C)
 
         for layer in model.layers:
 
@@ -165,15 +182,24 @@ def extractModel(model, file_type):
                     # Record output shape information for later dimension calculations.
                     # 'output_shape': layer.output_shape  
                 }
+                # Compute new shape for 2d convolution.
+                new_shape = compute_output_shape_2d(
+                    current_shape,
+                    conv_params['kernel_size'],
+                    conv_params['strides'],
+                    conv_params['padding'],
+                    filters=conv_params.get('filters'),
+                    depthwise=True)
+                conv_params['in_shape'] = current_shape
+                conv_params['out_shape'] = new_shape
+                current_shape = new_shape
                 conv_layer_params[-1] = conv_params
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
                 activation_functions.append(activation if activation != 'linear' else 'linear')
                 dropout_rates.append(0.0)
-                # Use layer.output_shape to capture dimensions for code generation.
-                # layer_shape.append(layer.output_shape)
-                layer_shape.append(0)
+                layer_shape.append(new_shape)
                 layer_type.append('depthwiseConv2DForward')
                 continue
 
@@ -201,6 +227,16 @@ def extractModel(model, file_type):
                     'use_bias': use_bias,
                     # 'output_shape': layer.output_shape
                 }
+                # Compute new shape for separable convolution.
+                new_shape = compute_output_shape_2d(
+                    current_shape,
+                    conv_params['kernel_size'],
+                    conv_params['strides'],
+                    conv_params['padding'],
+                    filters=conv_params.get('filters'))
+                conv_params['in_shape'] = current_shape
+                conv_params['out_shape'] = new_shape
+                current_shape = new_shape
                 conv_layer_params[-1] = conv_params
                 weights_list.append(None)
                 biases_list.append(None)
@@ -208,8 +244,7 @@ def extractModel(model, file_type):
                 activation_functions.append(activation if activation != 'linear' else 'linear')
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
-                # layer_shape.append(layer.output_shape)
-                layer_shape.append(0)
+                layer_shape.append(new_shape)
                 layer_type.append('separableConv2DForward')
                 continue
 
@@ -242,6 +277,16 @@ def extractModel(model, file_type):
                     'use_bias': use_bias,
                     # 'output_shape': layer.output_shape
                 }
+                # Compute new shape for standard convolution.
+                new_shape = compute_output_shape_2d(
+                    current_shape,
+                    conv_params['kernel_size'],
+                    conv_params['strides'],
+                    conv_params['padding'],
+                    filters=conv_params.get('filters'))
+                conv_params['in_shape'] = current_shape
+                conv_params['out_shape'] = new_shape
+                current_shape = new_shape
                 conv_layer_params[-1] = conv_params
                 weights_list.append(None)
                 biases_list.append(None)
@@ -249,8 +294,7 @@ def extractModel(model, file_type):
                 activation_functions.append(activation if activation != 'linear' else 'linear')
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
-                # layer_shape.append(layer.output_shape)
-                layer_shape.append(0)
+                layer_shape.append(new_shape)
                 layer_type.append('convForward')
                 continue
 

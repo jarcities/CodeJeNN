@@ -22,15 +22,6 @@ void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, c
     }
 }
     
-template <typename Scalar, int size>
-void batchNormalization(Scalar *outputs, const Scalar *inputs, const Scalar *gamma, const Scalar *beta, const Scalar *mean, const Scalar *variance, const Scalar epsilon) noexcept
-{
-    for (int i = 0; i < size; ++i)
-    {
-        outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
-    }
-}
-
 template <typename Scalar>
 void depthwiseConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                             int out_channels, int out_height, int out_width,
@@ -99,6 +90,25 @@ void separableConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar 
             outputs[i * out_channels + oc] = sum;
             activation_function(outputs[i * out_channels + oc], sum, alpha);
         }
+    }
+}
+
+template <typename Scalar>
+void globalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
+{
+    // Compute global average per channel.
+    for (int c = 0; c < channels; ++c)
+    {
+        Scalar sum = 0;
+        for (int h = 0; h < in_height; ++h)
+        {
+            for (int w = 0; w < in_width; ++w)
+            {
+                int idx = (h * in_width * channels) + (w * channels) + c;
+                sum += inputs[idx];
+            }
+        }
+        output[c] = sum / (in_height * in_width);
     }
 }
 
@@ -215,22 +225,12 @@ void conv3DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights,
     }
 }
 
-template <typename Scalar>
-void globalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
+template <typename Scalar, int size>
+void batchNormalization(Scalar *outputs, const Scalar *inputs, const Scalar *gamma, const Scalar *beta, const Scalar *mean, const Scalar *variance, const Scalar epsilon) noexcept
 {
-    // Compute global average per channel.
-    for (int c = 0; c < channels; ++c)
+    for (int i = 0; i < size; ++i)
     {
-        Scalar sum = 0;
-        for (int h = 0; h < in_height; ++h)
-        {
-            for (int w = 0; w < in_width; ++w)
-            {
-                int idx = (h * in_width * channels) + (w * channels) + c;
-                sum += inputs[idx];
-            }
-        }
-        output[c] = sum / (in_height * in_width);
+        outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
     }
 }
 
@@ -329,55 +329,58 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
             output[i] /= sum;
         }
     };
+
+//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
+
     // depthwiseConv2DForward call for layer 1
-    std::array<Scalar, (/* out_height */ * /* out_width */ * 1)> layer_1_output;
+    std::array<Scalar, (8 * 8 * 1)> layer_1_output;
     depthwiseConv2DForward(
         layer_1_output.data(), model_input.data(),
         depthwiseKernel_1.data(), depthwiseBias_1.data(),
-        1, /* out_height */, /* out_width */,
+        1, 8, 8,
         1, 8, 8,
         3, 3, 1, 1, 1, 1,
         linear, 0.0);
 
     // Pure activation layer 2
-    std::array<Scalar, 0> layer_2_output;
-    for (int i = 0; i < 0; ++i) {
+    std::array<Scalar, 1> layer_2_output;
+    for (int i = 0; i < 1; ++i) {
         linear(layer_2_output[i], layer_1_output[i], 0.0);
     }
 
     // Pure activation layer 3
-    std::array<Scalar, 0> layer_3_output;
-    for (int i = 0; i < 0; ++i) {
+    std::array<Scalar, 1> layer_3_output;
+    for (int i = 0; i < 1; ++i) {
         linear(layer_3_output[i], layer_2_output[i], 0.0);
     }
 
     // conv2DForward call for layer 4
-    std::array<Scalar, (/* out_height */ * /* out_width */ * /* in_channels */)> layer_4_output;
-    conv2DForward<Scalar, /* out_channels */, /* out_height */, /* out_width */>(
+    std::array<Scalar, (8 * 8 * 8)> layer_4_output;
+    conv2DForward<Scalar, 8, 8, 8>(
         layer_4_output.data(), layer_3_output.data(),
         convKernel_4.data(), convBias_4.data(),
-        /* in_channels */, /* in_height */, /* in_width */,
+        1, 8, 8,
         1, 1, 1, 1, 0, 0,
         None, 0.0);
 
     // Pure activation layer 5
-    std::array<Scalar, 0> layer_5_output;
-    for (int i = 0; i < 0; ++i) {
+    std::array<Scalar, 8> layer_5_output;
+    for (int i = 0; i < 8; ++i) {
         linear(layer_5_output[i], layer_4_output[i], 0.0);
     }
 
     // Pure activation layer 6
-    std::array<Scalar, 0> layer_6_output;
-    for (int i = 0; i < 0; ++i) {
+    std::array<Scalar, 8> layer_6_output;
+    for (int i = 0; i < 8; ++i) {
         linear(layer_6_output[i], layer_5_output[i], 0.0);
     }
 
     // separableConv2DForward call for layer 7
-    std::array<Scalar, (/* out_height */ * /* out_width */ * /* out_channels */)> layer_7_output;
-    separableConv2DForward<Scalar, /* out_channels */, /* out_height */, /* out_width */>(
+    std::array<Scalar, (8 * 8 * 16)> layer_7_output;
+    separableConv2DForward<Scalar, 16, 8, 8>(
         layer_7_output.data(), layer_6_output.data(),
         sepDepthwise_7.data(), sepPointwise_7.data(), sepPointwiseBias_7.data(),
-        /* in_channels */, /* in_height */, /* in_width */,
+        8, 8, 8,
         3, 3, 1, 1, 1, 1,
         linear, 0.0);
 
@@ -395,23 +398,23 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     }
 
     // separableConv2DForward call for layer 10
-    std::array<Scalar, (/* out_height */ * /* out_width */ * /* out_channels */)> layer_10_output;
-    separableConv2DForward<Scalar, /* out_channels */, /* out_height */, /* out_width */>(
+    std::array<Scalar, (8 * 8 * 16)> layer_10_output;
+    separableConv2DForward<Scalar, 16, 8, 8>(
         layer_10_output.data(), layer_9_output.data(),
         sepDepthwise_10.data(), sepPointwise_10.data(), sepPointwiseBias_10.data(),
-        /* in_channels */, /* in_height */, /* in_width */,
+        16, 8, 8,
         3, 3, 1, 1, 1, 1,
         linear, 0.0);
 
     // Pure activation layer 11
-    std::array<Scalar, 0> layer_11_output;
-    for (int i = 0; i < 0; ++i) {
+    std::array<Scalar, 16> layer_11_output;
+    for (int i = 0; i < 16; ++i) {
         linear(layer_11_output[i], layer_10_output[i], 0.0);
     }
 
     // Pure activation layer 12
-    std::array<Scalar, 0> layer_12_output;
-    for (int i = 0; i < 0; ++i) {
+    std::array<Scalar, 16> layer_12_output;
+    for (int i = 0; i < 16; ++i) {
         None(layer_12_output[i], layer_11_output[i], 0.0);
     }
 
