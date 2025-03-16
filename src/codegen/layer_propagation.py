@@ -13,9 +13,9 @@ def activationFunctions(cpp_code, activation_functions, layer_type):
     """
 
     # regular forward pass
-    forwardPass = """
+    Dense = """
 template<typename Scalar, int output_size>
-void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
     for(int i = 0; i < output_size; ++i){
         Scalar sum = 0;
         for(int j = 0; j < input_size; ++j){
@@ -376,6 +376,44 @@ void depthwiseConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar 
 """,
 
     'separableConv2DForward': """
+
+template <typename Scalar>
+void depthwiseForsSeparableConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
+                            int out_channels, int out_height, int out_width,
+                            int in_channels, int in_height, int in_width,
+                            int kernel_h, int kernel_w, int stride_h, int stride_w,
+                            int pad_h, int pad_w,
+                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+{
+    for (int c = 0; c < in_channels; ++c)
+    {
+        for (int oh = 0; oh < out_height; ++oh)
+        {
+            for (int ow = 0; ow < out_width; ++ow)
+            {
+                Scalar sum = 0;
+                for (int kh = 0; kh < kernel_h; ++kh)
+                {
+                    for (int kw = 0; kw < kernel_w; ++kw)
+                    {
+                        int in_h = oh * stride_h - pad_h + kh;
+                        int in_w = ow * stride_w - pad_w + kw;
+                        if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width)
+                        {
+                            int input_index = (in_h * in_width * in_channels) + (in_w * in_channels) + c;
+                            int weight_index = (kh * kernel_w + kw) * in_channels + c;
+                            sum += inputs[input_index] * weights[weight_index];
+                        }
+                    }
+                }
+                sum += biases[c];
+                int output_index = (oh * out_width * in_channels) + (ow * in_channels) + c;
+                activation_function(outputs[output_index], sum, alpha);
+            }
+        }
+    }
+}
+
 template <typename Scalar, int out_channels, int out_height, int out_width>
 void separableConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *depthwise_weights, const Scalar *pointwise_weights, const Scalar *biases,
                             int in_channels, int in_height, int in_width,
@@ -385,7 +423,7 @@ void separableConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar 
 {
     std::vector<Scalar> depthwise_output(in_height * in_width * in_channels, 0);
     std::vector<Scalar> zero_bias(in_channels, 0);
-    depthwiseConv2DForward(
+    depthwiseForsSeparableConv2DForward(
         depthwise_output.data(), inputs, depthwise_weights, zero_bias.data(), 
         in_channels, in_height, in_width,                                     
         in_channels, in_height, in_width,
@@ -515,7 +553,7 @@ void globalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int
 
     cpp_lambda = """//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n"""
 
-    cpp_code += forwardPass
+    cpp_code += Dense
 
     for act in current_activations:
         if act in lambda_functions:

@@ -22,6 +22,9 @@ template<typename Scalar>
 using activationFunction = void(*)(Scalar&, Scalar, Scalar);
 
 """
+
+    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
+
     return cpp_code
 
 
@@ -92,6 +95,8 @@ def codeGen(cpp_code,
         # fallback: 1D
         d = raw_shape[0] if isinstance(raw_shape, tuple) else raw_shape
         input_type = f"std::array<Scalar, {d}>"
+
+    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
 
     # Start generating the function
     cpp_code += f"""
@@ -270,7 +275,7 @@ auto {name_space}(const {input_type}& initial_input) {{
                 cpp_code += f"    constexpr const char* poolPadding_{layer_idx} = \"{padding}\";\n\n"
 
     # Insert the activation lambda definitions
-    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n"
+    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
     if isinstance(cpp_lambda, dict):
         relevant_activations = set(activation_functions)
         for key, val in cpp_lambda.items():
@@ -279,11 +284,12 @@ auto {name_space}(const {input_type}& initial_input) {{
     else:
         cpp_code += cpp_lambda
 
-    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
+    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
 
     # Initialize last_layer (for data pointer) and last_shape (for dimensions) using the input layer shape.
     last_layer = "model_input"
     last_shape = layer_shape[0]  # e.g. (8, 8, 1) from extract_model.py
+    layer_idx = 0
 
     for i, (w, b, norm_params, conv_dict, lt, alpha) in enumerate(zip(
             weights_list, biases_list, norm_layer_params, conv_layer_params,
@@ -390,20 +396,21 @@ auto {name_space}(const {input_type}& initial_input) {{
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (in_shape[2],)
-                continue
+                #continue
 
         # CASE 2: Dense / pure activation / normalization layer
-        elif w is not None and b is not None:
+        # elif w is not None and b is not None:
+        elif lt == 'Dense':
             # Assume current_shape for dense is a flat size tuple, e.g. (out_size,)
             out_size = w.shape[1]
             cpp_code += f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-            cpp_code += f"    forwardPass<Scalar, {out_size}>(\n"
+            cpp_code += f"    Dense<Scalar, {out_size}>(\n"
             cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
             cpp_code += f"        weights_{layer_idx}.data(), biases_{layer_idx}.data(),\n"
             cpp_code += f"        {get_flat_size(last_shape)}, {mapped_act}, {alpha});\n\n"
             last_layer = f"layer_{layer_idx}_output"
             last_shape = (out_size,)
-            continue
+            #continue
 
         # # CASE 3: BatchNormalization / LayerNormalization
         # elif lt == 'batchNormalization' and norm_params is not None:
@@ -417,7 +424,7 @@ auto {name_space}(const {input_type}& initial_input) {{
         #     cpp_code += f"        epsilon_{layer_idx});\n\n"
         #     last_layer = f"layer_{layer_idx}_output"
         #     last_shape = (out_size,)
-        #     continue
+        #     #continue
         
         # CASE 3: BatchNormalization / LayerNormalization
         elif (lt == 'batchNormalization' or lt == 'batchNormalization2D') and norm_params is not None:
@@ -443,10 +450,11 @@ auto {name_space}(const {input_type}& initial_input) {{
                 cpp_code += f"        epsilon_{layer_idx});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = (out_size,)
-            continue
+            #continue
 
 
-        elif lt is not None:
+        # elif lt is not None:
+        elif lt in ['relu', 'sigmoid', 'tanh', 'leakyrelu', 'elu', 'softmax', 'selu', 'swish', 'silu']:
             # Pure activation layer
             cpp_code += f"    // Pure activation layer {layer_idx}\n"
             cpp_code += f"    std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
@@ -455,16 +463,26 @@ auto {name_space}(const {input_type}& initial_input) {{
             cpp_code += f"    }}\n\n"
             last_layer = f"layer_{layer_idx}_output"
             # Assume activation does not change dimensions.
-            continue
+            #continue
 
         else:
             cpp_code += f"    // Skipping layer {layer_idx} (no operation defined)\n"
-            continue
+            #continue
+
+        if activation_functions[i] == "softmax":
+            size = get_flat_size(last_shape)
+            cpp_code += f"    // Standalone softmax layer for layer {layer_idx}\n"
+            cpp_code += f"    std::array<Scalar, {size}> layer_{layer_idx}_softmax_output;\n"
+            cpp_code += f"    softmax({last_layer}.data(), layer_{layer_idx}_softmax_output.data(), {size});\n\n"
+            last_layer = f"layer_{layer_idx}_softmax_output"
 
     # Output normalization if any (not implemented here)
     # final return
+    out_len = get_flat_size(last_shape)
     cpp_code += f"    // final placeholder\n"
-    cpp_code += f"    std::array<Scalar, 10> model_output{{}}; // example\n"
-    cpp_code += f"    return model_output;\n}}\n"
+    cpp_code += f"    std::array<Scalar, {out_len}> model_output = layer_{layer_idx}_output; // example\n"
+    cpp_code += f"    return model_output;"
+
+    cpp_code += f"\n}}"
 
     return cpp_code

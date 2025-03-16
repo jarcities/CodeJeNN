@@ -68,7 +68,6 @@ else:
 
                 # Load model
                 model, file_extension = loadModel(file_path)
-                print()
                 # Extract
                 (weights_list,
                  biases_list,
@@ -81,6 +80,10 @@ else:
                  layer_shape,
                  layer_type) = extractModel(model, file_extension)
                 print()
+                print(len(activation_functions))
+                print(activation_functions)
+                print()
+                print(len(layer_type))
                 print(layer_type)
 
                 # Now generate code

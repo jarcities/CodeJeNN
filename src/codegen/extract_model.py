@@ -115,7 +115,7 @@ def extractModel(model, file_type):
             #     layer_type.append(act_str)
             #     continue
             
-            
+
             # Get the layer config and weights first.
             config = layer.get_config()
             layer_weights = layer.get_weights()
@@ -139,9 +139,9 @@ def extractModel(model, file_type):
             activation = config.get('activation', 'linear')
             if not isinstance(activation, str):
                 activation = 'linear'
-            activation_functions.append(activation)
-            alphas.append(getAlphaForActivation(layer, activation))
-            dropout_rates.append(0.0)
+            # activation_functions.append(activation)
+            # alphas.append(getAlphaForActivation(layer, activation))
+            # dropout_rates.append(0.0)
 
 
             # Check for flatten layer
@@ -169,7 +169,7 @@ def extractModel(model, file_type):
                     layer_shape.append((gamma.shape, beta.shape, moving_mean.shape, moving_variance.shape, 1))
                     weights_list.append(None)
                     biases_list.append(None)
-                    activation_functions.append(norm_type)
+                    activation_functions.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(0.0)
                     layer_type.append(norm_type)
@@ -178,6 +178,7 @@ def extractModel(model, file_type):
                     activation_functions.append(None)
                     layer_shape.append(0)
                     layer_type.append(None)
+                    alphas.append(0.0)
                 continue
 
             # Check for layer norm layer
@@ -191,10 +192,10 @@ def extractModel(model, file_type):
                     epsilon = config.get('epsilon', 1e-5)
                     norm_layer_params.append((gamma, beta, None, None, epsilon))
                     layer_shape.append((gamma.shape, beta.shape, 1))
-                    activation_functions.append(norm_type)
+                    activation_functions.append(None)
                     weights_list.append(None)
                     biases_list.append(None)
-                    alphas.append(0.0)
+                    alphas.append(getAlphaForActivation(layer, activation))
                     dropout_rates.append(0.0)
                     layer_type.append(norm_type)
                 else:
@@ -202,6 +203,7 @@ def extractModel(model, file_type):
                     activation_functions.append(None)
                     layer_shape.append(0)
                     layer_type.append(None)
+                    alphas.append(getAlphaForActivation(layer, activation))
                 continue
 
             # Check for DepthwiseConv2D layer
@@ -243,6 +245,7 @@ def extractModel(model, file_type):
                 conv_layer_params[-1] = conv_params
                 weights_list.append(None)
                 biases_list.append(None)
+                alphas.append(getAlphaForActivation(layer, activation))
                 norm_layer_params.append(None)
                 activation_functions.append(activation if activation != 'linear' else 'linear')
                 dropout_rates.append(0.0)
@@ -360,7 +363,7 @@ def extractModel(model, file_type):
                 biases_list.append(None)
                 norm_layer_params.append(None)
                 activation_functions.append(None)
-                alphas.append(0.0)
+                alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
                 layer_shape.append(layer.output_shape)
                 if isinstance(layer, keras.layers.MaxPooling2D):
@@ -372,32 +375,30 @@ def extractModel(model, file_type):
             # Check for global pooling layers: GlobalAveragePooling2D
             if isinstance(layer, keras.layers.GlobalAveragePooling2D) or 'globalaveragepooling2d' in layer.name.lower():
                 pool_params = {
-                    'layer_type': layer.__class__.__name__,
+                    'layer_type': 'GlobalAveragePooling2D',
+                    'in_shape': current_shape,
+                    'out_shape': (current_shape[2],)
                 }
                 conv_layer_params[-1] = pool_params
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
                 activation_functions.append(None)
-                alphas.append(0.0)
+                alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
-                layer_shape.append(0)
+                layer_shape.append((current_shape[2],))
                 layer_type.append('globalAvgPooling2D')
                 continue
 
             # Check for a regular dense layer
-            activation_functions.pop()
-            alphas.pop()
-            dropout_rates.pop()
-            if len(layer_weights) == 2:
+            if (isinstance(layer, keras.layers.Dense) or 'dense' in layer.name.lower()):
                 w, b = layer_weights
                 dense_activation = config.get('activation', 'linear')
                 weights_list.append(w)
                 biases_list.append(b)
                 norm_layer_params.append(None)
-                # For dense layers, record the output size (w.shape[1]) instead of a tuple.
                 layer_shape.append(w.shape[1])
-                layer_type.append('forwardPass')
+                layer_type.append('Dense')
                 activation_functions.append(dense_activation)
                 alphas.append(getAlphaForActivation(layer, dense_activation))
                 dropout_rates.append(config.get('dropout_rate', 0.0))
