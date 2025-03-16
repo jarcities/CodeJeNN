@@ -21,11 +21,29 @@ def getAlphaForActivation(layer, activation):
     """
     Extract the model weights, biases, activation functions, and normalization parameters.
     """
+    # If the layer itself is a LeakyReLU layer
+    if isinstance(layer, tf.keras.layers.LeakyReLU):
+        config = layer.get_config()
+        # Try both alpha and negative_slope
+        alpha = config.get('alpha', config.get('negative_slope', 0.1))
+        return alpha
 
-    if isinstance(activation, dict) and activation.get("class_name") == "LeakyReLU":
-        return activation["config"].get(
-            "negative_slope", activation["config"].get("alpha", 0.01)
-        )
+    # If activation is from layer config
+    if isinstance(activation, dict):
+        if activation.get("class_name") == "LeakyReLU":
+            config = activation.get("config", {})
+            alpha = config.get('alpha', config.get('negative_slope', 0.1))
+            return alpha
+        
+    # For string-based activations
+    if activation == "leakyrelu":
+        # For layer objects with config
+        if hasattr(layer, 'get_config'):
+            config = layer.get_config()
+            # Try both alpha and negative_slope in layer config
+            if 'alpha' in config or 'negative_slope' in config:
+                return config.get('alpha', config.get('negative_slope', 0.1))
+        return 0.1
     elif activation == "elu":
         return layer.get_config().get("alpha", 1.0)
     return 0.0
@@ -383,21 +401,26 @@ def extractModel(model, file_type):
                 pool in layer.name.lower()
                 for pool in ["maxpooling2d", "averagepooling2d"]
             ):
+                pool_size = config.get("pool_size", (2, 2))
+                strides = config.get("strides", pool_size)
+                padding = config.get("padding", "valid")
+                new_shape = compute_output_shape_2d(current_shape, pool_size, strides, padding)
                 pool_params = {
                     "layer_type": layer.__class__.__name__,
-                    "pool_size": config.get("pool_size", (2, 2)),
-                    "strides": config.get("strides", config.get("pool_size", (2, 2))),
-                    "padding": config.get("padding", "valid"),
-                    "output_shape": layer.output_shape,
+                    "pool_size": pool_size,
+                    "strides": strides,
+                    "padding": padding,
+                    "output_shape": new_shape,
                 }
                 conv_layer_params[-1] = pool_params
+                current_shape = new_shape
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
                 activation_functions.append(None)
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
-                layer_shape.append(layer.output_shape)
+                layer_shape.append(new_shape)
                 if isinstance(layer, keras.layers.MaxPooling2D):
                     layer_type.append("maxPooling2D")
                 else:

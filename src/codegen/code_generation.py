@@ -69,7 +69,7 @@ def codeGen(
         "sigmoid": "sigmoid",
         "tanhCustom": "tanhCustom",
         "linear": "linear",
-        "leakyRelu": "leakyRelu",
+        "leakyrelu": "leakyrelu",
         "elu": "elu",
         "softmax": "softmax",  # sometimes you treat softmax as linear then do it manually
         "selu": "selu",
@@ -325,6 +325,7 @@ auto {name_space}(const {input_type}& initial_input) {{
         # CASE 1: Convolution or pooling layer
         if conv_dict is not None:
             ltype = conv_dict.get("layer_type", None)
+            print(ltype)
             if ltype in [
                 "Conv1D",
                 "Conv2D",

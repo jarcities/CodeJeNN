@@ -5,7 +5,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-file_name = "cnn2_2.0.keras"
+file_name = "cnn3.keras"
 
 # Default parameters for convenience
 default_params = {
@@ -33,27 +33,31 @@ y_train = tf.keras.utils.to_categorical(y_train, num_classes=num_classes)
 
 # Inline model creation (small CNN using Depthwise & SeparableConv2D)
 model = keras.Sequential([
-    # Depthwise convolution (fewer parameters than standard Conv2D)
-    layers.DepthwiseConv2D(kernel_size=(3, 3), padding='same',
-                           depth_multiplier=1,
+    # Standard conv
+    layers.Conv2D(filters=16, kernel_size=(3, 3), padding='same',
                            input_shape=input_shape),
     layers.BatchNormalization(),
-    layers.ReLU(),
+    layers.LeakyReLU(alpha=0.1),  # Use LeakyRelu
+
+    layers.MaxPooling2D(pool_size=(2, 2)),  # Add max pooling
+
+    # Separable conv
+    layers.SeparableConv2D(filters=32, kernel_size=(3, 3), padding='same'),
+    layers.BatchNormalization(),
+    layers.LeakyReLU(alpha=0.1),
+
+    layers.MaxPooling2D(pool_size=(2, 2)),  # Add max pooling
+
+    # Depthwise conv
+    layers.DepthwiseConv2D(kernel_size=(3, 3), padding='same',
+                           depth_multiplier=1),
+    layers.BatchNormalization(),
+    layers.LeakyReLU(alpha=0.1),
 
     # 1x1 "pointwise" convolution
-    layers.Conv2D(filters=8, kernel_size=(1, 1), padding='same'),
+    layers.Conv2D(filters=16, kernel_size=(1, 1), padding='same'),
     layers.BatchNormalization(),
-    layers.ReLU(),
-
-    # Separable convolution
-    layers.SeparableConv2D(filters=16, kernel_size=(3, 3), padding='same'),
-    layers.BatchNormalization(),
-    layers.ReLU(),
-
-    # Optional second SeparableConv2D
-    layers.SeparableConv2D(filters=16, kernel_size=(3, 3), padding='same'),
-    layers.BatchNormalization(),
-    layers.ReLU(),
+    layers.LeakyReLU(alpha=0.1),
 
     # Global average pooling => fewer parameters than Flatten + Dense
     layers.GlobalAveragePooling2D(),

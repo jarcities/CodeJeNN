@@ -45,8 +45,8 @@ void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const S
         output = std::tanh(input);
     };
 """,
-        "leakyRelu": """
-    auto leakyRelu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+        "leakyrelu": """
+    auto leakyrelu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
         output = input > 0 ? input : alpha * input;
     };
 """,
