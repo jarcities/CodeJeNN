@@ -138,6 +138,43 @@ void conv3DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights,
     }
 }
 
+template <typename Scalar>
+void depthwiseConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
+                            int out_channels, int out_height, int out_width,
+                            int in_channels, int in_height, int in_width,
+                            int kernel_h, int kernel_w, int stride_h, int stride_w,
+                            int pad_h, int pad_w,
+                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+{
+    for (int c = 0; c < in_channels; ++c)
+    {
+        for (int oh = 0; oh < out_height; ++oh)
+        {
+            for (int ow = 0; ow < out_width; ++ow)
+            {
+                Scalar sum = 0;
+                for (int kh = 0; kh < kernel_h; ++kh)
+                {
+                    for (int kw = 0; kw < kernel_w; ++kw)
+                    {
+                        int in_h = oh * stride_h - pad_h + kh;
+                        int in_w = ow * stride_w - pad_w + kw;
+                        if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width)
+                        {
+                            int input_index = (in_h * in_width * in_channels) + (in_w * in_channels) + c;
+                            int weight_index = (kh * kernel_w + kw) * in_channels + c;
+                            sum += inputs[input_index] * weights[weight_index];
+                        }
+                    }
+                }
+                sum += biases[c];
+                int output_index = (oh * out_width * in_channels) + (ow * in_channels) + c;
+                activation_function(outputs[output_index], sum, alpha);
+            }
+        }
+    }
+}
+
 
 template <typename Scalar>
 void depthwiseForsSeparableConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
@@ -210,23 +247,6 @@ void separableConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar 
     }
 }
 
-template <typename Scalar, int channels, int height, int width>
-void batchNormalization2D(Scalar *outputs, const Scalar *inputs,
-                          const Scalar *gamma, const Scalar *beta,
-                          const Scalar *mean, const Scalar *variance,
-                          Scalar epsilon) noexcept
-{
-    for (int c = 0; c < channels; ++c)
-    {
-        for (int i = 0; i < height * width; ++i)
-        {
-            int idx = i * channels + c;
-            outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) / std::sqrt(variance[c] + epsilon)) +
-                           beta[c];
-        }
-    }
-}
-
 template <typename Scalar>
 void globalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
 {
@@ -246,39 +266,19 @@ void globalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int
     }
 }
 
-template <typename Scalar>
-void depthwiseConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
-                            int out_channels, int out_height, int out_width,
-                            int in_channels, int in_height, int in_width,
-                            int kernel_h, int kernel_w, int stride_h, int stride_w,
-                            int pad_h, int pad_w,
-                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+template <typename Scalar, int channels, int height, int width>
+void batchNormalization2D(Scalar *outputs, const Scalar *inputs,
+                          const Scalar *gamma, const Scalar *beta,
+                          const Scalar *mean, const Scalar *variance,
+                          Scalar epsilon) noexcept
 {
-    for (int c = 0; c < in_channels; ++c)
+    for (int c = 0; c < channels; ++c)
     {
-        for (int oh = 0; oh < out_height; ++oh)
+        for (int i = 0; i < height * width; ++i)
         {
-            for (int ow = 0; ow < out_width; ++ow)
-            {
-                Scalar sum = 0;
-                for (int kh = 0; kh < kernel_h; ++kh)
-                {
-                    for (int kw = 0; kw < kernel_w; ++kw)
-                    {
-                        int in_h = oh * stride_h - pad_h + kh;
-                        int in_w = ow * stride_w - pad_w + kw;
-                        if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width)
-                        {
-                            int input_index = (in_h * in_width * in_channels) + (in_w * in_channels) + c;
-                            int weight_index = (kh * kernel_w + kw) * in_channels + c;
-                            sum += inputs[input_index] * weights[weight_index];
-                        }
-                    }
-                }
-                sum += biases[c];
-                int output_index = (oh * out_width * in_channels) + (ow * in_channels) + c;
-                activation_function(outputs[output_index], sum, alpha);
-            }
+            int idx = i * channels + c;
+            outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) / std::sqrt(variance[c] + epsilon)) +
+                           beta[c];
         }
     }
 }
@@ -292,17 +292,19 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
     constexpr int flat_size = 64; 
     std::array<Scalar, flat_size> model_input;
     int idx = 0;
-        for (int i0 = 0; i0 < 8; i0++) {
-        for (int i1 = 0; i1 < 8; i1++) {
+    for (int i0 = 0; i0 < 8; i0++) {
+      for (int i1 = 0; i1 < 8; i1++) {
             for (int i2 = 0; i2 < 1; i2++) {
                 int flatIndex = i0 * 8 + i1 * 1 + i2 * 1;
                 model_input[flatIndex] = initial_input[i0][i1][i2];
             }
         }
     }
-    std::array<Scalar, 64> model_input = initial_input;
-
     if (model_input.size() != 64) { throw std::invalid_argument("Invalid input size. Expected size: 64"); }
+
+
+//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
+
 
     // Layer 1: DepthwiseConv2D
     constexpr std::array<Scalar, 9> depthwiseKernel_1 = {1.001960486e-01, -3.003485203e-01, 4.250909090e-01, -1.947651356e-01, -3.946200609e-01, -2.810938656e-01, 2.207326889e-01, -2.340266407e-01, 5.655122399e-01};
@@ -359,27 +361,22 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
 
 
-    auto relu = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto relu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
         output = input > 0 ? input : 0;
     };
 
-    auto linear = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto linear = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
         output = input;
     };
 
-    auto softmax = [](const Scalar *input, Scalar *output, int size) noexcept
-    {
-        Scalar max_val = input[0];
-        for (int i = 1; i < size; ++i)
-        {
-            if (input[i] > max_val)
-                max_val = input[i];
-        }
+    auto softmax = +[](Scalar *output, Scalar *input, int size) noexcept {
+        Scalar max_val = *std::max_element(input, input + size);
         Scalar sum = 0;
         for (int i = 0; i < size; ++i)
         {
-            output[i] = std::exp(input[i] - max_val);
-            sum += output[i];
+            const Scalar exp_val = std::exp(input[i] - max_val);
+            output[i] = exp_val;
+            sum += exp_val;
         }
         for (int i = 0; i < size; ++i)
         {
@@ -490,10 +487,10 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         16, linear, 0.0);
 
     // Standalone softmax layer for layer 14
-    std::array<Scalar, 5> layer_14_softmax_output;
-    softmax(layer_14_output.data(), layer_14_softmax_output.data(), 5);
+    softmax(layer_14_output.data(), layer_14_output.data(), 5);
 
     // final placeholder
-    std::array<Scalar, 5> model_output = layer_14_output; // example
+    std::array<Scalar, 5> model_output = layer_14_output;
+
     return model_output;
 }

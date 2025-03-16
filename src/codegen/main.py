@@ -9,10 +9,24 @@ from load_model import loadModel
 from test_script import testSource
 from normalization_parameters import normParam
 
-parser = argparse.ArgumentParser(description="code generate trained neural net files into a given directory.")
-parser.add_argument('--input', type=str, required=True, help='path of folder with trained model files')
-parser.add_argument('--output', type=str, required=True, help='path of folder to save generated header files')
-parser.add_argument('--precision', type=str, required=False, help='precision type to run neural net, either \"double\" or \"float\"')
+parser = argparse.ArgumentParser(
+    description="code generate trained neural net files into a given directory."
+)
+parser.add_argument(
+    "--input", type=str, required=True, help="path of folder with trained model files"
+)
+parser.add_argument(
+    "--output",
+    type=str,
+    required=True,
+    help="path of folder to save generated header files",
+)
+parser.add_argument(
+    "--precision",
+    type=str,
+    required=False,
+    help='precision type to run neural net, either "double" or "float"',
+)
 args = parser.parse_args()
 
 if args.precision is not None:
@@ -43,9 +57,13 @@ else:
     for file_name in os.listdir(model_dir):
         file_path = os.path.join(model_dir, file_name)
 
-        if file_name == '.gitkeep' or file_name.startswith('.'):
+        if file_name == ".gitkeep" or file_name.startswith("."):
             continue
-        if file_name.endswith('.dat') or file_name.endswith('.csv') or file_name.endswith('.txt'):
+        if (
+            file_name.endswith(".dat")
+            or file_name.endswith(".csv")
+            or file_name.endswith(".txt")
+        ):
             continue
 
         if os.path.isfile(file_path):
@@ -58,27 +76,40 @@ else:
                 txt_file = os.path.join(model_dir, f"{base_file_name}.txt")
 
                 if os.path.exists(dat_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(dat_file)
+                    input_norms, input_mins, output_norms, output_mins = normParam(
+                        dat_file
+                    )
                 elif os.path.exists(csv_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(csv_file)
+                    input_norms, input_mins, output_norms, output_mins = normParam(
+                        csv_file
+                    )
                 elif os.path.exists(txt_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(txt_file)
+                    input_norms, input_mins, output_norms, output_mins = normParam(
+                        txt_file
+                    )
                 else:
-                    input_norms, input_mins, output_norms, output_mins = None, None, None, None
+                    input_norms, input_mins, output_norms, output_mins = (
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
 
                 # Load model
                 model, file_extension = loadModel(file_path)
                 # Extract
-                (weights_list,
-                 biases_list,
-                 activation_functions,
-                 alphas,
-                 dropout_rates,
-                 batch_norm_params,
-                 conv_layer_params,
-                 input_size,
-                 layer_shape,
-                 layer_type) = extractModel(model, file_extension)
+                (
+                    weights_list,
+                    biases_list,
+                    activation_functions,
+                    alphas,
+                    dropout_rates,
+                    batch_norm_params,
+                    conv_layer_params,
+                    input_size,
+                    layer_shape,
+                    layer_type,
+                ) = extractModel(model, file_extension)
                 print()
                 print(len(activation_functions))
                 print(activation_functions)
@@ -92,7 +123,9 @@ else:
                 cpp_code = preambleHeader()
 
                 # activationFunctions returns (cpp_code, lambda_defs)
-                cpp_code, cpp_lambda = activationFunctions(cpp_code, activation_functions, layer_type)
+                cpp_code, cpp_lambda = activationFunctions(
+                    cpp_code, activation_functions, layer_type
+                )
 
                 # pass conv_layer_params to codeGen
                 cpp_code = codeGen(
@@ -105,7 +138,7 @@ else:
                     alphas,
                     dropout_rates,
                     batch_norm_params,
-                    conv_layer_params, 
+                    conv_layer_params,
                     input_size,
                     save_path,
                     input_norms,
@@ -113,7 +146,7 @@ else:
                     output_norms,
                     output_mins,
                     layer_shape,
-                    layer_type
+                    layer_type,
                 )
 
                 print()
@@ -122,6 +155,8 @@ else:
                 print(save_path)
 
             except ValueError as e:
-                print(f"\n - -  file type is not readable --> '{file_name}': {e}  - -\n")
+                print(
+                    f"\n - -  file type is not readable --> '{file_name}': {e}  - -\n"
+                )
 
     print()
