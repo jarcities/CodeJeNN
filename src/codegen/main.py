@@ -33,12 +33,12 @@ elif not os.path.exists(save_dir):
     print(f"WARNING: Output directory '{save_dir}' does not exist. Creating it now...")
     os.makedirs(save_dir)
 else:
-    source_code = testSource(precision_type)
-    save_path = os.path.join(save_dir, "test")
-    with open(f"{save_path}.cpp", "w") as f:
-        f.write(source_code)
-    print()
-    print(save_path)
+    # source_code = testSource(precision_type)
+    # save_path = os.path.join(save_dir, "test")
+    # with open(f"{save_path}.cpp", "w") as f:
+    #     f.write(source_code)
+    # print()
+    # print(save_path)
 
     for file_name in os.listdir(model_dir):
         file_path = os.path.join(model_dir, file_name)
@@ -68,7 +68,7 @@ else:
 
                 # Load model
                 model, file_extension = loadModel(file_path)
-
+                print()
                 # Extract
                 (weights_list,
                  biases_list,
@@ -80,6 +80,7 @@ else:
                  input_size,
                  layer_shape,
                  layer_type) = extractModel(model, file_extension)
+                print()
                 print(layer_type)
 
                 # Now generate code
@@ -108,7 +109,8 @@ else:
                     input_mins,
                     output_norms,
                     output_mins,
-                    layer_shape
+                    layer_shape,
+                    layer_type
                 )
 
                 print()

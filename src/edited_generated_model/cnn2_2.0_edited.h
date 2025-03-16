@@ -252,37 +252,7 @@ void depthwiseConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar 
     }
 }
 
-// template<typename Scalar, int out_channels, int out_height, int out_width>
-// void separableConv2DForward(Scalar* outputs, const Scalar* inputs, const Scalar* depthwise_weights, const Scalar* pointwise_weights, const Scalar* biases,
-//                             int in_channels, int in_height, int in_width,
-//                             int kernel_h, int kernel_w, int stride_h, int stride_w,
-//                             int pad_h, int pad_w,
-//                             activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-//     std::vector<Scalar> depthwise_output(in_height * in_width * in_channels, 0);
 
-//     // First perform depthwise convolution.
-//     depthwiseConv2DForward(
-//         depthwise_output.data(), inputs, depthwise_weights, biases,
-//         in_channels, in_height, in_width,  // For depthwise, the output channel count is equal to in_channels.
-//         in_channels, in_height, in_width,
-//         kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w,
-//         activation_function, alpha);
-
-//     // Then perform pointwise convolution.
-//     for (int oc = 0; oc < out_channels; ++oc) {
-//         for (int i = 0; i < in_height * in_width; ++i) {
-//             Scalar sum = 0;
-//             for (int ic = 0; ic < in_channels; ++ic) {
-//                 int index = i * in_channels + ic;
-//                 int weight_index = ic * out_channels + oc;
-//                 sum += depthwise_output[index] * pointwise_weights[weight_index];
-//             }
-//             sum += biases[oc];
-//             outputs[i * out_channels + oc] = sum;
-//             activation_function(outputs[i * out_channels + oc], sum, alpha);
-//         }
-//     }
-// }
 
 template <typename Scalar, int out_channels, int out_height, int out_width>
 void separableConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *depthwise_weights, const Scalar *pointwise_weights, const Scalar *biases,

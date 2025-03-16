@@ -154,9 +154,38 @@ void batchNormalization2D(Scalar *outputs, const Scalar *inputs,
         for (int i = 0; i < height * width; ++i)
         {
             int idx = i * channels + c;
-            outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) /
-                                       std::sqrt(variance[c] + epsilon)) +
+            outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) / std::sqrt(variance[c] + epsilon)) +
                            beta[c];
+        }
+    }
+}
+""",
+    'layerNormalization2D': """
+template <typename Scalar, int channels, int height, int width>
+void layerNormalization2D(Scalar *outputs, const Scalar *inputs,
+                          const Scalar *gamma, const Scalar *beta,
+                          Scalar epsilon) noexcept
+{
+    for (int c = 0; c < channels; ++c)
+    {
+        Scalar sum = 0;
+        for (int i = 0; i < height * width; ++i)
+        {
+            int idx = i * channels + c;
+            sum += inputs[idx];
+        }
+        Scalar mean = sum / (height * width);
+        Scalar var = 0;
+        for (int i = 0; i < height * width; ++i)
+        {
+            int idx = i * channels + c;
+            var += (inputs[idx] - mean) * (inputs[idx] - mean);
+        }
+        var /= (height * width);
+        for (int i = 0; i < height * width; ++i)
+        {
+            int idx = i * channels + c;
+            outputs[idx] = gamma[c] * ((inputs[idx] - mean) / std::sqrt(var + epsilon)) + beta[c];
         }
     }
 }
@@ -493,7 +522,8 @@ void globalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int
             cpp_lambda += lambda_functions[act]
     
     # Deduplicate layer_type list
-    unique_layer_types = set(layer_type)
+    # unique_layer_types = set(layer_type)
+    unique_layer_types = {lt for lt in layer_type if lt is not None}
     
     for type in unique_layer_types:
         if type in normalization_functions:

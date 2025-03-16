@@ -78,32 +78,71 @@ def extractModel(model, file_type):
 
         for layer in model.layers:
 
-            # reset conv_layer_params
+            # Determine this layer's input shape:
+            try:
+                layer_input_shape = layer.input_shape
+            except AttributeError:
+                layer_input_shape = current_shape  # fallback if not available
+
+            # Reset conv_layer_params
             conv_layer_params.append(None)
 
-            # Determine the activation function from config
+            # # Determine the activation function from config
+            # config = layer.get_config()
+            # activation = config.get('activation', 'linear')
+
+            # if not isinstance(activation, str):
+            #     activation = 'linear'
+            # layer_weights = layer.get_weights()
+
+            # # Activation for standard dense (or others) layers
+            # activation_functions.append(activation if activation != 'linear' else 'linear')
+            # alphas.append(getAlphaForActivation(layer, activation))
+            # dropout_rates.append(0.0)
+            
+            # # Check for pure activation layer (e.g. ReLU, Sigmoid, etc.)
+            # if (('activation' in layer.name.lower() or isinstance(layer, keras.layers.Activation)) or 
+            #     (not layer.get_weights() and layer.__class__.__name__.lower() in 
+            #      ['relu', 'sigmoid', 'tanh', 'leakyrelu', 'elu', 'softmax', 'selu', 'swish', 'silu'])):
+            #     act_str = layer.__class__.__name__.lower()
+            #     activation_functions.append(act_str)
+            #     weights_list.append(None)
+            #     biases_list.append(None)
+            #     norm_layer_params.append(None)
+            #     alphas.append(getAlphaForActivation(layer, act_str))
+            #     dropout_rates.append(0.0)
+            #     layer_shape.append(0)
+            #     layer_type.append(act_str)
+            #     continue
+            
+            
+            # Get the layer config and weights first.
             config = layer.get_config()
-            activation = config.get('activation', 'linear')
-            if not isinstance(activation, str):
-                activation = 'linear'
             layer_weights = layer.get_weights()
 
-            # Activation for standard dense (or others) layers
-            activation_functions.append(activation if activation != 'linear' else 'linear')
-            alphas.append(getAlphaForActivation(layer, activation))
-            dropout_rates.append(0.0)
-
-            # Check for activation layer
-            if 'activation' in layer.name.lower() or isinstance(layer, keras.layers.Activation):
-                activation_functions.append(activation)
+            # ----- NEW: Check if this is a pure activation layer -----
+            if (('activation' in layer.name.lower() or isinstance(layer, keras.layers.Activation)) or
+                (not layer.get_weights() and layer.__class__.__name__.lower() in 
+                ['relu', 'sigmoid', 'tanh', 'leakyrelu', 'elu', 'softmax', 'selu', 'swish', 'silu'])):
+                act_str = layer.__class__.__name__.lower()
+                activation_functions.append(act_str)
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
-                alphas.append(getAlphaForActivation(layer, activation))
+                alphas.append(getAlphaForActivation(layer, act_str))
                 dropout_rates.append(0.0)
                 layer_shape.append(0)
-                layer_type.append('activation')
-                continue
+                layer_type.append(act_str)
+                continue  # Skip the rest so the default activation is not appended.
+
+            # ----- For non-pure activation layers, use the default logic -----
+            activation = config.get('activation', 'linear')
+            if not isinstance(activation, str):
+                activation = 'linear'
+            activation_functions.append(activation)
+            alphas.append(getAlphaForActivation(layer, activation))
+            dropout_rates.append(0.0)
+
 
             # Check for flatten layer
             if isinstance(layer, keras.layers.Flatten) or 'flatten' in layer.name.lower():
@@ -119,6 +158,10 @@ def extractModel(model, file_type):
 
             # Check for batch norm layer
             if isinstance(layer, keras.layers.BatchNormalization) or 'batchnormalization' in layer.name.lower():
+                if len([d for d in layer_input_shape if d is not None]) > 2:
+                    norm_type = 'batchNormalization2D'
+                else:
+                    norm_type = 'batchNormalization'
                 if len(layer_weights) == 4:
                     gamma, beta, moving_mean, moving_variance = layer_weights
                     epsilon = config.get('epsilon', 1e-5)
@@ -126,10 +169,10 @@ def extractModel(model, file_type):
                     layer_shape.append((gamma.shape, beta.shape, moving_mean.shape, moving_variance.shape, 1))
                     weights_list.append(None)
                     biases_list.append(None)
-                    activation_functions.append('batchNormalization')
+                    activation_functions.append(norm_type)
                     alphas.append(0.0)
                     dropout_rates.append(0.0)
-                    layer_type.append('batchNormalization')
+                    layer_type.append(norm_type)
                 else:
                     norm_layer_params.append(None)
                     activation_functions.append(None)
@@ -139,17 +182,21 @@ def extractModel(model, file_type):
 
             # Check for layer norm layer
             if isinstance(layer, keras.layers.LayerNormalization) or 'layernormalization' in layer.name.lower():
+                if len([d for d in layer_input_shape if d is not None]) > 2:
+                    norm_type = 'layerNormalization2D'
+                else:
+                    norm_type = 'layerNormalization'
                 if len(layer_weights) == 2:
                     gamma, beta = layer_weights
                     epsilon = config.get('epsilon', 1e-5)
                     norm_layer_params.append((gamma, beta, None, None, epsilon))
                     layer_shape.append((gamma.shape, beta.shape, 1))
-                    activation_functions.append('layerNormalization')
+                    activation_functions.append(norm_type)
                     weights_list.append(None)
                     biases_list.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(0.0)
-                    layer_type.append('layerNormalization')
+                    layer_type.append(norm_type)
                 else:
                     norm_layer_params.append(None)
                     activation_functions.append(None)
@@ -348,8 +395,8 @@ def extractModel(model, file_type):
                 weights_list.append(w)
                 biases_list.append(b)
                 norm_layer_params.append(None)
-                # For dense layers, record the weight shapes.
-                layer_shape.append((w.shape, b.shape))
+                # For dense layers, record the output size (w.shape[1]) instead of a tuple.
+                layer_shape.append(w.shape[1])
                 layer_type.append('forwardPass')
                 activation_functions.append(dense_activation)
                 alphas.append(getAlphaForActivation(layer, dense_activation))

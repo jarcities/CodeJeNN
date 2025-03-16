@@ -22,6 +22,23 @@ void forwardPass(Scalar* outputs, const Scalar* inputs, const Scalar* weights, c
     }
 }
     
+template <typename Scalar, int channels, int height, int width>
+void batchNormalization2D(Scalar *outputs, const Scalar *inputs,
+                          const Scalar *gamma, const Scalar *beta,
+                          const Scalar *mean, const Scalar *variance,
+                          Scalar epsilon) noexcept
+{
+    for (int c = 0; c < channels; ++c)
+    {
+        for (int i = 0; i < height * width; ++i)
+        {
+            int idx = i * channels + c;
+            outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) / std::sqrt(variance[c] + epsilon)) +
+                           beta[c];
+        }
+    }
+}
+
 template <typename Scalar>
 void depthwiseConv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                             int out_channels, int out_height, int out_width,
@@ -225,15 +242,6 @@ void conv3DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights,
     }
 }
 
-template <typename Scalar, int size>
-void batchNormalization(Scalar *outputs, const Scalar *inputs, const Scalar *gamma, const Scalar *beta, const Scalar *mean, const Scalar *variance, const Scalar epsilon) noexcept
-{
-    for (int i = 0; i < size; ++i)
-    {
-        outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
-    }
-}
-
 template <typename Scalar = double>
 auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_input) {
 
@@ -248,7 +256,7 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
             }
         }
     }
-    std::array<Scalar, 64> model_input = initial_input;
+    // std::array<Scalar, 64> model_input = initial_input;
 
     if (model_input.size() != 64) { throw std::invalid_argument("Invalid input size. Expected size: 64"); }
 
@@ -306,11 +314,15 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
 
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
 
-    auto linear = [](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto relu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+        output = input > 0 ? input : 0;
+    };
+
+    auto linear = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
         output = input;
     };
 
-    auto softmax = [](const Scalar *input, Scalar *output, int size) noexcept
+    auto softmax = +[](const Scalar *input, Scalar *output, int size) noexcept
     {
         Scalar max_val = input[0];
         for (int i = 1; i < size; ++i)
@@ -341,19 +353,32 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         1, 8, 8,
         3, 3, 1, 1, 1, 1,
         linear, 0.0);
-
-    // Pure activation layer 2
-    std::array<Scalar, 1> layer_2_output;
-    for (int i = 0; i < 1; ++i) {
-        linear(layer_2_output[i], layer_1_output[i], 0.0);
-    }
-
+    std::cout << "Layer 1 Output: ";
+    for(auto v : layer_1_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
+    std::array<Scalar, (8 * 8 * 1)> layer_2_output;
+    batchNormalization2D<Scalar, 1, 8, 8>(
+        layer_2_output.data(), layer_1_output.data(),
+        gamma_2.data(), beta_2.data(),
+        mean_2.data(), variance_2.data(),
+        epsilon_2);
+    std::cout << "Layer 2 Output: ";
+    for(auto v : layer_2_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
     // Pure activation layer 3
-    std::array<Scalar, 1> layer_3_output;
-    for (int i = 0; i < 1; ++i) {
-        linear(layer_3_output[i], layer_2_output[i], 0.0);
+    std::array<Scalar, 64> layer_3_output;
+    for (int i = 0; i < 64; ++i) {
+        relu(layer_3_output[i], layer_2_output[i], 0.0);
     }
-
+    std::cout << "Layer 3 Output: ";
+    for(auto v : layer_3_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
     // conv2DForward call for layer 4
     std::array<Scalar, (8 * 8 * 8)> layer_4_output;
     conv2DForward<Scalar, 8, 8, 8>(
@@ -361,20 +386,33 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         convKernel_4.data(), convBias_4.data(),
         1, 8, 8,
         1, 1, 1, 1, 0, 0,
-        None, 0.0);
-
-    // Pure activation layer 5
-    std::array<Scalar, 8> layer_5_output;
-    for (int i = 0; i < 8; ++i) {
-        linear(layer_5_output[i], layer_4_output[i], 0.0);
-    }
-
+        linear, 0.0);
+    std::cout << "Layer 4 Output: ";
+    for(auto v : layer_4_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
+    std::array<Scalar, (8 * 8 * 8)> layer_5_output;
+    batchNormalization2D<Scalar, 8, 8, 8>(
+        layer_5_output.data(), layer_4_output.data(),
+        gamma_5.data(), beta_5.data(),
+        mean_5.data(), variance_5.data(),
+        epsilon_5);
+    std::cout << "Layer 5 Output: ";
+    for(auto v : layer_5_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
     // Pure activation layer 6
-    std::array<Scalar, 8> layer_6_output;
-    for (int i = 0; i < 8; ++i) {
-        linear(layer_6_output[i], layer_5_output[i], 0.0);
+    std::array<Scalar, 512> layer_6_output;
+    for (int i = 0; i < 512; ++i) {
+        relu(layer_6_output[i], layer_5_output[i], 0.0);
     }
-
+    std::cout << "Layer 6 Output: ";
+    for(auto v : layer_6_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
     // separableConv2DForward call for layer 7
     std::array<Scalar, (8 * 8 * 16)> layer_7_output;
     separableConv2DForward<Scalar, 16, 8, 8>(
@@ -383,20 +421,32 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         8, 8, 8,
         3, 3, 1, 1, 1, 1,
         linear, 0.0);
-
-    std::array<Scalar, 16> layer_8_output;
-    batchNormalization<Scalar, 16>(
+    std::cout << "Layer 7 Output: ";
+    for(auto v : layer_7_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
+    std::array<Scalar, (8 * 8 * 16)> layer_8_output;
+    batchNormalization2D<Scalar, 16, 8, 8>(
         layer_8_output.data(), layer_7_output.data(),
         gamma_8.data(), beta_8.data(),
         mean_8.data(), variance_8.data(),
         epsilon_8);
-
+    std::cout << "Layer 8 Output: ";
+    for(auto v : layer_8_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
     // Pure activation layer 9
-    std::array<Scalar, 16> layer_9_output;
-    for (int i = 0; i < 16; ++i) {
-        linear(layer_9_output[i], layer_8_output[i], 0.0);
+    std::array<Scalar, 1024> layer_9_output;
+    for (int i = 0; i < 1024; ++i) {
+        relu(layer_9_output[i], layer_8_output[i], 0.0);
     }
-
+    std::cout << "Layer 9 Output: ";
+    for(auto v : layer_9_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
     // separableConv2DForward call for layer 10
     std::array<Scalar, (8 * 8 * 16)> layer_10_output;
     separableConv2DForward<Scalar, 16, 8, 8>(
@@ -405,30 +455,59 @@ auto cnn2_2(const std::array<std::array<std::array<Scalar, 1>, 8>, 8>& initial_i
         16, 8, 8,
         3, 3, 1, 1, 1, 1,
         linear, 0.0);
-
-    // Pure activation layer 11
-    std::array<Scalar, 16> layer_11_output;
-    for (int i = 0; i < 16; ++i) {
-        linear(layer_11_output[i], layer_10_output[i], 0.0);
-    }
-
+    std::cout << "Layer 10 Output: ";
+    for(auto v : layer_10_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
+    std::array<Scalar, (8 * 8 * 16)> layer_11_output;
+    batchNormalization2D<Scalar, 16, 8, 8>(
+        layer_11_output.data(), layer_10_output.data(),
+        gamma_11.data(), beta_11.data(),
+        mean_11.data(), variance_11.data(),
+        epsilon_11);
+    std::cout << "Layer 11 Output: ";
+    for(auto v : layer_11_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
     // Pure activation layer 12
-    std::array<Scalar, 16> layer_12_output;
-    for (int i = 0; i < 16; ++i) {
-        None(layer_12_output[i], layer_11_output[i], 0.0);
+    std::array<Scalar, 1024> layer_12_output;
+    for (int i = 0; i < 1024; ++i) {
+        relu(layer_12_output[i], layer_11_output[i], 0.0);
     }
-
+    std::cout << "Layer 12 Output: ";
+    for(auto v : layer_12_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
     // globalAvgPooling2D call for layer 13
-    std::array<Scalar, /* in_channels */> layer_13_output;
+    std::array<Scalar, 16> layer_13_output;
     globalAvgPooling2D(
-        layer_13_output.data(), layer_12_output.data(), /* in_height */, /* in_width */, /* in_channels */);
-
-    std::array<Scalar, 5> layer_14_output;
+        layer_13_output.data(), layer_12_output.data(), 8, 8, 16);
+    std::cout << "Layer 13 Output: ";
+    for(auto v : layer_13_output) { std::cout << v << " "; }
+    std::cout << std::endl;
+    std::cout << std::endl;
+    
+    // Replace the original forwardPass call for layer 14 with two steps:
+    // 1. Obtain logits using the linear activation function.
+    std::array<Scalar, 5> layer_14_logits;
     forwardPass<Scalar, 5>(
-        layer_14_output.data(), layer_13_output.data(),
+        layer_14_logits.data(), layer_13_output.data(),
         weights_14.data(), biases_14.data(),
-        /* in_channels */, linear, 0.0);
-
+        16, linear, 0.0);
+    std::cout << "Layer 14 Logits: ";
+    for(auto v : layer_14_logits) { std::cout << v << " "; }
+    std::cout << std::endl << std::endl;
+    
+    // 2. Apply softmax on the logits to obtain final probabilities.
+    std::array<Scalar, 5> layer_14_output;
+    softmax(layer_14_logits.data(), layer_14_output.data(), 5);
+    std::cout << "Layer 14 Output (Softmax): ";
+    for(auto v : layer_14_output) { std::cout << v << " "; }
+    std::cout << std::endl << std::endl;
+    
     // final placeholder
     std::array<Scalar, 10> model_output{}; // example
     return model_output;
