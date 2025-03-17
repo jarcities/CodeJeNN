@@ -28,13 +28,16 @@ using Scalar = {precision_type};
 
 int main() {{
     std::array<Scalar, _number_of_input_features_> input = {{_inputs_}}; // change input to desired features
+
     auto output = _function_name_<Scalar>(input); // change input to desired features
-    std::cout << "Output: ";
+    
+    // Print the results with high precision
+    std::cout << std::scientific << std::setprecision(15);  // Set precision and scientific notation
+    std::cout << "Output:\n";  // Print each value on a new line
     for(const auto& val : output) {{
-        std::cout << val << " ";
+        std::cout << val << '\n';
     }}
     std::cout << std::endl;
-    return 0;
 }}
 
 /*
