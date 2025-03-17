@@ -404,12 +404,14 @@ def extractModel(model, file_type):
                 pool_size = config.get("pool_size", (2, 2))
                 strides = config.get("strides", pool_size)
                 padding = config.get("padding", "valid")
+                in_shape = current_shape #########################
                 new_shape = compute_output_shape_2d(current_shape, pool_size, strides, padding)
                 pool_params = {
                     "layer_type": layer.__class__.__name__,
                     "pool_size": pool_size,
                     "strides": strides,
                     "padding": padding,
+                    "in_shape": in_shape,
                     "output_shape": new_shape,
                 }
                 conv_layer_params[-1] = pool_params
