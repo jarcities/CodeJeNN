@@ -5,11 +5,11 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-file_name = "cnn3.keras"
+file_name = "cnn4.keras"
 
 # Default parameters for convenience
 default_params = {
-    "input_shape": (8, 8, 1),
+    "input_shape": (6, 6, 3),
     "num_classes": 5,
     "num_samples": 50,
     "batch_size": 10,
@@ -33,37 +33,26 @@ y_train = tf.keras.utils.to_categorical(y_train, num_classes=num_classes)
 
 # Inline model creation (small CNN using Depthwise & SeparableConv2D)
 model = keras.Sequential([
-    # Standard conv
     layers.Conv2D(filters=16, kernel_size=(3, 3), padding='same',
-                           input_shape=input_shape),
+                  input_shape=input_shape),
     layers.BatchNormalization(),
-    layers.LeakyReLU(alpha=0.1),  # Use LeakyRelu
+    layers.ReLU(),  # Changed activation
 
-    layers.MaxPooling2D(pool_size=(2, 2)),  # Add max pooling
+    layers.MaxPooling2D(pool_size=(2, 2)),
 
-    # Separable conv
-    layers.SeparableConv2D(filters=32, kernel_size=(3, 3), padding='same'),
+    layers.Conv2D(filters=32, kernel_size=(3, 3), padding='same'),
     layers.BatchNormalization(),
-    layers.LeakyReLU(alpha=0.1),
+    layers.ELU(alpha=1.0),  # Another activation function
 
-    layers.MaxPooling2D(pool_size=(2, 2)),  # Add max pooling
+    layers.MaxPooling2D(pool_size=(2, 2)),
 
-    # Depthwise conv
-    layers.DepthwiseConv2D(kernel_size=(3, 3), padding='same',
-                           depth_multiplier=1),
-    layers.BatchNormalization(),
-    layers.LeakyReLU(alpha=0.1),
+    # Flatten before dense layers
+    layers.Flatten(),
 
-    # 1x1 "pointwise" convolution
-    layers.Conv2D(filters=16, kernel_size=(1, 1), padding='same'),
-    layers.BatchNormalization(),
-    layers.LeakyReLU(alpha=0.1),
+    layers.Dense(64, activation='relu'),
+    layers.Dropout(0.3),  # Added dropout
 
-    # Global average pooling => fewer parameters than Flatten + Dense
-    layers.GlobalAveragePooling2D(),
-
-    # Final classification layer
-    layers.Dense(num_classes, activation='softmax')
+    layers.Dense(num_classes, activation='softmax')  
 ])
 
 # Compile the model

@@ -450,6 +450,19 @@ def extractModel(model, file_type):
                 layer_type.append("globalAvgPooling2D")
                 continue
 
+            # Check for Dropout layer
+            if isinstance(layer, keras.layers.Dropout) or "dropout" in layer.name.lower():
+                dropout_rate = config.get("rate", 0.0)
+                activation_functions.append(None)
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                alphas.append(0.0)
+                dropout_rates.append(dropout_rate)
+                layer_shape.append(0)
+                layer_type.append("Dropout")
+                continue
+
             # Check for a regular dense layer
             if isinstance(layer, keras.layers.Dense) or "dense" in layer.name.lower():
                 w, b = layer_weights

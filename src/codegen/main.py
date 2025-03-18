@@ -114,8 +114,8 @@ else:
                 print(len(activation_functions))
                 print(activation_functions)
                 print()
-                print(len(layer_type))
-                print(layer_type)
+                # print(len(layer_type))
+                # print(layer_type)
 
                 # Now generate code
                 base_file_name = os.path.splitext(file_name)[0]
