@@ -301,6 +301,7 @@ auto {name_space}(const {input_type}& initial_input) {{
     last_layer = "model_input"
     last_shape = layer_shape[0]  # e.g. (8, 8, 1) from extract_model.py
     layer_idx = 0
+    print("lt\n ------------------\n")
 
     for i, (w, b, norm_params, conv_dict, lt, alpha, act_fun) in enumerate(
         zip(
@@ -321,7 +322,7 @@ auto {name_space}(const {input_type}& initial_input) {{
         else:
             current_shape = None  # fallback
 
-        mapped_act = activation_func_map.get(lt, "linear")
+        mapped_act = activation_func_map.get(act_fun, "linear")
         print(mapped_act)
 
         # CASE 1: Convolution or pooling layer
@@ -353,9 +354,9 @@ auto {name_space}(const {input_type}& initial_input) {{
                 )
 
                 if ltype == "Conv1D":
-                    cpp_code += f"    // conv1DForward call for layer {layer_idx}\n"
+                    cpp_code += f"    // Conv1D call for layer {layer_idx}\n"
                     cpp_code += f"    std::array<Scalar, {out_shape[2]}> layer_{layer_idx}_output;\n"
-                    cpp_code += f"    conv1DForward<Scalar, {out_shape[2]}>(\n"
+                    cpp_code += f"    Conv1D<Scalar, {out_shape[2]}>(\n"
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                     cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
                     cpp_code += f"        {in_shape[2]}, {conv_dict.get('kernel_size', (3,))[0]}, {conv_dict.get('strides', (1,))[0]}, 0,\n"
@@ -370,9 +371,9 @@ auto {name_space}(const {input_type}& initial_input) {{
                     if padding.lower() == "same":
                         pad_h = kernel[0] // 2
                         pad_w = kernel[1] // 2
-                    cpp_code += f"    // conv2DForward call for layer {layer_idx}\n"
+                    cpp_code += f"    // Conv2D call for layer {layer_idx}\n"
                     cpp_code += f"    std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
-                    cpp_code += f"    conv2DForward<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
+                    cpp_code += f"    Conv2D<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                     cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
                     cpp_code += (
@@ -391,10 +392,10 @@ auto {name_space}(const {input_type}& initial_input) {{
                         pad_h = kernel[0] // 2
                         pad_w = kernel[1] // 2
                     cpp_code += (
-                        f"    // depthwiseConv2DForward call for layer {layer_idx}\n"
+                        f"    // DepthwiseConv2D call for layer {layer_idx}\n"
                     )
                     cpp_code += f"    std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {in_shape[2]})> layer_{layer_idx}_output;\n"
-                    cpp_code += f"    depthwiseConv2DForward(\n"
+                    cpp_code += f"    DepthwiseConv2D(\n"
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                     cpp_code += f"        depthwiseKernel_{layer_idx}.data(), depthwiseBias_{layer_idx}.data(),\n"
                     cpp_code += (
@@ -416,10 +417,10 @@ auto {name_space}(const {input_type}& initial_input) {{
                         pad_h = kernel[0] // 2
                         pad_w = kernel[1] // 2
                     cpp_code += (
-                        f"    // separableConv2DForward call for layer {layer_idx}\n"
+                        f"    // SeparableConv2D call for layer {layer_idx}\n"
                     )
                     cpp_code += f"    std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
-                    cpp_code += f"    separableConv2DForward<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
+                    cpp_code += f"    SeparableConv2D<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                     cpp_code += f"        sepDepthwise_{layer_idx}.data(), sepPointwise_{layer_idx}.data(), sepPointwiseBias_{layer_idx}.data(),\n"
                     cpp_code += (
@@ -435,9 +436,9 @@ auto {name_space}(const {input_type}& initial_input) {{
                     cpp_code += f"    // {ltype} call for layer {layer_idx}\n"
                     cpp_code += f"    std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n" #############################
                     if ltype == "MaxPooling2D":
-                        cpp_code += f"    maxPooling2D<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
+                        cpp_code += f"    MaxPooling2D<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
                     else:
-                        cpp_code += f"    avgPooling2D<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
+                        cpp_code += f"    AvgPooling2D<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
@@ -446,7 +447,7 @@ auto {name_space}(const {input_type}& initial_input) {{
                         f"    // globalAvgPooling2D call for layer {layer_idx}\n"
                     )
                     cpp_code += f"    std::array<Scalar, {in_shape[2]}> layer_{layer_idx}_output;\n"
-                    cpp_code += f"    globalAvgPooling2D(\n"
+                    cpp_code += f"    GlobalAvgPooling2D(\n"
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (in_shape[2],)
@@ -454,9 +455,36 @@ auto {name_space}(const {input_type}& initial_input) {{
 
         # CASE 2: Dense / pure activation / normalization layer
         # elif w is not None and b is not None:
+        # elif lt == "Dense":
+        #     # Assume current_shape for dense is a flat size tuple, e.g. (out_size,)
+        #     out_size = w.shape[1]
+        #     cpp_code += (
+        #         f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
+        #     )
+        #     cpp_code += f"    Dense<Scalar, {out_size}>(\n"
+        #     cpp_code += (
+        #         f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+        #     )
+        #     cpp_code += (
+        #         f"        weights_{layer_idx}.data(), biases_{layer_idx}.data(),\n"
+        #     )
+        #     cpp_code += (
+        #         f"        {get_flat_size(last_shape)}, {mapped_act}, {alpha});\n\n"
+        #     )
+        #     last_layer = f"layer_{layer_idx}_output"
+        #     last_shape = (out_size,)
+        #     # continue
+
         elif lt == "Dense":
-            # Assume current_shape for dense is a flat size tuple, e.g. (out_size,)
             out_size = w.shape[1]
+            # If the dense activation is softmax, override with linear activation
+            if act_fun == "softmax":
+                effective_activation = "linear"
+                effective_alpha = 0.0  # or another appropriate value for linear
+            else:
+                effective_activation = act_fun
+                effective_alpha = alpha
+            mapped_activation = activation_func_map.get(effective_activation, "linear")
             cpp_code += (
                 f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
             )
@@ -468,11 +496,11 @@ auto {name_space}(const {input_type}& initial_input) {{
                 f"        weights_{layer_idx}.data(), biases_{layer_idx}.data(),\n"
             )
             cpp_code += (
-                f"        {get_flat_size(last_shape)}, {mapped_act}, {alpha});\n\n"
+                f"        {get_flat_size(last_shape)}, {mapped_activation}, {effective_alpha});\n\n"
             )
             last_layer = f"layer_{layer_idx}_output"
             last_shape = (out_size,)
-            # continue
+
 
         # # CASE 3: BatchNormalization / LayerNormalization
         # elif lt == 'batchNormalization' and norm_params is not None:
@@ -489,15 +517,13 @@ auto {name_space}(const {input_type}& initial_input) {{
         #     #continue
 
         # CASE 3: BatchNormalization / LayerNormalization
-        elif (
-            lt == "batchNormalization" or lt == "batchNormalization2D"
-        ) and norm_params is not None:
+        elif (lt is not None and lt.lower() in ["batchnormalization", "batchnormalization2d"]) and norm_params is not None:
             gamma, beta, mean, var, eps = norm_params
-            if lt == "batchNormalization2D":
+            if lt == "BatchNormalization2D":
                 # Assume last_shape is in the form (height, width, channels)
                 height, width, channels = last_shape
                 cpp_code += f"    std::array<Scalar, ({height} * {width} * {channels})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    batchNormalization2D<Scalar, {channels}, {height}, {width}>(\n"
+                cpp_code += f"    BatchNormalization2D<Scalar, {channels}, {height}, {width}>(\n"
                 cpp_code += (
                     f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 )
@@ -515,7 +541,7 @@ auto {name_space}(const {input_type}& initial_input) {{
                 cpp_code += (
                     f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
                 )
-                cpp_code += f"    batchNormalization<Scalar, {out_size}>(\n"
+                cpp_code += f"    BatchNormalization<Scalar, {out_size}>(\n"
                 cpp_code += (
                     f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 )
@@ -531,37 +557,56 @@ auto {name_space}(const {input_type}& initial_input) {{
             # continue
 
         # elif lt is not None:
-        elif lt in [
-            "relu",
-            "sigmoid",
-            "tanh",
-            "leakyrelu",
-            "elu",
-            "selu",
-            "swish",
-            "silu",
-        ]:
-            # Pure activation layer
-            cpp_code += f"    // Pure activation layer {layer_idx}\n"
-            cpp_code += f"    std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
-            cpp_code += (
-                f"    for (int i = 0; i < {get_flat_size(last_shape)}; ++i) {{\n"
-            )
-            cpp_code += f"        {mapped_act}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
-            cpp_code += f"    }}\n\n"
-            last_layer = f"layer_{layer_idx}_output"
-        # New branch for a standalone softmax layer (no for loop)
-        elif lt == "softmax":
-            size = get_flat_size(last_shape)
-            cpp_code += (
-                f"    // Pure activation layer {layer_idx}: standalone softmax\n"
-            )
-            cpp_code += f"    std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
-            cpp_code += f"    softmax({last_layer}.data(), layer_{layer_idx}_output.data(), {size});\n\n"
-            last_layer = f"layer_{layer_idx}_output"
-        else:
-            cpp_code += f"    // Skipping layer {layer_idx} (no operation defined)\n"
-            # continue
+        # elif lt in [
+        #     "relu",
+        #     "sigmoid",
+        #     "tanh",
+        #     "leakyrelu",
+        #     "elu",
+        #     "selu",
+        #     "swish",
+        #     "silu",
+        # ]:
+        #     # Pure activation layer
+        #     cpp_code += f"    // Pure activation layer {layer_idx}\n"
+        #     cpp_code += f"    std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
+        #     cpp_code += (
+        #         f"    for (int i = 0; i < {get_flat_size(last_shape)}; ++i) {{\n"
+        #     )
+        #     cpp_code += f"        {mapped_act}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
+        #     cpp_code += f"    }}\n\n"
+        #     last_layer = f"layer_{layer_idx}_output"
+
+        elif lt == "Activation":
+            if act_fun == "softmax":
+                size = get_flat_size(last_shape)
+                cpp_code += f"    // Pure activation layer {layer_idx}: standalone softmax\n"
+                cpp_code += f"    std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    softmax({last_layer}.data(), layer_{layer_idx}_output.data(), {size});\n\n"
+                last_layer = f"layer_{layer_idx}_output"
+            else:
+                cpp_code += f"    // Pure activation layer {layer_idx}\n"
+                cpp_code += f"    std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
+                cpp_code += (
+                    f"    for (int i = 0; i < {get_flat_size(last_shape)}; ++i) {{\n"
+                )
+                cpp_code += f"        {mapped_act}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
+                cpp_code += f"    }}\n\n"
+                last_layer = f"layer_{layer_idx}_output"
+
+
+        # # New branch for a standalone softmax layer (no for loop)
+        # elif lt == "softmax":
+        #     size = get_flat_size(last_shape)
+        #     cpp_code += (
+        #         f"    // Pure activation layer {layer_idx}: standalone softmax\n"
+        #     )
+        #     cpp_code += f"    std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
+        #     cpp_code += f"    softmax({last_layer}.data(), layer_{layer_idx}_output.data(), {size});\n\n"
+        #     last_layer = f"layer_{layer_idx}_output"
+        # else:
+        #     cpp_code += f"    // Skipping layer {layer_idx} (no operation defined)\n"
+        #     # continue
 
         # Modified separate softmax block runs only if lt is not "softmax"
         if activation_functions[i] == "softmax" and lt != "softmax":

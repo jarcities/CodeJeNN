@@ -143,7 +143,7 @@ def extractModel(model, file_type):
                 alphas.append(getAlphaForActivation(layer, act_str))
                 dropout_rates.append(0.0)
                 layer_shape.append(0)
-                layer_type.append(act_str)
+                layer_type.append("Activation")
                 continue  # Skip the rest so the default activation is not appended.
 
             # ----- For non-pure activation layers, use the default logic -----
@@ -163,7 +163,7 @@ def extractModel(model, file_type):
                 alphas.append(0.0)
                 dropout_rates.append(0.0)
                 layer_shape.append(0)
-                layer_type.append("flatten")
+                layer_type.append("Flatten")
                 continue
 
             # Check for batch norm layer
@@ -172,9 +172,9 @@ def extractModel(model, file_type):
                 or "batchnormalization" in layer.name.lower()
             ):
                 if len([d for d in layer_input_shape if d is not None]) > 2:
-                    norm_type = "batchNormalization2D"
+                    norm_type = "BatchNormalization2D"
                 else:
-                    norm_type = "batchNormalization"
+                    norm_type = "BatchNormalization"
                 if len(layer_weights) == 4:
                     gamma, beta, moving_mean, moving_variance = layer_weights
                     epsilon = config.get("epsilon", 1e-5)
@@ -210,9 +210,9 @@ def extractModel(model, file_type):
                 or "layernormalization" in layer.name.lower()
             ):
                 if len([d for d in layer_input_shape if d is not None]) > 2:
-                    norm_type = "layerNormalization2D"
+                    norm_type = "LayerNormalization2D"
                 else:
-                    norm_type = "layerNormalization"
+                    norm_type = "LayerNormalization"
                 if len(layer_weights) == 2:
                     gamma, beta = layer_weights
                     epsilon = config.get("epsilon", 1e-5)
@@ -282,7 +282,7 @@ def extractModel(model, file_type):
                 )
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
-                layer_type.append("depthwiseConv2DForward")
+                layer_type.append("DepthwiseConv2D")
                 continue
 
             # Check for SeparableConv2D layer
@@ -337,7 +337,7 @@ def extractModel(model, file_type):
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
-                layer_type.append("separableConv2DForward")
+                layer_type.append("SeparableConv2D")
                 continue
 
             # Check for standard Conv1D, Conv2D, Conv3D layers
@@ -391,7 +391,7 @@ def extractModel(model, file_type):
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
-                layer_type.append("convForward")
+                layer_type.append("ConvDD")
                 continue
 
             # Check for pooling layers: MaxPooling2D and AveragePooling2D
@@ -404,7 +404,7 @@ def extractModel(model, file_type):
                 pool_size = config.get("pool_size", (2, 2))
                 strides = config.get("strides", pool_size)
                 padding = config.get("padding", "valid")
-                in_shape = current_shape #########################
+                in_shape = current_shape 
                 new_shape = compute_output_shape_2d(current_shape, pool_size, strides, padding)
                 pool_params = {
                     "layer_type": layer.__class__.__name__,
@@ -424,9 +424,9 @@ def extractModel(model, file_type):
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
                 if isinstance(layer, keras.layers.MaxPooling2D):
-                    layer_type.append("maxPooling2D")
+                    layer_type.append("MaxPooling2D")
                 else:
-                    layer_type.append("avgPooling2D")
+                    layer_type.append("AvgPooling2D")
                 continue
 
             # Check for global pooling layers: GlobalAveragePooling2D
@@ -447,7 +447,7 @@ def extractModel(model, file_type):
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
                 layer_shape.append((current_shape[2],))
-                layer_type.append("globalAvgPooling2D")
+                layer_type.append("GlobalAvgPooling2D")
                 continue
 
             # Check for Dropout layer

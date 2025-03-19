@@ -111,11 +111,14 @@ else:
                     layer_type,
                 ) = extractModel(model, file_extension)
                 print()
+                print("activation functions")
                 print(len(activation_functions))
                 print(activation_functions)
                 print()
-                # print(len(layer_type))
-                # print(layer_type)
+                print("layer type")
+                print(len(layer_type))
+                print(layer_type)
+                print()
 
                 # Now generate code
                 base_file_name = os.path.splitext(file_name)[0]

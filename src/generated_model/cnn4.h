@@ -13,37 +13,40 @@ using activationFunction = void(*)(Scalar&, Scalar, Scalar);
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
 
 
-template<typename Scalar, int output_size>
-void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    for(int i = 0; i < output_size; ++i){
-        Scalar sum = 0;
-        for(int j = 0; j < input_size; ++j){
-            sum += inputs[j] * weights[j * output_size + i];
-        }
-        sum += biases[i];
-        activation_function(outputs[i], sum, alpha);
-    }
-}
-    
-template <typename Scalar, int channels, int height, int width>
-void batchNormalization2D(Scalar *outputs, const Scalar *inputs,
-                          const Scalar *gamma, const Scalar *beta,
-                          const Scalar *mean, const Scalar *variance,
-                          Scalar epsilon) noexcept
+template <typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
+void MaxPooling2D(Scalar *outputs, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
 {
+    int out_height = (in_height - pool_height) / stride_h + 1;
+    int out_width = (in_width - pool_width) / stride_w + 1;
     for (int c = 0; c < channels; ++c)
     {
-        for (int i = 0; i < height * width; ++i)
+        for (int oh = 0; oh < out_height; ++oh)
         {
-            int idx = i * channels + c;
-            outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) / std::sqrt(variance[c] + epsilon)) +
-                           beta[c];
+            for (int ow = 0; ow < out_width; ++ow)
+            {
+                Scalar max_val = -std::numeric_limits<Scalar>::infinity();
+                for (int ph = 0; ph < pool_height; ++ph)
+                {
+                    for (int pw = 0; pw < pool_width; ++pw)
+                    {
+                        int in_h = oh * stride_h + ph;
+                        int in_w = ow * stride_w + pw;
+                        int idx = (in_h * in_width * channels) + (in_w * channels) + c;
+                        if (inputs[idx] > max_val)
+                        {
+                            max_val = inputs[idx];
+                        }
+                    }
+                }
+                int out_idx = (oh * out_width * channels) + (ow * channels) + c;
+                outputs[out_idx] = max_val;
+            }
         }
     }
 }
 
 template <typename Scalar, int out_size>
-void conv1DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
+void Conv1D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                    int in_size, int kernel_size, int stride, int pad,
                    activationFunction<Scalar> activation_function, Scalar alpha) noexcept
 {
@@ -65,7 +68,7 @@ void conv1DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights,
 }
 
 template <typename Scalar, int out_channels, int out_height, int out_width>
-void conv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
+void Conv2D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                    int in_channels, int in_height, int in_width,
                    int kernel_h, int kernel_w, int stride_h, int stride_w,
                    int pad_h, int pad_w,
@@ -103,7 +106,7 @@ void conv2DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights,
 }
 
 template <typename Scalar, int out_channels, int out_depth, int out_height, int out_width>
-void conv3DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
+void Conv3D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                    int in_channels, int in_depth, int in_height, int in_width,
                    int kernel_d, int kernel_h, int kernel_w, int stride_d, int stride_h, int stride_w,
                    int pad_d, int pad_h, int pad_w,
@@ -155,35 +158,32 @@ void conv3DForward(Scalar *outputs, const Scalar *inputs, const Scalar *weights,
     }
 }
 
-template <typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
-void maxPooling2D(Scalar *outputs, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
+template <typename Scalar, int channels, int height, int width>
+void BatchNormalization2D(Scalar *outputs, const Scalar *inputs,
+                          const Scalar *gamma, const Scalar *beta,
+                          const Scalar *mean, const Scalar *variance,
+                          Scalar epsilon) noexcept
 {
-    int out_height = (in_height - pool_height) / stride_h + 1;
-    int out_width = (in_width - pool_width) / stride_w + 1;
     for (int c = 0; c < channels; ++c)
     {
-        for (int oh = 0; oh < out_height; ++oh)
+        for (int i = 0; i < height * width; ++i)
         {
-            for (int ow = 0; ow < out_width; ++ow)
-            {
-                Scalar max_val = -std::numeric_limits<Scalar>::infinity();
-                for (int ph = 0; ph < pool_height; ++ph)
-                {
-                    for (int pw = 0; pw < pool_width; ++pw)
-                    {
-                        int in_h = oh * stride_h + ph;
-                        int in_w = ow * stride_w + pw;
-                        int idx = (in_h * in_width * channels) + (in_w * channels) + c;
-                        if (inputs[idx] > max_val)
-                        {
-                            max_val = inputs[idx];
-                        }
-                    }
-                }
-                int out_idx = (oh * out_width * channels) + (ow * channels) + c;
-                outputs[out_idx] = max_val;
-            }
+            int idx = i * channels + c;
+            outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) / std::sqrt(variance[c] + epsilon)) +
+                           beta[c];
         }
+    }
+}
+
+template<typename Scalar, int output_size>
+void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+    for(int i = 0; i < output_size; ++i){
+        Scalar sum = 0;
+        for(int j = 0; j < input_size; ++j){
+            sum += inputs[j] * weights[j * output_size + i];
+        }
+        sum += biases[i];
+        activation_function(outputs[i], sum, alpha);
     }
 }
 
@@ -285,9 +285,9 @@ auto cnn4(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
 
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
 
-    // conv2DForward call for layer 1
+    // Conv2D call for layer 1
     std::array<Scalar, (6 * 6 * 16)> layer_1_output;
-    conv2DForward<Scalar, 16, 6, 6>(
+    Conv2D<Scalar, 16, 6, 6>(
         layer_1_output.data(), model_input.data(),
         convKernel_1.data(), convBias_1.data(),
         3, 6, 6,
@@ -295,7 +295,7 @@ auto cnn4(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
         linear, 0.0);
 
     std::array<Scalar, (6 * 6 * 16)> layer_2_output;
-    batchNormalization2D<Scalar, 16, 6, 6>(
+    BatchNormalization2D<Scalar, 16, 6, 6>(
         layer_2_output.data(), layer_1_output.data(),
         gamma_2.data(), beta_2.data(),
         mean_2.data(), variance_2.data(),
@@ -309,12 +309,12 @@ auto cnn4(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
 
     // MaxPooling2D call for layer 4
     std::array<Scalar, (3 * 3 * 16)> layer_4_output;
-    maxPooling2D<Scalar, 2, 2, 2, 2>(
+    MaxPooling2D<Scalar, 2, 2, 2, 2>(
         layer_4_output.data(), layer_3_output.data(), 6, 6, 16);
 
-    // conv2DForward call for layer 5
+    // Conv2D call for layer 5
     std::array<Scalar, (3 * 3 * 32)> layer_5_output;
-    conv2DForward<Scalar, 32, 3, 3>(
+    Conv2D<Scalar, 32, 3, 3>(
         layer_5_output.data(), layer_4_output.data(),
         convKernel_5.data(), convBias_5.data(),
         16, 3, 3,
@@ -322,7 +322,7 @@ auto cnn4(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
         linear, 0.0);
 
     std::array<Scalar, (3 * 3 * 32)> layer_6_output;
-    batchNormalization2D<Scalar, 32, 3, 3>(
+    BatchNormalization2D<Scalar, 32, 3, 3>(
         layer_6_output.data(), layer_5_output.data(),
         gamma_6.data(), beta_6.data(),
         mean_6.data(), variance_6.data(),
@@ -336,17 +336,15 @@ auto cnn4(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
 
     // MaxPooling2D call for layer 8
     std::array<Scalar, (1 * 1 * 32)> layer_8_output;
-    maxPooling2D<Scalar, 2, 2, 2, 2>(
+    MaxPooling2D<Scalar, 2, 2, 2, 2>(
         layer_8_output.data(), layer_7_output.data(), 3, 3, 32);
 
-    // Skipping layer 9 (no operation defined)
     std::array<Scalar, 64> layer_10_output;
     Dense<Scalar, 64>(
         layer_10_output.data(), layer_8_output.data(),
         weights_10.data(), biases_10.data(),
-        32, linear, 0.0);
+        32, relu, 0.0);
 
-    // Skipping layer 11 (no operation defined)
     std::array<Scalar, 5> layer_12_output;
     Dense<Scalar, 5>(
         layer_12_output.data(), layer_10_output.data(),
