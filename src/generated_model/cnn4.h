@@ -158,6 +158,18 @@ void Conv3D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const 
     }
 }
 
+template<typename Scalar, int output_size>
+void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+    for(int i = 0; i < output_size; ++i){
+        Scalar sum = 0;
+        for(int j = 0; j < input_size; ++j){
+            sum += inputs[j] * weights[j * output_size + i];
+        }
+        sum += biases[i];
+        activation_function(outputs[i], sum, alpha);
+    }
+}
+
 template <typename Scalar, int channels, int height, int width>
 void BatchNormalization2D(Scalar *outputs, const Scalar *inputs,
                           const Scalar *gamma, const Scalar *beta,
@@ -172,18 +184,6 @@ void BatchNormalization2D(Scalar *outputs, const Scalar *inputs,
             outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) / std::sqrt(variance[c] + epsilon)) +
                            beta[c];
         }
-    }
-}
-
-template<typename Scalar, int output_size>
-void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    for(int i = 0; i < output_size; ++i){
-        Scalar sum = 0;
-        for(int j = 0; j < input_size; ++j){
-            sum += inputs[j] * weights[j * output_size + i];
-        }
-        sum += biases[i];
-        activation_function(outputs[i], sum, alpha);
     }
 }
 
