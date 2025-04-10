@@ -301,7 +301,6 @@ auto {name_space}(const {input_type}& initial_input) {{
     last_layer = "model_input"
     last_shape = layer_shape[0]  # e.g. (8, 8, 1) from extract_model.py
     layer_idx = 0
-    print("lt\n ------------------\n")
 
     for i, (w, b, norm_params, conv_dict, lt, alpha, act_fun) in enumerate(
         zip(
@@ -323,12 +322,10 @@ auto {name_space}(const {input_type}& initial_input) {{
             current_shape = None  # fallback
 
         mapped_act = activation_func_map.get(act_fun, "linear")
-        print(mapped_act)
 
         # CASE 1: Convolution or pooling layer
         if conv_dict is not None:
             ltype = conv_dict.get("layer_type", None)
-            print(ltype)
             if ltype in [
                 "Conv1D",
                 "Conv2D",

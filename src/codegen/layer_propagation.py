@@ -327,7 +327,7 @@ void Conv3D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const 
     }
 }
 """,
-        "DepthwiseConv2": """
+        "DepthwiseConv2D": """
 template <typename Scalar>
 void DepthwiseConv2D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
                             int out_channels, int out_height, int out_width,
