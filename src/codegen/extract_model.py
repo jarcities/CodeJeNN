@@ -261,8 +261,8 @@ def extractModel(model, file_type):
                 continue
 
             # Section: Process Standard Convolution Layers (1D, 2D, 3D)
-            if isinstance(layer, (keras.layers.Conv1D, keras.layers.Conv2D, keras.layers.Conv3D)) or \
-               any(conv in layer.name.lower() for conv in ["conv1d", "conv2d", "conv3d"]):
+            if (isinstance(layer, (keras.layers.Conv1D, keras.layers.Conv2D, keras.layers.Conv3D)) and not isinstance(layer, keras.layers.Conv2DTranspose)) or \
+               (any(conv in layer.name.lower() for conv in ["conv1d", "conv2d", "conv3d"]) and ("conv2dtranspose" not in layer.name.lower() and "conv2d_transpose" not in layer.name.lower())):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
                     kernel, bias = layer_weights
@@ -304,6 +304,52 @@ def extractModel(model, file_type):
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
                 layer_type.append("ConvDD")
+                continue
+
+            # Section: Process Conv2DTranspose Layers
+            if isinstance(layer, keras.layers.Conv2DTranspose) or ("conv2dtranspose" in layer.name.lower() or "conv2d_transpose" in layer.name.lower()):
+                use_bias = config.get("use_bias", True)
+                if use_bias and len(layer_weights) == 2:
+                    kernel, bias = layer_weights
+                elif not use_bias and len(layer_weights) == 1:
+                    kernel, bias = layer_weights[0], None
+                else:
+                    kernel, bias = None, None
+                in_shape = current_shape
+                strides = config.get("strides", (1, 1))
+                kernel_size = config.get("kernel_size", (3, 3))
+                padding = config.get("padding", "valid").lower()
+                filters = config.get("filters", None)
+                if padding == "same":
+                    out_H = in_shape[0] * strides[0]
+                    out_W = in_shape[1] * strides[1]
+                else:  # valid
+                    out_H = (in_shape[0] - 1) * strides[0] + kernel_size[0]
+                    out_W = (in_shape[1] - 1) * strides[1] + kernel_size[1]
+                new_shape = (out_H, out_W, filters)
+                conv_params = {
+                    "layer_type": "Conv2DTranspose",
+                    "weights": kernel,
+                    "biases": bias,
+                    "filters": filters,
+                    "kernel_size": kernel_size,
+                    "strides": strides,
+                    "padding": padding,
+                    "dilation_rate": config.get("dilation_rate", (1, 1)),
+                    "use_bias": use_bias,
+                    "in_shape": in_shape,
+                    "out_shape": new_shape,
+                }
+                current_shape = new_shape
+                conv_layer_params[-1] = conv_params
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                activation_functions.append(activation if activation != "linear" else "linear")
+                alphas.append(getAlphaForActivation(layer, activation))
+                dropout_rates.append(0.0)
+                layer_shape.append(new_shape)
+                layer_type.append("Conv2DTranspose")
                 continue
 
             # Section: Process Pooling Layers (Max/Average)

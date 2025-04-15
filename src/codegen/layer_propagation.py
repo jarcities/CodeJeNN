@@ -226,24 +226,46 @@ void Conv2D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const 
     }
 }
 """,
-        "conv2DTranspose": """
+        "Conv2DTranspose": """
 template <typename Scalar, int out_channels, int out_height, int out_width>
 void Conv2DTranspose(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
-                            int in_channels, int in_height, int in_width,
-                            int kernel_h, int kernel_w, int stride_h, int stride_w,
-                            int pad_h, int pad_w,
-                            activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+                     int in_channels, int in_height, int in_width,
+                     int kernel_h, int kernel_w, int stride_h, int stride_w,
+                     int pad_h, int pad_w,
+                     activationFunction<Scalar> activation_function, Scalar alpha) noexcept
 {
-    // Simplified implementation for transposed convolution (stub)
-    int total = out_height * out_width * out_channels;
-    for (int i = 0; i < total; ++i)
-    {
+    const int total = out_height * out_width * out_channels;
+    for (int i = 0; i < total; ++i) {
         outputs[i] = 0;
     }
-    // A full implementation would perform proper transposed convolution here.
-    for (int i = 0; i < total; ++i)
-    {
-        activation_function(outputs[i], outputs[i], alpha);
+    for (int ic = 0; ic < in_channels; ++ic) {
+        for (int ih = 0; ih < in_height; ++ih) {
+            for (int iw = 0; iw < in_width; ++iw) {
+                const int input_index = (ih * in_width * in_channels) + (iw * in_channels) + ic;
+                for (int kh = 0; kh < kernel_h; ++kh) {
+                    for (int kw = 0; kw < kernel_w; ++kw) {
+                        const int oh = ih * stride_h - pad_h + kh;
+                        const int ow = iw * stride_w - pad_w + kw;
+                        if (oh >= 0 && oh < out_height && ow >= 0 && ow < out_width) {
+                            const int output_index = (oh * out_width * out_channels) + (ow * out_channels);
+                            const int weight_index = (((kh * kernel_w + kw) * in_channels) + ic) * out_channels;
+                            for (int oc = 0; oc < out_channels; ++oc) {
+                                outputs[output_index + oc] += inputs[input_index] * weights[weight_index + oc];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (int oh = 0; oh < out_height; ++oh) {
+        for (int ow = 0; ow < out_width; ++ow) {
+            const int output_index = (oh * out_width * out_channels) + (ow * out_channels);
+            for (int oc = 0; oc < out_channels; ++oc) {
+                outputs[output_index + oc] += biases[oc];
+                activation_function(outputs[output_index + oc], outputs[output_index + oc], alpha);
+            }
+        }
     }
 }
 """,

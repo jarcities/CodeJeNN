@@ -1,3 +1,4 @@
+
 # Section: Library Imports
 import os
 import shutil
@@ -84,6 +85,7 @@ else:
 
                 # Section: Load Model File
                 model, file_extension = loadModel(file_path)
+                model.summary()
                 
                 # Section: Extract Model Parameters
                 (

@@ -277,6 +277,20 @@ auto {name_space}(const {input_type}& initial_input) {{
                     cpp_code += "};\n"
                 cpp_code += "\n"
 
+            elif ltype == "Conv2DTranspose":
+                kernel = conv_dict.get("weights", None)
+                bias = conv_dict.get("biases", None)
+                if kernel is not None:
+                    kflat = kernel.flatten()
+                    cpp_code += f"    constexpr std::array<Scalar, {len(kflat)}> convKernel_{layer_idx} = {{"
+                    cpp_code += ", ".join(f"{val:10.9e}" for val in kflat)
+                    cpp_code += "};\n"
+                if bias is not None:
+                    bflat = bias.flatten()
+                    cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> convBias_{layer_idx} = {{"
+                    cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
+                    cpp_code += "};\n"
+
             elif ltype in ["MaxPooling2D", "AveragePooling2D"]:
                 pool_size = conv_dict.get("pool_size", (2, 2))
                 strides = conv_dict.get("strides", pool_size)
@@ -333,6 +347,7 @@ auto {name_space}(const {input_type}& initial_input) {{
                 "Conv1D",
                 "Conv2D",
                 "Conv3D",
+                "Conv2DTranspose",
                 "DepthwiseConv2D",
                 "SeparableConv2D",
                 "MaxPooling2D",
@@ -447,7 +462,26 @@ auto {name_space}(const {input_type}& initial_input) {{
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (in_shape[2],)
-                # continue
+                elif ltype == "Conv2DTranspose":
+                    kernel = conv_dict.get("kernel_size", (3, 3))
+                    strides = conv_dict.get("strides", (1, 1))
+                    padding = conv_dict.get("padding", "valid")
+                    pad_h = pad_w = 0
+                    if padding.lower() == "same":
+                        pad_h = kernel[0] // 2
+                        pad_w = kernel[1] // 2
+                    out_shape = conv_dict.get("out_shape")
+                    in_shape = conv_dict.get("in_shape")
+                    cpp_code += f"    // Conv2DTranspose call for layer {layer_idx}\n"
+                    cpp_code += f"    std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
+                    cpp_code += f"    Conv2DTranspose<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
+                    cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+                    cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
+                    cpp_code += f"        {in_shape[2]}, {in_shape[0]}, {in_shape[1]},\n"
+                    cpp_code += f"        {kernel[0]}, {kernel[1]}, {strides[0]}, {strides[1]}, {pad_h}, {pad_w},\n"
+                    cpp_code += f"        {mapped_act}, {alpha});\n\n"
+                    last_layer = f"layer_{layer_idx}_output"
+                    last_shape = out_shape
 
         elif lt == "Dense":
             out_size = w.shape[1]
