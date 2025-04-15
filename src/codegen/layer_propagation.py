@@ -7,7 +7,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="keras")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 
-def activationFunctions(cpp_code, activation_functions, layer_type):
+def layer_propagation(cpp_code, activation_functions, layer_type):
     """
     Generate C++ lambda-based activation functions (with no indentation for the lambdas)
     and normalization functions. ForwardPass also remains as Code 2 style.
@@ -63,11 +63,8 @@ void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const S
     };
 """,
         "selu": """
-    template<typename T> constexpr T SELU_LAMBDA = static_cast<T>(1.0507009873554804934193349852946);
-    template<typename T> constexpr T SELU_ALPHA = static_cast<T>(1.6732632423543772848170429916717);
-    auto selu = +[](Scalar& output, Scalar input, Scalar alpha = SELU_ALPHA<double>) noexcept {
-        using Scalar = decltype(input);
-        output = SELU_LAMBDA<Scalar> * (input > 0 ? input : alpha * (std::exp(input) - 1));
+    auto selu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+        output = 1.0507009873554804934193349852946 * (input > 0 ? input : 1.6732632423543772848170429916717 * (std::exp(input) - 1));
     };
 """,
         "swish": """
@@ -541,7 +538,7 @@ void GlobalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int
         if act is not None and act != "Activation"
     }
 
-    cpp_lambda = """//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n"""
+    cpp_lambda = """"""
 
     for act in current_activations:
         if act in lambda_functions:
@@ -564,4 +561,4 @@ void GlobalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int
             cpp_code += convolution_functions["Conv2D"]
             cpp_code += convolution_functions["Conv3D"]
 
-    return cpp_code, lambda_functions
+    return cpp_code, cpp_lambda

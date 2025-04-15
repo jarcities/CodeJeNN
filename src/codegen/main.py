@@ -1,14 +1,16 @@
+# Section: Library Imports
 import os
 import shutil
 import argparse
 import numpy as np
-from layer_propagation import activationFunctions
+from layer_propagation import layer_propagation
 from code_generation import preambleHeader, codeGen
 from extract_model import extractModel
 from load_model import loadModel
 from test_script import testSource
 from normalization_parameters import normParam
 
+# Section: Argument Parsing
 parser = argparse.ArgumentParser(
     description="code generate trained neural net files into a given directory."
 )
@@ -29,6 +31,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+# Section: Validate Precision Input
 if args.precision is not None:
     if args.precision not in ["float", "double"]:
         print("\nERROR: Precision type must be 'float' or 'double'.\n")
@@ -40,6 +43,7 @@ else:
 model_dir = args.input
 save_dir = args.output
 
+# Section: Check Directory Existence and Setup
 if not os.path.exists(model_dir):
     print(f"ERROR: Input directory '{model_dir}' does not exist.")
     exit(1)
@@ -47,13 +51,7 @@ elif not os.path.exists(save_dir):
     print(f"WARNING: Output directory '{save_dir}' does not exist. Creating it now...")
     os.makedirs(save_dir)
 else:
-    # source_code = testSource(precision_type)
-    # save_path = os.path.join(save_dir, "test")
-    # with open(f"{save_path}.cpp", "w") as f:
-    #     f.write(source_code)
-    # print()
-    # print(save_path)
-
+    # Section: Process Each Model File
     for file_name in os.listdir(model_dir):
         file_path = os.path.join(model_dir, file_name)
 
@@ -70,34 +68,24 @@ else:
             try:
                 base_file_name = os.path.splitext(file_name)[0]
 
-                # Possibly load normalization parameters
+                # Section: Load Normalization Parameters (if available)
                 dat_file = os.path.join(model_dir, f"{base_file_name}.dat")
                 csv_file = os.path.join(model_dir, f"{base_file_name}.csv")
                 txt_file = os.path.join(model_dir, f"{base_file_name}.txt")
 
                 if os.path.exists(dat_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(
-                        dat_file
-                    )
+                    input_norms, input_mins, output_norms, output_mins = normParam(dat_file)
                 elif os.path.exists(csv_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(
-                        csv_file
-                    )
+                    input_norms, input_mins, output_norms, output_mins = normParam(csv_file)
                 elif os.path.exists(txt_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(
-                        txt_file
-                    )
+                    input_norms, input_mins, output_norms, output_mins = normParam(txt_file)
                 else:
-                    input_norms, input_mins, output_norms, output_mins = (
-                        None,
-                        None,
-                        None,
-                        None,
-                    )
+                    input_norms, input_mins, output_norms, output_mins = (None, None, None, None)
 
-                # Load model
+                # Section: Load Model File
                 model, file_extension = loadModel(file_path)
-                # Extract
+                
+                # Section: Extract Model Parameters
                 (
                     weights_list,
                     biases_list,
@@ -120,17 +108,17 @@ else:
                 print(layer_type)
                 print()
 
-                # Now generate code
+                # Section: Generate C++ Code from Model
                 base_file_name = os.path.splitext(file_name)[0]
                 save_path = os.path.join(save_dir, base_file_name)
                 cpp_code = preambleHeader()
 
-                # activationFunctions returns (cpp_code, lambda_defs)
-                cpp_code, cpp_lambda = activationFunctions(
+                # Process activations and lambda definitions
+                cpp_code, cpp_lambda = layer_propagation(
                     cpp_code, activation_functions, layer_type
                 )
 
-                # pass conv_layer_params to codeGen
+                # Generate final code, passing conv_layer_params among others.
                 cpp_code = codeGen(
                     cpp_code,
                     cpp_lambda,
@@ -158,8 +146,6 @@ else:
                 print(save_path)
 
             except ValueError as e:
-                print(
-                    f"\n - -  file type is not readable --> '{file_name}': {e}  - -\n"
-                )
+                print(f"\n - -  file type is not readable --> '{file_name}': {e}  - -\n")
 
     print()

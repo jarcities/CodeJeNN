@@ -67,7 +67,7 @@ def codeGen(
     activation_func_map = {
         "relu": "relu",
         "sigmoid": "sigmoid",
-        "tanhCustom": "tanhCustom",
+        "tanh": "tanhCustom",
         "linear": "linear",
         "leakyrelu": "leakyrelu",
         "elu": "elu",
@@ -76,6 +76,7 @@ def codeGen(
         "swish": "swish",
         "silu": "silu",
         "batchNormalization": None,
+        "layerNormalization": None,
         "flatten": None,
         "convolutionalLayer": None,
     }
@@ -286,7 +287,9 @@ auto {name_space}(const {input_type}& initial_input) {{
                 cpp_code += f'    constexpr const char* poolPadding_{layer_idx} = "{padding}";\n\n'
 
     # Insert the activation lambda definitions
+
     cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
+
     if isinstance(cpp_lambda, dict):
         relevant_activations = set(activation_functions)
         for key, val in cpp_lambda.items():
@@ -341,10 +344,6 @@ auto {name_space}(const {input_type}& initial_input) {{
                     "in_shape",
                     ("/* in_height */", "/* in_width */", "/* in_channels */"),
                 )
-                # out_shape = conv_dict.get(
-                #     "out_shape",
-                #     ("/* out_height */", "/* out_width */", "/* out_channels */"),
-                # )
                 out_shape = conv_dict.get(
                     "out_shape",
                     conv_dict.get("output_shape", ("/* out_height */", "/* out_width */", "/* out_channels */"))
@@ -450,28 +449,6 @@ auto {name_space}(const {input_type}& initial_input) {{
                     last_shape = (in_shape[2],)
                 # continue
 
-        # CASE 2: Dense / pure activation / normalization layer
-        # elif w is not None and b is not None:
-        # elif lt == "Dense":
-        #     # Assume current_shape for dense is a flat size tuple, e.g. (out_size,)
-        #     out_size = w.shape[1]
-        #     cpp_code += (
-        #         f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-        #     )
-        #     cpp_code += f"    Dense<Scalar, {out_size}>(\n"
-        #     cpp_code += (
-        #         f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-        #     )
-        #     cpp_code += (
-        #         f"        weights_{layer_idx}.data(), biases_{layer_idx}.data(),\n"
-        #     )
-        #     cpp_code += (
-        #         f"        {get_flat_size(last_shape)}, {mapped_act}, {alpha});\n\n"
-        #     )
-        #     last_layer = f"layer_{layer_idx}_output"
-        #     last_shape = (out_size,)
-        #     # continue
-
         elif lt == "Dense":
             out_size = w.shape[1]
             # If the dense activation is softmax, override with linear activation
@@ -479,9 +456,9 @@ auto {name_space}(const {input_type}& initial_input) {{
                 effective_activation = "linear"
                 effective_alpha = 0.0  # or another appropriate value for linear
             else:
-                effective_activation = act_fun
+                effective_activation = mapped_act
                 effective_alpha = alpha
-            mapped_activation = activation_func_map.get(effective_activation, "linear")
+            # mapped_activation = activation_func_map.get(effective_activation, "linear")
             cpp_code += (
                 f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
             )
@@ -493,25 +470,10 @@ auto {name_space}(const {input_type}& initial_input) {{
                 f"        weights_{layer_idx}.data(), biases_{layer_idx}.data(),\n"
             )
             cpp_code += (
-                f"        {get_flat_size(last_shape)}, {mapped_activation}, {effective_alpha});\n\n"
+                f"        {get_flat_size(last_shape)}, {effective_activation}, {effective_alpha});\n\n"
             )
             last_layer = f"layer_{layer_idx}_output"
             last_shape = (out_size,)
-
-
-        # # CASE 3: BatchNormalization / LayerNormalization
-        # elif lt == 'batchNormalization' and norm_params is not None:
-        #     gamma, beta, mean, var, eps = norm_params
-        #     out_size = len(gamma)
-        #     cpp_code += f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-        #     cpp_code += f"    batchNormalization<Scalar, {out_size}>(\n"
-        #     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-        #     cpp_code += f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
-        #     cpp_code += f"        mean_{layer_idx}.data(), variance_{layer_idx}.data(),\n"
-        #     cpp_code += f"        epsilon_{layer_idx});\n\n"
-        #     last_layer = f"layer_{layer_idx}_output"
-        #     last_shape = (out_size,)
-        #     #continue
 
         # CASE 3: BatchNormalization / LayerNormalization
         elif (lt is not None and lt.lower() in ["batchnormalization", "batchnormalization2d"]) and norm_params is not None:
@@ -553,26 +515,28 @@ auto {name_space}(const {input_type}& initial_input) {{
                 last_shape = (out_size,)
             # continue
 
-        # elif lt is not None:
-        # elif lt in [
-        #     "relu",
-        #     "sigmoid",
-        #     "tanh",
-        #     "leakyrelu",
-        #     "elu",
-        #     "selu",
-        #     "swish",
-        #     "silu",
-        # ]:
-        #     # Pure activation layer
-        #     cpp_code += f"    // Pure activation layer {layer_idx}\n"
-        #     cpp_code += f"    std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
-        #     cpp_code += (
-        #         f"    for (int i = 0; i < {get_flat_size(last_shape)}; ++i) {{\n"
-        #     )
-        #     cpp_code += f"        {mapped_act}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
-        #     cpp_code += f"    }}\n\n"
-        #     last_layer = f"layer_{layer_idx}_output"
+        # NEW: LayerNormalization logic; similar to batch normalization but without mean/variance data.
+        elif (lt is not None and lt.lower() in ["layernormalization", "layernormalization2d"]) and norm_params is not None:
+            gamma, beta, mean, var, eps = norm_params
+            if lt == "LayerNormalization2D":
+                # Assume last_shape is (height, width, channels)
+                height, width, channels = last_shape
+                cpp_code += f"    std::array<Scalar, ({height} * {width} * {channels})> layer_{layer_idx}_output;\n"
+                cpp_code += f"    LayerNormalization2D<Scalar, {channels}, {height}, {width}>(\n"
+                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+                cpp_code += f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
+                cpp_code += f"        epsilon_{layer_idx});\n\n"
+                last_layer = f"layer_{layer_idx}_output"
+                last_shape = (height, width, channels)
+            else:
+                out_size = len(gamma)
+                cpp_code += f"    std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    LayerNormalization<Scalar, {out_size}>(\n"
+                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+                cpp_code += f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
+                cpp_code += f"        epsilon_{layer_idx});\n\n"
+                last_layer = f"layer_{layer_idx}_output"
+                last_shape = (out_size,)
 
         elif lt == "Activation":
             if act_fun == "softmax":
@@ -591,25 +555,10 @@ auto {name_space}(const {input_type}& initial_input) {{
                 cpp_code += f"    }}\n\n"
                 last_layer = f"layer_{layer_idx}_output"
 
-
-        # # New branch for a standalone softmax layer (no for loop)
-        # elif lt == "softmax":
-        #     size = get_flat_size(last_shape)
-        #     cpp_code += (
-        #         f"    // Pure activation layer {layer_idx}: standalone softmax\n"
-        #     )
-        #     cpp_code += f"    std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
-        #     cpp_code += f"    softmax({last_layer}.data(), layer_{layer_idx}_output.data(), {size});\n\n"
-        #     last_layer = f"layer_{layer_idx}_output"
-        # else:
-        #     cpp_code += f"    // Skipping layer {layer_idx} (no operation defined)\n"
-        #     # continue
-
         # Modified separate softmax block runs only if lt is not "softmax"
         if activation_functions[i] == "softmax" and lt != "softmax":
             size = get_flat_size(last_shape)
             cpp_code += f"    // Standalone softmax layer for layer {layer_idx}\n"
-            # cpp_code += f"    std::array<Scalar, {size}> layer_{layer_idx+1}_output;\n"
             cpp_code += f"    softmax(layer_{layer_idx}_output.data(), layer_{layer_idx}_output.data(), {size});\n\n"
             last_layer = f"layer_{layer_idx}_output"
 
