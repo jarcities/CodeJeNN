@@ -1,7 +1,7 @@
 #include <iostream>
 #include <array>
 #include <iomanip>  // for std::setprecision
-#include "cnn6.h"  // Your generated header with cnn2(...) definition
+#include "cnn6_edited.h"  // Your generated header with cnn2(...) definition
 
 using Scalar = double;
 
