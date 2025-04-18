@@ -196,7 +196,8 @@ void Conv2DTranspose(Scalar *outputs, const Scalar *inputs, const Scalar *weight
                         const int ow = iw * stride_w - pad_w + kw;
                         if (oh >= 0 && oh < out_height && ow >= 0 && ow < out_width) {
                             const int output_index = (oh * out_width * out_channels) + (ow * out_channels);
-                            const int weight_index = (((kh * kernel_w + kw) * in_channels) + ic) * out_channels;
+                            // const int weight_index = (((kh * kernel_w + kw) * in_channels) + ic) * out_channels;
+                            const int weight_index = ((((kernel_h - 1 - kh) * kernel_w + (kernel_w - 1 - kw)) * in_channels) + ic) * out_channels;
                             for (int oc = 0; oc < out_channels; ++oc) {
                                 outputs[output_index + oc] += inputs[input_index] * weights[weight_index + oc];
                             }
@@ -344,6 +345,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_1_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
 
     std::array<Scalar, (6 * 6 * 16)> layer_2_output;
     BatchNormalization2D<Scalar, 16, 6, 6>(
@@ -357,6 +360,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_2_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
 
     // Pure activation layer 3
     std::array<Scalar, 576> layer_3_output;
@@ -369,6 +374,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_3_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
 
     // MaxPooling2D call for layer 4
     std::array<Scalar, (3 * 3 * 16)> layer_4_output;
@@ -380,6 +387,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_4_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
 
     // Conv2D call for layer 5
     std::array<Scalar, (3 * 3 * 32)> layer_5_output;
@@ -395,6 +404,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_5_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
 
     std::array<Scalar, (3 * 3 * 32)> layer_6_output;
     BatchNormalization2D<Scalar, 32, 3, 3>(
@@ -408,6 +419,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_6_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
 
     // Pure activation layer 7
     std::array<Scalar, 288> layer_7_output;
@@ -425,6 +438,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_8_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
 
     // Conv2DTranspose call for layer 9
     std::array<Scalar, (2 * 2 * 32)> layer_9_output;
@@ -440,6 +455,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_9_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
 
     std::array<Scalar, 64> layer_11_output;
     Dense<Scalar, 64>(
@@ -452,6 +469,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_11_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
 
     std::array<Scalar, 5> layer_13_output;
     Dense<Scalar, 5>(
@@ -464,6 +483,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_13_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
     
     // Standalone softmax layer for layer 13
     softmax(layer_13_output.data(), layer_13_output.data(), 5);
@@ -473,6 +494,8 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     for (const auto& val : layer_13_output)
         std::cout << val << " ";
     std::cout << std::endl;
+    std::cout << std::endl;
+
 
     // final placeholder
     std::array<Scalar, 5> model_output = layer_13_output;
@@ -481,6 +504,7 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
     std::cout << "Final model output:" << std::endl;
     for (const auto& val : model_output)
         std::cout << val << " ";
+    std::cout << std::endl;
     std::cout << std::endl;
 
     return model_output;

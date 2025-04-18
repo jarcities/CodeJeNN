@@ -248,7 +248,8 @@ void Conv2DTranspose(Scalar *outputs, const Scalar *inputs, const Scalar *weight
                         const int ow = iw * stride_w - pad_w + kw;
                         if (oh >= 0 && oh < out_height && ow >= 0 && ow < out_width) {
                             const int output_index = (oh * out_width * out_channels) + (ow * out_channels);
-                            const int weight_index = (((kh * kernel_w + kw) * in_channels) + ic) * out_channels;
+                            // const int weight_index = (((kh * kernel_w + kw) * in_channels) + ic) * out_channels;
+                            const int weight_index = ((((kernel_h - 1 - kh) * kernel_w + (kernel_w - 1 - kw)) * in_channels) + ic) * out_channels;
                             for (int oc = 0; oc < out_channels; ++oc) {
                                 outputs[output_index + oc] += inputs[input_index] * weights[weight_index + oc];
                             }
