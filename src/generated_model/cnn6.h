@@ -158,6 +158,85 @@ void MaxPooling2D(Scalar *outputs, const Scalar *inputs, int in_height, int in_w
     }
 }
 
+template<typename Scalar,int out_channels,int out_height,int out_width>
+void Conv2DTranspose(
+    Scalar* outputs,
+    const Scalar* inputs,
+    const Scalar* weights,   // [kh][kw][out_ch][in_ch], C-order
+    const Scalar* biases,    // length = out_channels
+    int in_channels,
+    int in_height,
+    int in_width,
+    int kernel_h,
+    int kernel_w,
+    int stride_h,
+    int stride_w,
+    int pad_h,
+    int pad_w,
+    activationFunction<Scalar> activation_function,
+    Scalar alpha
+) noexcept {
+    // 1) zero-fill the entire output buffer
+    const int total = out_height * out_width * out_channels;
+    for (int i = 0; i < total; ++i) {
+        outputs[i] = Scalar(0);
+    }
+
+    // 2) “transpose conv” = back-prop of conv → flip the kernel spatially
+    for (int ic = 0; ic < in_channels; ++ic) {
+        for (int ih = 0; ih < in_height; ++ih) {
+            for (int iw = 0; iw < in_width; ++iw) {
+                Scalar in_val = inputs[(ih * in_width + iw) * in_channels + ic];
+                for (int kh = 0; kh < kernel_h; ++kh) {
+                    for (int kw = 0; kw < kernel_w; ++kw) {
+                        int oh = ih * stride_h + kh - pad_h;
+                        int ow = iw * stride_w + kw - pad_w;
+                        if (oh < 0 || oh >= out_height || ow < 0 || ow >= out_width)
+                            continue;
+                        // compute the 180°–flipped spatial index
+                        int flip_kh = (kernel_h - 1) - kh;
+                        int flip_kw = (kernel_w - 1) - kw;
+                        for (int oc = 0; oc < out_channels; ++oc) {
+                            // flattening (h, w, c) as channel-last:
+                            int out_index = (oh * out_width + ow) * out_channels + oc;
+                            // weight layout is [kh][kw][out_ch][in_ch], so
+                            // stride first by out_ch, then by in_ch:
+                            int w_base = ((flip_kh * kernel_w + flip_kw)
+                                          * out_channels + oc)
+                                         * in_channels;
+                            outputs[out_index] += in_val * weights[w_base + ic];
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3) finally add biases and apply activation, in C-order
+    for (int oh = 0; oh < out_height; ++oh) {
+        for (int ow = 0; ow < out_width; ++ow) {
+            for (int oc = 0; oc < out_channels; ++oc) {
+                int idx = (oh * out_width + ow) * out_channels + oc;
+                outputs[idx] += biases[oc];
+                activation_function(outputs[idx], outputs[idx], alpha);
+            }
+        }
+    }
+}
+
+
+template<typename Scalar, int output_size>
+void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
+    for(int i = 0; i < output_size; ++i){
+        Scalar sum = 0;
+        for(int j = 0; j < input_size; ++j){
+            sum += inputs[j] * weights[j * output_size + i];
+        }
+        sum += biases[i];
+        activation_function(outputs[i], sum, alpha);
+    }
+}
+
 template <typename Scalar, int channels, int height, int width>
 void BatchNormalization2D(Scalar *outputs, const Scalar *inputs,
                           const Scalar *gamma, const Scalar *beta,
@@ -172,60 +251,6 @@ void BatchNormalization2D(Scalar *outputs, const Scalar *inputs,
             outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) / std::sqrt(variance[c] + epsilon)) +
                            beta[c];
         }
-    }
-}
-
-template <typename Scalar, int out_channels, int out_height, int out_width>
-void Conv2DTranspose(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
-                     int in_channels, int in_height, int in_width,
-                     int kernel_h, int kernel_w, int stride_h, int stride_w,
-                     int pad_h, int pad_w,
-                     activationFunction<Scalar> activation_function, Scalar alpha) noexcept
-{
-    const int total = out_height * out_width * out_channels;
-    for (int i = 0; i < total; ++i) {
-        outputs[i] = 0;
-    }
-    for (int ic = 0; ic < in_channels; ++ic) {
-        for (int ih = 0; ih < in_height; ++ih) {
-            for (int iw = 0; iw < in_width; ++iw) {
-                const int input_index = (ih * in_width * in_channels) + (iw * in_channels) + ic;
-                for (int kh = 0; kh < kernel_h; ++kh) {
-                    for (int kw = 0; kw < kernel_w; ++kw) {
-                        const int oh = ih * stride_h - pad_h + kh;
-                        const int ow = iw * stride_w - pad_w + kw;
-                        if (oh >= 0 && oh < out_height && ow >= 0 && ow < out_width) {
-                            const int output_index = (oh * out_width * out_channels) + (ow * out_channels);
-                            const int weight_index = (((kh * kernel_w + kw) * in_channels) + ic) * out_channels;
-                            for (int oc = 0; oc < out_channels; ++oc) {
-                                outputs[output_index + oc] += inputs[input_index] * weights[weight_index + oc];
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    for (int oh = 0; oh < out_height; ++oh) {
-        for (int ow = 0; ow < out_width; ++ow) {
-            const int output_index = (oh * out_width * out_channels) + (ow * out_channels);
-            for (int oc = 0; oc < out_channels; ++oc) {
-                outputs[output_index + oc] += biases[oc];
-                activation_function(outputs[output_index + oc], outputs[output_index + oc], alpha);
-            }
-        }
-    }
-}
-
-template<typename Scalar, int output_size>
-void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const Scalar* biases, int input_size, activationFunction<Scalar> activation_function, Scalar alpha) noexcept {
-    for(int i = 0; i < output_size; ++i){
-        Scalar sum = 0;
-        for(int j = 0; j < input_size; ++j){
-            sum += inputs[j] * weights[j * output_size + i];
-        }
-        sum += biases[i];
-        activation_function(outputs[i], sum, alpha);
     }
 }
 
@@ -305,10 +330,6 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
         output = input > 0 ? input : 0;
     };
 
-    auto elu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
-        output = input > 0 ? input : alpha * (std::exp(input) - 1);
-    };
-
     auto softmax = +[](Scalar *output, Scalar *input, int size) noexcept {
         Scalar max_val = *std::max_element(input, input + size);
         Scalar sum = 0;
@@ -322,6 +343,10 @@ auto cnn6(const std::array<std::array<std::array<Scalar, 3>, 6>, 6>& initial_inp
         {
             output[i] /= sum;
         }
+    };
+
+    auto elu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+        output = input > 0 ? input : alpha * (std::exp(input) - 1);
     };
 
     auto linear = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
