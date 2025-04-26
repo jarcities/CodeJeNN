@@ -1,4 +1,7 @@
-LEFT OFF: need to fix conv2dtranspose logic
+LEFT OFF: 
+- need to fix conv2dtranspose logic
+- layer 9 output match values from index 97 to 128 off cnn6.py
+- need to figure out discrepency (layer 9 output has 139 elements and cnn6.py layer has 128 elements)
 
 1/ append file name to activation functions
 2/ move and extend test cases
