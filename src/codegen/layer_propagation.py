@@ -187,6 +187,76 @@ void LayerNormalization2D(Scalar *outputs, const Scalar *inputs,
 
     # convolution functions
     convolution_functions = {
+        "Conv1D": """
+template <typename Scalar, int out_size>
+void Conv1D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
+                   int in_size, int kernel_size, int stride, int pad,
+                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept
+{
+    for (int o = 0; o < out_size; ++o)
+    {
+        Scalar sum = 0;
+        for (int k = 0; k < kernel_size; ++k)
+        {
+            int in_index = o * stride - pad + k;
+            if (in_index >= 0 && in_index < in_size)
+            {
+                int weight_index = k * out_size + o;
+                sum += inputs[in_index] * weights[weight_index];
+            }
+        }
+        sum += biases[o];
+        activation_function(outputs[o], sum, alpha);
+    }
+}
+""",
+        "Conv1DTranspose": """
+template <typename Scalar, int out_channels, int out_length>
+void Conv1DTranspose(Scalar *outputs,
+                     const Scalar *inputs,
+                     const Scalar *weights,
+                     const Scalar *biases,
+                     int in_channels,
+                     int in_length,
+                     int kernel_l,
+                     int stride_l,
+                     int pad_l,
+                     activationFunction<Scalar> activation_function,
+                     Scalar alpha) noexcept
+{
+  const int out_size = out_channels * out_length;
+  for (int i = 0; i < out_size; ++i) {
+    outputs[i] = Scalar(0);
+  }
+  for (int ic = 0; ic < in_channels; ++ic) {
+    for (int il = 0; il < in_length; ++il) {
+      const int in_idx = il * in_channels + ic;
+      Scalar in_val = inputs[in_idx];
+
+      for (int kl = 0; kl < kernel_l; ++kl) {
+        int ol = il * stride_l - pad_l + kl;
+        if (ol < 0 || ol >= out_length) continue;
+
+        for (int oc = 0; oc < out_channels; ++oc) {
+          int w_idx   = (kl * in_channels + ic) * out_channels + oc;
+          int out_idx = ol * out_channels + oc;
+          outputs[out_idx] += weights[w_idx] * in_val;
+        }
+      }
+    }
+  }
+  for (int oc = 0; oc < out_channels; ++oc) {
+    for (int ol = 0; ol < out_length; ++ol) {
+      int out_idx = ol * out_channels + oc;
+      activation_function(
+        outputs[out_idx],
+        outputs[out_idx] + biases[oc],
+        alpha
+      );
+    }
+  }
+}
+""",
         "Conv2D": """
 template <typename Scalar, int out_channels, int out_height, int out_width>
 void Conv2D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
@@ -227,73 +297,74 @@ void Conv2D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const 
 }
 """,
         "Conv2DTranspose": """
-template <typename Scalar, int out_channels, int out_height, int out_width>
-void Conv2DTranspose(Scalar *outputs, const Scalar *inputs,
-                     const Scalar *weights, // [kh][kw][out_ch][in_ch], C-order
-                     const Scalar *biases,  // length = out_channels
-                     int in_channels, int in_height, int in_width, int kernel_h,
-                     int kernel_w, int stride_h, int stride_w, int pad_h,
-                     int pad_w, activationFunction<Scalar> activation_function,
-                     Scalar alpha) noexcept {
-  const int total = out_height * out_width * out_channels;
-  for (int i = 0; i < total; ++i) {
-    outputs[i] = Scalar(0);
-  }
+// Transposed 2D convolution (a.k.a. “deconvolution”)
+//   out           : pointer to output buffer of size (H_out * W_out * C_out)
+//   in            : pointer to input      buffer of size (H_in  * W_in  * C_in)
+//   kernel        : pointer to kernel     buffer of size (k_h    * k_w    * C_out * C_in)
+//   bias          : pointer to bias       buffer of size (C_out)  (may be nullptr)
+//   in_channels   : number of input  channels (C_in)
+//   in_h, in_w    : spatial size of input (H_in, W_in)
+//   k_h, k_w      : kernel  spatial dims
+//   s_h, s_w      : stride dims
+//   p_h, p_w      : padding dims
+//   act           : activation        function pointer
+//   alpha         : activation “alpha” parameter (e.g. for LeakyReLU)
+template<typename Scalar, int C_out, int H_out, int W_out>
+void Conv2DTranspose( Scalar*       out,
+                      const Scalar* in,
+                      const Scalar* kernel,
+                      const Scalar* bias,
+                      int           in_channels,
+                      int           in_h,
+                      int           in_w,
+                      int           k_h,
+                      int           k_w,
+                      int           s_h,
+                      int           s_w,
+                      int           p_h,
+                      int           p_w,
+                      activationFunction<Scalar> act,
+                      Scalar        alpha )
+{
+    for(int h=0; h < H_out; ++h) {
+      for(int w=0; w < W_out; ++w) {
+        for(int oc=0; oc < C_out; ++oc) {
+          int idx = (h * W_out + w) * C_out + oc;
+          out[idx] = bias ? bias[oc] : Scalar(0);
+        }
+      }
+    }
 
-  for (int ic = 0; ic < in_channels; ++ic) {
-    for (int ih = 0; ih < in_height; ++ih) {
-      for (int iw = 0; iw < in_width; ++iw) {
-        Scalar in_val = inputs[(ih * in_width + iw) * in_channels + ic];
-        for (int kh = 0; kh < kernel_h; ++kh) {
-          for (int kw = 0; kw < kernel_w; ++kw) {
-            int oh = ih * stride_h + kh - pad_h;
-            int ow = iw * stride_w + kw - pad_w;
-            if (oh < 0 || oh >= out_height || ow < 0 || ow >= out_width)
-              continue;
-            for (int oc = 0; oc < out_channels; ++oc) {
-              int out_index = (oh * out_width + ow) * out_channels + oc;
-              // weight layout: [kh][kw][out_ch][in_ch]
-              int w_base =
-                  ((kh * kernel_w + kw) * out_channels + oc) * in_channels;
-              outputs[out_index] += in_val * weights[w_base + ic];
+    for(int ic = 0; ic < in_channels; ++ic) {
+      for(int ih = 0; ih < in_h; ++ih) {
+        for(int iw = 0; iw < in_w; ++iw) {
+          Scalar val = in[(ih * in_w + iw) * in_channels + ic];
+          int base_h = ih * s_h - p_h;
+          int base_w = iw * s_w - p_w;
+
+          for(int kh=0; kh < k_h; ++kh) {
+            int oh = base_h + kh;
+            if (oh < 0 || oh >= H_out) continue;
+            for(int kw=0; kw < k_w; ++kw) {
+              int ow = base_w + kw;
+              if (ow < 0 || ow >= W_out) continue;
+
+              int out_base = (oh * W_out + ow) * C_out;
+              int ker_base = (kh * k_w + kw) * (C_out * in_channels)
+                             + ic;  
+              for(int oc = 0; oc < C_out; ++oc) {
+                int k_idx = ker_base + oc * in_channels;
+                out[out_base + oc] += val * kernel[k_idx];
+              }
             }
           }
         }
       }
     }
-  }
 
-  for (int oh = 0; oh < out_height; ++oh) {
-    for (int ow = 0; ow < out_width; ++ow) {
-      for (int oc = 0; oc < out_channels; ++oc) {
-        int idx = (oh * out_width + ow) * out_channels + oc;
-        outputs[idx] += biases[oc];
-        activation_function(outputs[idx], outputs[idx], alpha);
-      }
-    }
-  }
-}
-""",
-        "Conv1D": """
-template <typename Scalar, int out_size>
-void Conv1D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const Scalar *biases,
-                   int in_size, int kernel_size, int stride, int pad,
-                   activationFunction<Scalar> activation_function, Scalar alpha) noexcept
-{
-    for (int o = 0; o < out_size; ++o)
-    {
-        Scalar sum = 0;
-        for (int k = 0; k < kernel_size; ++k)
-        {
-            int in_index = o * stride - pad + k;
-            if (in_index >= 0 && in_index < in_size)
-            {
-                int weight_index = k * out_size + o;
-                sum += inputs[in_index] * weights[weight_index];
-            }
-        }
-        sum += biases[o];
-        activation_function(outputs[o], sum, alpha);
+    int total = H_out * W_out * C_out;
+    for(int i = 0; i < total; ++i) {
+      act(out[i], out[i], alpha);
     }
 }
 """,
@@ -305,7 +376,6 @@ void Conv3D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const 
                    int pad_d, int pad_h, int pad_w,
                    activationFunction<Scalar> activation_function, Scalar alpha) noexcept
 {
-    // Simplified 3D convolution implementation
     for (int oc = 0; oc < out_channels; ++oc)
     {
         for (int od = 0; od < out_depth; ++od)
@@ -349,6 +419,70 @@ void Conv3D(Scalar *outputs, const Scalar *inputs, const Scalar *weights, const 
             }
         }
     }
+}
+""",
+        "Conv3DTranspose": """
+template <typename Scalar, int out_channels, int out_depth, int out_height, int out_width>
+void Conv3DTranspose(Scalar *outputs, const Scalar *inputs,
+                     const Scalar *weights, const Scalar *biases,
+                     int in_channels, int in_depth, int in_height, int in_width,
+                     int kernel_d, int kernel_h, int kernel_w, int stride_d,
+                     int stride_h, int stride_w, int pad_d, int pad_h,
+                     int pad_w, activationFunction<Scalar> activation_function,
+                     Scalar alpha) noexcept {
+  int out_size = out_channels * out_depth * out_height * out_width;
+  for (int i = 0; i < out_size; ++i)
+    outputs[i] = Scalar(0);
+  for (int ic = 0; ic < in_channels; ++ic) {
+    for (int id = 0; id < in_depth; ++id) {
+      for (int ih = 0; ih < in_height; ++ih) {
+        for (int iw = 0; iw < in_width; ++iw) {
+          int in_idx = ((id * in_height * in_width) + (ih * in_width) + iw) *
+                           in_channels +
+                       ic;
+          Scalar in_val = inputs[in_idx];
+          for (int kd = 0; kd < kernel_d; ++kd) {
+            int od = id * stride_d - pad_d + kd;
+            if (od < 0 || od >= out_depth)
+              continue;
+            for (int kh = 0; kh < kernel_h; ++kh) {
+              int oh = ih * stride_h - pad_h + kh;
+              if (oh < 0 || oh >= out_height)
+                continue;
+              for (int kw = 0; kw < kernel_w; ++kw) {
+                int ow = iw * stride_w - pad_w + kw;
+                if (ow < 0 || ow >= out_width)
+                  continue;
+                for (int oc = 0; oc < out_channels; ++oc) {
+                  int w_idx =
+                      ((((kd * kernel_h + kh) * kernel_w + kw) * in_channels +
+                        ic) *
+                           out_channels +
+                       oc);
+                  int out_idx = (((od * out_height + oh) * out_width) + ow) *
+                                    out_channels +
+                                oc;
+                  outputs[out_idx] += weights[w_idx] * in_val;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  for (int oc = 0; oc < out_channels; ++oc) {
+    for (int od = 0; od < out_depth; ++od) {
+      for (int oh = 0; oh < out_height; ++oh) {
+        for (int ow = 0; ow < out_width; ++ow) {
+          int out_idx =
+              (((od * out_height + oh) * out_width) + ow) * out_channels + oc;
+          activation_function(outputs[out_idx], outputs[out_idx] + biases[oc],
+                              alpha);
+        }
+      }
+    }
+  }
 }
 """,
         "DepthwiseConv2D": """
@@ -583,9 +717,11 @@ void GlobalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int
             cpp_code += convolution_functions[type]
         if type in pooling_functions:
             cpp_code += pooling_functions[type]
-        if type == "ConvDD":
-            cpp_code += convolution_functions["Conv1D"]
-            cpp_code += convolution_functions["Conv2D"]
-            cpp_code += convolution_functions["Conv3D"]
+        # if type == "Conv1D":
+        #     cpp_code += convolution_functions["Conv1D"]
+        # if type == "Conv2D":
+        #     cpp_code += convolution_functions["Conv2D"]
+        # if type == "Conv3D":
+        #     cpp_code += convolution_functions["Conv3D"]
 
     return cpp_code, cpp_lambda

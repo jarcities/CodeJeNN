@@ -27,14 +27,13 @@ epochs = default_params["epochs"]
 print(f"Using parameters: {default_params}")
 
 # Create random training data
-x_train = np.random.rand(num_samples, input_shape[0], input_shape[1], input_shape[2]).astype('float32')
+x_train = np.random.rand(num_samples, *input_shape).astype('float32')
 y_train = np.random.randint(0, num_classes, size=(num_samples,))
 y_train = tf.keras.utils.to_categorical(y_train, num_classes=num_classes)
 
-# Inline model creation (small CNN with additional layers: Conv2DTranspose and ConvLSTM2DForward)
+# Inline model creation using Conv2D layers for image data
 model = keras.Sequential([
-    layers.Conv2D(filters=16, kernel_size=(3, 3), padding='same',
-                  input_shape=input_shape),
+    layers.Conv2D(filters=16, kernel_size=(3, 3), padding='same', input_shape=input_shape),
     layers.BatchNormalization(),
     layers.ReLU(),
 
@@ -42,20 +41,17 @@ model = keras.Sequential([
 
     layers.Conv2D(filters=32, kernel_size=(3, 3), padding='same'),
     layers.BatchNormalization(),
-    layers.ELU(alpha=1.0),
+    layers.ELU(),
 
     layers.MaxPooling2D(pool_size=(2, 2)),
 
-    # New added Conv2DTranspose layer
+    # Conv2DTranspose layer to upsample
     layers.Conv2DTranspose(filters=32, kernel_size=(3, 3), strides=(2, 2), padding='same'),
 
-    # Flatten and dense layers remain unchanged
     layers.Flatten(),
-
     layers.Dense(64, activation='relu'),
     layers.Dropout(0.3),
-
-    layers.Dense(num_classes, activation='softmax')  
+    layers.Dense(num_classes, activation='softmax')
 ])
 
 # Compile the model
@@ -70,11 +66,6 @@ model.summary()
 
 # Train on random data
 model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs)
-
-# # Evaluate on the same data (for demonstration only)
-# print("\nEvaluating on the same random data:")
-# loss, acc = model.evaluate(x_train, y_train, verbose=0)
-# print(f"Loss: {loss:.4f}, Accuracy: {acc:.4f}")
 
 # Save the model
 model.save(file_name)
