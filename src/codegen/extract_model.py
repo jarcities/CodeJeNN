@@ -35,19 +35,47 @@ def getAlphaForActivation(layer, activation):
         return layer.get_config().get("alpha", 1.0)
     return 0.0
 
+# def compute_output_shape_2d(input_shape, kernel, strides, padding, filters=None, depthwise=False):
+#     # Section: Compute New Output Shape for 2D Layers
+#     H, W, C = input_shape
+#     if padding.lower() == "same":
+#         out_H = math.ceil(H / strides[0])
+#         out_W = math.ceil(W / strides[1])
+#     elif padding.lower() == "valid":
+#         out_H = math.floor((H - kernel[0]) / strides[0]) + 1
+#         out_W = math.floor((W - kernel[1]) / strides[1]) + 1
+#     else:
+#         out_H, out_W = H, W
+#     out_C = C if depthwise else (filters if filters is not None else C)
+#     return (out_H, out_W, out_C)
+
+
 def compute_output_shape_2d(input_shape, kernel, strides, padding, filters=None, depthwise=False):
-    # Section: Compute New Output Shape for 2D Layers
-    H, W, C = input_shape
+    """
+    Compute the output shape of a 2D convolution (or depthwise) layer,
+    gracefully handling both 3-tuples (H, W, C) and 4-tuples
+    (timesteps, H, W, C) coming from ConvLSTM2D.
+    """
+    # If this came from a ConvLSTM2D, drop the time dimension
+    if len(input_shape) > 3:
+        # input_shape == (timesteps, H, W, C)
+        _, H, W, C = input_shape
+    else:
+        H, W, C = input_shape
+
+    # compute spatial dims
     if padding.lower() == "same":
         out_H = math.ceil(H / strides[0])
         out_W = math.ceil(W / strides[1])
-    elif padding.lower() == "valid":
-        out_H = math.floor((H - kernel[0]) / strides[0]) + 1
-        out_W = math.floor((W - kernel[1]) / strides[1]) + 1
-    else:
-        out_H, out_W = H, W
-    out_C = C if depthwise else (filters if filters is not None else C)
+    else:  # "valid"
+        out_H = math.ceil((H - kernel[0] + 1) / strides[0])
+        out_W = math.ceil((W - kernel[1] + 1) / strides[1])
+
+    # number of filters for Conv2D; depthwise keeps channel count
+    out_C = C if depthwise else filters
+
     return (out_H, out_W, out_C)
+
 
 def extractModel(model, file_type):
     # Section: Initialize Extraction Variables
@@ -318,6 +346,143 @@ def extractModel(model, file_type):
                 elif isinstance(layer, keras.layers.Conv3D) or "conv3d" in layer.name.lower():    
                     layer_type.append("Conv3D")
                 continue
+
+            ##################################################################
+            # # Section: Process ConvLSTM2D Layers
+            # if isinstance(layer, keras.layers.ConvLSTM2D) or "convlstm2d" in layer.name.lower() or "conv_lstm2d" in layer.name.lower():
+            #     # pull config
+            #     use_bias = config.get("use_bias", True)
+            #     # weights come as [kernel, recurrent_kernel, bias] (if use_bias)
+            #     if use_bias and len(layer_weights) == 3:
+            #         kernel, recurrent_kernel, bias = layer_weights
+            #     elif not use_bias and len(layer_weights) == 2:
+            #         kernel, recurrent_kernel = layer_weights
+            #         bias = None
+            #     else:
+            #         kernel = recurrent_kernel = bias = None
+            #     # if len(layer_weights) >= 3:
+            #     #     kernel    = layer_weights[0]
+            #     #     recurrent_kernel = layer_weights[1]
+            #     #     bias      = layer_weights[2] if use_bias else None
+            #     # else:
+            #     #     kernel = recurrent_kernel = bias = None
+
+            #     conv_params = {
+            #         "layer_type":          "ConvLSTM2D",
+            #         "kernel":              kernel,
+            #         "recurrent_kernel":    recurrent_kernel,
+            #         "bias":                bias,
+            #         "filters":             config.get("filters", None),
+            #         "kernel_size":         config.get("kernel_size", None),
+            #         "strides":             config.get("strides", (1,1)),
+            #         "padding":             config.get("padding", "valid"),
+            #         "dilation_rate":       config.get("dilation_rate", (1,1)),
+            #         "activation":          config.get("activation", "tanh"),
+            #         "recurrent_activation":config.get("recurrent_activation", "hard_sigmoid"),
+            #         "use_bias":            use_bias,
+            #         "dropout":             config.get("dropout", 0.0),
+            #         "recurrent_dropout":   config.get("recurrent_dropout", 0.0),
+            #         "return_sequences":    config.get("return_sequences", False),
+            #         "go_backwards":        config.get("go_backwards", False),
+            #         "stateful":            config.get("stateful", False),
+            #     }
+
+            #     # compute spatial output shape just like Conv2D
+            #     new_shape = compute_output_shape_2d(
+            #         current_shape,
+            #         conv_params["kernel_size"],
+            #         conv_params["strides"],
+            #         conv_params["padding"],
+            #         filters=conv_params["filters"],
+            #     )
+            #     conv_params["in_shape"] = current_shape
+            #     conv_params["out_shape"] = new_shape
+            #     current_shape = new_shape
+
+            #     # store into your lists
+            #     conv_layer_params[-1]    = conv_params
+            #     weights_list.append(None)
+            #     biases_list.append(None)
+            #     norm_layer_params.append(None)
+            #     activation_functions.append(conv_params["activation"])
+            #     alphas.append(0.0)
+            #     dropout_rates.append(0.0)
+            #     layer_shape.append(new_shape)
+            #     layer_type.append("ConvLSTM2D")
+            #     continue
+
+
+
+
+
+            # --- Process ConvLSTM2D Layers ---
+            # --- Process ConvLSTM2D Layers ---
+            if isinstance(layer, keras.layers.ConvLSTM2D) or "convlstm2d" in layer.name.lower():
+                # pull config
+                config = layer.get_config()
+                use_bias        = config.get("use_bias", True)
+                activation      = config.get("activation", "tanh")
+                return_sequences = config.get("return_sequences", False)
+
+                # extract weights: [kernel, recurrent_kernel, bias] (if use_bias)
+                layer_weights = layer.get_weights()
+                if use_bias and len(layer_weights) == 3:
+                    kernel, recurrent_kernel, bias = layer_weights
+                elif not use_bias and len(layer_weights) == 2:
+                    kernel, recurrent_kernel = layer_weights
+                    bias = None
+                else:
+                    raise ValueError(f"Unexpected ConvLSTM2D weights count: {len(layer_weights)}")
+
+                # build our conv_params dict
+                conv_params = {
+                    "layer_type":       "ConvLSTM2D",
+                    "kernel":           kernel,
+                    "recurrent_kernel": recurrent_kernel,
+                    "bias":             bias,
+                    "kernel_size":      config["kernel_size"],
+                    "strides":          config["strides"],
+                    "padding":          config["padding"],
+                    "filters":          config["filters"],
+                    "activation":       activation,
+                    "return_sequences": return_sequences,
+                }
+
+                # get the full input shape: (batch, time, H_in, W_in, C_in)
+                batch, time_steps, H_in, W_in, C_in = layer.get_input_shape_at(0)
+                # compute spatial output shape just like Conv2D
+                H_out, W_out, C_out = compute_output_shape_2d(
+                    (H_in, W_in, C_in),
+                    conv_params["kernel_size"],
+                    conv_params["strides"],
+                    conv_params["padding"],
+                    filters=conv_params["filters"],
+                )
+
+                # stash shapes
+                conv_params["in_shape"]  = (time_steps, H_in, W_in, C_in)
+                conv_params["out_shape"] = (H_out, W_out, C_out)
+
+                # update current_shape for the next layer
+                if return_sequences:
+                    current_shape = (time_steps, H_out, W_out, C_out)
+                else:
+                    current_shape = (H_out, W_out, C_out)
+
+                # record everything
+                conv_layer_params.append(conv_params)
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                activation_functions.append(activation)
+                alphas.append(0.0)
+                dropout_rates.append(0.0)
+                layer_shape.append(current_shape)
+                layer_type.append("ConvLSTM2D")
+                continue
+
+
+            ##################################################################
 
             # Section: Process Conv1DTranspose Layers
             if isinstance(layer, keras.layers.Conv1DTranspose) \

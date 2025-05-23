@@ -691,13 +691,124 @@ void SeparableConv2D(Scalar *outputs, const Scalar *inputs, const Scalar *depthw
     }
 }
 """,
-        "ConvLSTM2DForward": """
+        "ConvLSTM2D": """
 template<typename Scalar>
-void ConvLSTM2DForward(/* parameters */) noexcept {
-    // Stub for ConvLSTM2D.
-    // A full implementation would require handling time steps and cell states.
+void ConvLSTM2D(Scalar* outputs,
+                       const Scalar* inputs,
+                       const Scalar* kernel,
+                       const Scalar* recurrent_kernel,
+                       const Scalar* bias,
+                       int time_steps,
+                       int in_channels,
+                       int in_height,
+                       int in_width,
+                       int filters,
+                       int kernel_height,
+                       int kernel_width,
+                       int stride_height,
+                       int stride_width,
+                       int padding_height,
+                       int padding_width,
+                       activationFunction<Scalar> activation_function,
+                       activationFunction<Scalar> recurrent_activation_function,
+                       Scalar alpha) noexcept
+{
+    // hidden + cell state buffers
+    std::vector<Scalar> h_state(filters * in_height * in_width, Scalar(0));
+    std::vector<Scalar> c_state(filters * in_height * in_width, Scalar(0));
+    int spatial_size = in_height * in_width;
+
+    for (int t = 0; t < time_steps; ++t) {
+        // slice for time step t
+        const Scalar* x_t = inputs + t * in_channels * spatial_size;
+
+        // gate buffers
+        std::vector<Scalar> i_gate(filters * spatial_size, 0);
+        std::vector<Scalar> f_gate(filters * spatial_size, 0);
+        std::vector<Scalar> g_gate(filters * spatial_size, 0);
+        std::vector<Scalar> o_gate(filters * spatial_size, 0);
+
+        // --- Input convolution for all 4 gates ---
+        for (int oc = 0; oc < filters; ++oc) {
+            for (int oh = 0; oh < in_height; ++oh) {
+                for (int ow = 0; ow < in_width; ++ow) {
+                    int out_idx = oc + filters * (ow + in_width * oh);
+                    Scalar sum_i = 0, sum_f = 0, sum_g = 0, sum_o = 0;
+                    for (int ic = 0; ic < in_channels; ++ic) {
+                        for (int kh = 0; kh < kernel_height; ++kh) {
+                            for (int kw = 0; kw < kernel_width; ++kw) {
+                                int ih = oh * stride_height - padding_height + kh;
+                                int iw = ow * stride_width  - padding_width  + kw;
+                                if (ih >= 0 && ih < in_height && iw >= 0 && iw < in_width) {
+                                    int in_idx = ic + in_channels * (iw + in_width * ih);
+                                    int k_base = ((kh * kernel_width + kw) * in_channels + ic);
+                                    // kernel layout: [kh,kw,in_channels,4*filters]
+                                    sum_i += x_t[in_idx] * kernel[(k_base * 4 + 0) * filters + oc];
+                                    sum_f += x_t[in_idx] * kernel[(k_base * 4 + 1) * filters + oc];
+                                    sum_g += x_t[in_idx] * kernel[(k_base * 4 + 2) * filters + oc];
+                                    sum_o += x_t[in_idx] * kernel[(k_base * 4 + 3) * filters + oc];
+                                }
+                            }
+                        }
+                    }
+                    i_gate[out_idx] = sum_i;
+                    f_gate[out_idx] = sum_f;
+                    g_gate[out_idx] = sum_g;
+                    o_gate[out_idx] = sum_o;
+                }
+            }
+        }
+
+        // --- Recurrent convolution and bias add ---
+        for (int oc = 0; oc < filters; ++oc) {
+            for (int oh = 0; oh < in_height; ++oh) {
+                for (int ow = 0; ow < in_width; ++ow) {
+                    int idx = oc + filters * (ow + in_width * oh);
+                    Scalar rec_i = 0, rec_f = 0, rec_g = 0, rec_o = 0;
+                    for (int kc = 0; kc < filters; ++kc) {
+                        for (int kh = 0; kh < kernel_height; ++kh) {
+                            for (int kw = 0; kw < kernel_width; ++kw) {
+                                int ih = oh * stride_height - padding_height + kh;
+                                int iw = ow * stride_width  - padding_width  + kw;
+                                if (ih >= 0 && ih < in_height && iw >= 0 && iw < in_width) {
+                                    int h_idx = kc + filters * (iw + in_width * ih);
+                                    int rk_base = ((kh * kernel_width + kw) * filters + kc);
+                                    rec_i += h_state[h_idx] * recurrent_kernel[(rk_base * 4 + 0) * filters + oc];
+                                    rec_f += h_state[h_idx] * recurrent_kernel[(rk_base * 4 + 1) * filters + oc];
+                                    rec_g += h_state[h_idx] * recurrent_kernel[(rk_base * 4 + 2) * filters + oc];
+                                    rec_o += h_state[h_idx] * recurrent_kernel[(rk_base * 4 + 3) * filters + oc];
+                                }
+                            }
+                        }
+                    }
+                    i_gate[idx] += rec_i + bias[oc];
+                    f_gate[idx] += rec_f + bias[filters + oc];
+                    g_gate[idx] += rec_g + bias[2 * filters + oc];
+                    o_gate[idx] += rec_o + bias[3 * filters + oc];
+                }
+            }
+        }
+
+        // --- Activation + state update + write output ---
+        for (int idx = 0; idx < filters * spatial_size; ++idx) {
+            recurrent_activation_function(i_gate[idx], i_gate[idx], alpha);
+            recurrent_activation_function(f_gate[idx], f_gate[idx], alpha);
+            activation_function(g_gate[idx], g_gate[idx], alpha);
+            recurrent_activation_function(o_gate[idx], o_gate[idx], alpha);
+
+            // cell state
+            c_state[idx] = f_gate[idx] * c_state[idx] + i_gate[idx] * g_gate[idx];
+            // hidden state
+            Scalar c_act;
+            activation_function(c_act, c_state[idx], alpha);
+            h_state[idx] = o_gate[idx] * c_act;
+
+            // write out
+            outputs[t * filters * spatial_size + idx] = h_state[idx];
+        }
+    }
 }
-""",
+"""
     }
 
     pooling_functions = {

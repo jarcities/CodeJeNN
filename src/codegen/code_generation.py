@@ -319,6 +319,40 @@ auto {name_space}(const {input_type}& initial_input) {{
                     cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
                     cpp_code += "};\n"
 
+            ##########################################################################
+            elif ltype == "ConvLSTM2D":
+                # Layer {layer_idx}: ConvLSTM2D parameters
+
+                print("error before printing arrays")
+                kernel           = conv_dict.get("kernel", None)
+                recurrent_kernel = conv_dict.get("recurrent_kernel", None)
+                bias             = conv_dict.get("bias", None)
+
+                if kernel is not None:
+                    kflat = kernel.flatten()
+                    cpp_code += (
+                        f"    constexpr std::array<Scalar, {len(kflat)}> convKernel_{layer_idx} = {{"
+                        + ", ".join(f"{val:10.9e}" for val in kflat)
+                        + "};\n"
+                    )
+                if recurrent_kernel is not None:
+                    rkflat = recurrent_kernel.flatten()
+                    cpp_code += (
+                        f"    constexpr std::array<Scalar, {len(rkflat)}> recurrentKernel_{layer_idx} = {{"
+                        + ", ".join(f"{val:10.9e}" for val in rkflat)
+                        + "};\n"
+                    )
+                if bias is not None:
+                    bflat = bias.flatten()
+                    cpp_code += (
+                        f"    constexpr std::array<Scalar, {len(bflat)}> convBias_{layer_idx} = {{"
+                        + ", ".join(f"{val:10.9e}" for val in bflat)
+                        + "};\n\n"
+                    )
+
+                print("error after printing arrays")
+            ##########################################################################
+
             elif ltype in ["MaxPooling2D", "AveragePooling2D"]:
                 pool_size = conv_dict.get("pool_size", (2, 2))
                 strides = conv_dict.get("strides", pool_size)
@@ -359,6 +393,7 @@ auto {name_space}(const {input_type}& initial_input) {{
         )
     ):
         layer_idx = i + 1
+        print("entered for loop")
 
         # Retrieve the current layer's shape (assume layer_shape has been appended in order)
         if len(layer_shape) > i + 1:
@@ -375,13 +410,17 @@ auto {name_space}(const {input_type}& initial_input) {{
                 "Conv1D",
                 "Conv2D",
                 "Conv3D",
+                "ConvLSTM2D",
+                "Conv1DTranspose",
                 "Conv2DTranspose",
+                "Conv3DTranspose",
                 "DepthwiseConv2D",
                 "SeparableConv2D",
                 "MaxPooling2D",
                 "AveragePooling2D",
                 "GlobalAveragePooling2D",
             ]:
+                print("current ltype", ltype)
                 # Look up shape info from conv_dict if available
                 in_shape = conv_dict.get(
                     "in_shape",
@@ -555,6 +594,74 @@ auto {name_space}(const {input_type}& initial_input) {{
                     cpp_code += f"{in_shape[3]}, {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {kd}, {kh}, {kw}, {sd}, {sh}, {sw}, {pd}, {ph}, {pw}, {mapped_act}, {alpha});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+
+                #############################################################################################
+                # elif ltype == "ConvLSTM2D":
+                #     # ConvLSTM2D, layer {layer_idx}
+
+                #     print("error before passing parameters to ConvLSTM2D")
+    
+                #     in_h, in_w, in_ch = conv_dict["in_shape"]
+                #     out_h, out_w, filt = conv_dict["out_shape"]
+                #     k_h, k_w         = conv_dict["kernel_size"]
+                #     s_h, s_w         = conv_dict["strides"]
+                #     pad_h = k_h//2 if conv_dict["padding"].lower()=="same" else 0
+                #     pad_w = k_w//2 if conv_dict["padding"].lower()=="same" else 0
+
+                #     print("error after passing parameters to ConvLSTM2D")
+
+                #     cpp_code += f"    // ConvLSTM2D, layer {layer_idx}\n"
+                #     cpp_code += (
+                #         f"    std::array<Scalar, /*time_steps*/ * {filt} * {out_h} * {out_w}> "
+                #         f"layer_{layer_idx}_output;\n"
+                #     )
+                #     cpp_code += (
+                #         f"    ConvLSTM2DForward<Scalar>(\n"
+                #         f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+                #         f"        convKernel_{layer_idx}.data(), recurrentKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
+                #         f"        /* time_steps */, /*in_ch*/ {in_h}, {in_w}, {in_ch},\n"
+                #         f"        {filt}, {k_h}, {k_w}, {s_h}, {s_w}, {pad_h}, {pad_w},\n"
+                #         f"        {mapped_act}, {recurrent_mapped_act}, {alpha});\n\n"
+                #     )
+                #     last_layer = f"layer_{layer_idx}_output"
+                #     last_shape = (out_h, out_w, filt)
+
+                elif ltype == "ConvLSTM2D":
+                    # Map both the main and recurrent activations
+                    mapped_act           = activation_func_map.get(conv_dict["activation"], "linear")
+                    recurrent_mapped_act = activation_func_map.get(conv_dict["recurrent_activation"], "linear")
+
+                    # Unpack the 4-tuple input shape (time_steps, height, width, channels)
+                    time_steps, in_h, in_w, in_ch = conv_dict["in_shape"]
+                    # Unpack output shape and parameters
+                    out_h, out_w, filt             = conv_dict["out_shape"]
+                    k_h, k_w                       = conv_dict["kernel_size"]
+                    s_h, s_w                       = conv_dict["strides"]
+                    padding                        = conv_dict["padding"].lower()
+                    pad_h = k_h // 2 if padding == "same" else 0
+                    pad_w = k_w // 2 if padding == "same" else 0
+
+                    # Generate the C++ array and forward call
+                    cpp_code += (
+                        f"    // ConvLSTM2D, layer {layer_idx}\n"
+                        f"    std::array<Scalar, {time_steps} * {filt} * {out_h} * {out_w}> "
+                        f"layer_{layer_idx}_output;\n"
+                    )
+                    cpp_code += (
+                        f"    ConvLSTM2DForward<Scalar>(\n"
+                        f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+                        f"        convKernel_{layer_idx}.data(), recurrentKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
+                        f"        {time_steps}, {in_h}, {in_w}, {in_ch},\n"
+                        f"        {filt}, {k_h}, {k_w}, {s_h}, {s_w}, {pad_h}, {pad_w},\n"
+                        f"        {mapped_act}, {recurrent_mapped_act}, {alpha}\n"
+                        f"    );\n\n"
+                    )
+
+                    last_layer = f"layer_{layer_idx}_output"
+                    last_shape = (out_h, out_w, filt)
+
+
+                #############################################################################################
 
         elif lt == "Dense":
             out_size = w.shape[1]
