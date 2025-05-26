@@ -35,19 +35,19 @@ def getAlphaForActivation(layer, activation):
         return layer.get_config().get("alpha", 1.0)
     return 0.0
 
-def compute_output_shape_2d(input_shape, kernel, strides, padding, filters=None, depthwise=False):
-    # Section: Compute New Output Shape for 2D Layers
-    H, W, C = input_shape
-    if padding.lower() == "same":
-        out_H = math.ceil(H / strides[0])
-        out_W = math.ceil(W / strides[1])
-    elif padding.lower() == "valid":
-        out_H = math.floor((H - kernel[0]) / strides[0]) + 1
-        out_W = math.floor((W - kernel[1]) / strides[1]) + 1
-    else:
-        out_H, out_W = H, W
-    out_C = C if depthwise else (filters if filters is not None else C)
-    return (out_H, out_W, out_C)
+# def compute_output_shape_2d(input_shape, kernel, strides, padding, filters=None, depthwise=False):
+#     # Section: Compute New Output Shape for 2D Layers
+#     H, W, C = input_shape
+#     if padding.lower() == "same":
+#         out_H = math.ceil(H / strides[0])
+#         out_W = math.ceil(W / strides[1])
+#     elif padding.lower() == "valid":
+#         out_H = math.floor((H - kernel[0]) / strides[0]) + 1
+#         out_W = math.floor((W - kernel[1]) / strides[1]) + 1
+#     else:
+#         out_H, out_W = H, W
+#     out_C = C if depthwise else (filters if filters is not None else C)
+#     return (out_H, out_W, out_C)
 
 # def compute_output_shape_2d(input_shape, kernel, strides, padding, filters=None, depthwise=False):
 #     """
@@ -237,7 +237,19 @@ def extractModel(model, file_type):
                 strides = config.get("strides", pool_size)
                 padding = config.get("padding", "valid")
                 in_shape = current_shape 
-                new_shape = compute_output_shape_2d(current_shape, pool_size, strides, padding)
+                # new_shape = compute_output_shape_2d(current_shape, pool_size, strides, padding)
+                H, W, C = current_shape
+                if padding.lower() == "same":
+                    out_H = math.ceil(H / strides[0])
+                    out_W = math.ceil(W / strides[1])
+                elif padding.lower() == "valid":
+                    out_H = math.floor((H - pool_size[0]) / strides[0]) + 1
+                    out_W = math.floor((W - pool_size[1]) / strides[1]) + 1
+                else:
+                    out_H, out_W = H, W
+                out_C = C
+                new_shape = (out_H, out_W, out_C)
+
                 pool_params = {
                     "layer_type": layer.__class__.__name__,
                     "pool_size": pool_size,
@@ -297,13 +309,57 @@ def extractModel(model, file_type):
                 layer_type.append("MaxPooling3D")
                 continue
 
+            # Section: Process Average Pooling 1D Layers
+            if isinstance(layer, keras.layers.AveragePooling1D) or "averagepooling1d" in layer.name.lower():
+                pool_size = config.get("pool_size", 2)
+                strides   = config.get("strides", pool_size)
+                padding   = config.get("padding", "valid")
+                in_shape  = current_shape
+                if padding == "valid":
+                    length = math.floor((in_shape[0] - pool_size) / strides) + 1
+                else:
+                    length = math.ceil(in_shape[0] / strides)
+                new_shape = (length,) + tuple(in_shape[1:]) if isinstance(in_shape, (tuple, list)) else (length,)
+
+                pool_params = {
+                    "layer_type":    layer.__class__.__name__,
+                    "pool_size":     pool_size,
+                    "strides":       strides,
+                    "padding":       padding,
+                    "in_shape":      in_shape,
+                    "output_shape":  new_shape,
+                }
+                conv_layer_params[-1] = pool_params
+                current_shape        = new_shape
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                activation_functions.append(None)
+                alphas.append(getAlphaForActivation(layer, activation))
+                dropout_rates.append(0.0)
+                layer_shape.append(new_shape)
+                layer_type.append("AvgPooling1D")
+                continue
+
             # Section: Process Average Pooling 2D Layers
             if (isinstance(layer, keras.layers.AveragePooling2D) or "averagepooling2d" in layer.name.lower()):
                 pool_size = config.get("pool_size", (2, 2))
                 strides = config.get("strides", pool_size)
                 padding = config.get("padding", "valid")
                 in_shape = current_shape 
-                new_shape = compute_output_shape_2d(current_shape, pool_size, strides, padding)
+                # new_shape = compute_output_shape_2d(current_shape, pool_size, strides, padding)
+                H, W, C = current_shape
+                if padding.lower() == "same":
+                    out_H = math.ceil(H / strides[0])
+                    out_W = math.ceil(W / strides[1])
+                elif padding.lower() == "valid":
+                    out_H = math.floor((H - pool_size[0]) / strides[0]) + 1
+                    out_W = math.floor((W - pool_size[1]) / strides[1]) + 1
+                else:
+                    out_H, out_W = H, W
+                out_C = C
+                new_shape = (out_H, out_W, out_C)
+
                 pool_params = {
                     "layer_type": layer.__class__.__name__,
                     "pool_size": pool_size,
@@ -364,14 +420,32 @@ def extractModel(model, file_type):
                     "dilation_rate": config.get("dilation_rate", (1, 1)),
                     "use_bias": use_bias,
                 }
-                new_shape = compute_output_shape_2d(
-                    current_shape,
-                    conv_params["kernel_size"],
-                    conv_params["strides"],
-                    conv_params["padding"],
-                    filters=conv_params.get("filters"),
-                    depthwise=True,
-                )
+                # new_shape = compute_output_shape_2d(
+                #     current_shape,
+                #     conv_params["kernel_size"],
+                #     conv_params["strides"],
+                #     conv_params["padding"],
+                #     filters=conv_params.get("filters"),
+                #     depthwise=True,
+                # )
+                # inline compute_output_shape_2d (depthwise=True)
+                H, W, C = current_shape
+                kH, kW = conv_params["kernel_size"]
+                sH, sW = conv_params["strides"]
+                pad = conv_params["padding"]
+
+                if pad.lower() == "same":
+                    out_H = math.ceil(H / sH)
+                    out_W = math.ceil(W / sW)
+                elif pad.lower() == "valid":
+                    out_H = math.floor((H - kH) / sH) + 1
+                    out_W = math.floor((W - kW) / sW) + 1
+                else:
+                    out_H, out_W = H, W
+                # for depthwise=True, channels stay the same
+                out_C = C
+                new_shape = (out_H, out_W, out_C)
+
                 conv_params["in_shape"] = current_shape
                 conv_params["out_shape"] = new_shape
                 current_shape = new_shape
@@ -408,13 +482,32 @@ def extractModel(model, file_type):
                     "dilation_rate": config.get("dilation_rate", (1, 1)),
                     "use_bias": use_bias,
                 }
-                new_shape = compute_output_shape_2d(
-                    current_shape,
-                    conv_params["kernel_size"],
-                    conv_params["strides"],
-                    conv_params["padding"],
-                    filters=conv_params.get("filters"),
-                )
+                # new_shape = compute_output_shape_2d(
+                #     current_shape,
+                #     conv_params["kernel_size"],
+                #     conv_params["strides"],
+                #     conv_params["padding"],
+                #     filters=conv_params.get("filters"),
+                # )
+                # inline compute_output_shape_2d (depthwise=False)
+                H, W, C = current_shape
+                kH, kW = conv_params["kernel_size"]
+                sH, sW = conv_params["strides"]
+                pad = conv_params["padding"]
+                filt = conv_params.get("filters")
+
+                if pad.lower() == "same":
+                    out_H = math.ceil(H / sH)
+                    out_W = math.ceil(W / sW)
+                elif pad.lower() == "valid":
+                    out_H = math.floor((H - kH) / sH) + 1
+                    out_W = math.floor((W - kW) / sW) + 1
+                else:
+                    out_H, out_W = H, W
+
+                out_C = filt if filt is not None else C
+                new_shape = (out_H, out_W, out_C)
+
                 conv_params["in_shape"] = current_shape
                 conv_params["out_shape"] = new_shape
                 current_shape = new_shape
@@ -429,16 +522,85 @@ def extractModel(model, file_type):
                 layer_type.append("SeparableConv2D")
                 continue
 
-            # Section: Process Standard Convolution Layers (1D, 2D, 3D)
-            if (isinstance(layer, (keras.layers.Conv1D, keras.layers.Conv2D, keras.layers.Conv3D))
-                  and not isinstance(layer, (keras.layers.Conv1DTranspose,
-                                             keras.layers.Conv2DTranspose,
-                                             keras.layers.Conv3DTranspose))) or \
-               (any(conv in layer.name.lower() for conv in ["conv1d", "conv2d", "conv3d"])
-                  and all(tx not in layer.name.lower() for tx in
-                          ["conv1dtranspose", "conv1d_transpose",
-                           "conv2dtranspose", "conv2d_transpose",
-                           "conv3dtranspose", "conv3d_transpose"])):
+            # # Section: Process Standard Convolution Layers (1D, 2D, 3D)
+            # if (isinstance(layer, (keras.layers.Conv1D, keras.layers.Conv2D, keras.layers.Conv3D))
+            #       and not isinstance(layer, (keras.layers.Conv1DTranspose,
+            #                                  keras.layers.Conv2DTranspose,
+            #                                  keras.layers.Conv3DTranspose))) or \
+            #    (any(conv in layer.name.lower() for conv in ["conv1d", "conv2d", "conv3d"])
+            #       and all(tx not in layer.name.lower() for tx in
+            #               ["conv1dtranspose", "conv1d_transpose",
+            #                "conv2dtranspose", "conv2d_transpose",
+            #                "conv3dtranspose", "conv3d_transpose"])):
+            #     use_bias = config.get("use_bias", True)
+            #     if use_bias and len(layer_weights) == 2:
+            #         kernel, bias = layer_weights
+            #     elif not use_bias and len(layer_weights) == 1:
+            #         kernel, bias = layer_weights[0], None
+            #     else:
+            #         kernel, bias = None, None
+            #     conv_params = {
+            #         "layer_type": layer.__class__.__name__,
+            #         "weights": kernel,
+            #         "biases": bias,
+            #         "depthwise_kernel": None,
+            #         "depthwise_bias": None,
+            #         "pointwise_kernel": None,
+            #         "pointwise_bias": None,
+            #         "filters": config.get("filters", None),
+            #         "kernel_size": config.get("kernel_size", None),
+            #         "strides": config.get("strides", None),
+            #         "padding": config.get("padding", None),
+            #         "dilation_rate": config.get("dilation_rate", None),
+            #         "use_bias": use_bias,
+            #     }
+            #     # new_shape = compute_output_shape_2d(
+            #     #     current_shape,
+            #     #     conv_params["kernel_size"],
+            #     #     conv_params["strides"],
+            #     #     conv_params["padding"],
+            #     #     filters=conv_params.get("filters"),
+            #     # )
+            #     # inline compute_output_shape_2d (assumes 2D spatial dims)
+            #     H, W, C = current_shape
+            #     kH, kW = conv_params["kernel_size"]
+            #     sH, sW = conv_params["strides"]
+            #     pad = conv_params["padding"]
+            #     filt = conv_params.get("filters")
+            #     if pad.lower() == "same":
+            #         out_H = math.ceil(H / sH)
+            #         out_W = math.ceil(W / sW)
+            #     elif pad.lower() == "valid":
+            #         out_H = math.floor((H - kH) / sH) + 1
+            #         out_W = math.floor((W - kW) / sW) + 1
+            #     else:
+            #         out_H, out_W = H, W
+
+            #     out_C = filt if filt is not None else C
+            #     new_shape = (out_H, out_W, out_C)
+
+            #     conv_params["in_shape"] = current_shape
+            #     conv_params["out_shape"] = new_shape
+            #     current_shape = new_shape
+            #     conv_layer_params[-1] = conv_params
+            #     weights_list.append(None)
+            #     biases_list.append(None)
+            #     norm_layer_params.append(None)
+            #     activation_functions.append(activation if activation != "linear" else "linear")
+            #     alphas.append(getAlphaForActivation(layer, activation))
+            #     dropout_rates.append(0.0)
+            #     layer_shape.append(new_shape)
+            #     # layer_type.append("ConvDD")
+            #     if isinstance(layer, keras.layers.Conv1D) or "conv1d" in layer.name.lower():
+            #         layer_type.append("Conv1D")
+            #     elif isinstance(layer, keras.layers.Conv2D) or "conv2d" in layer.name.lower():
+            #         layer_type.append("Conv2D")
+            #     elif isinstance(layer, keras.layers.Conv3D) or "conv3d" in layer.name.lower():    
+            #         layer_type.append("Conv3D")
+            #     continue
+
+            # Section: Process Conv1D Layers
+            if isinstance(layer, keras.layers.Conv1D) or "conv1d" in layer.name.lower():
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
                     kernel, bias = layer_weights
@@ -446,46 +608,173 @@ def extractModel(model, file_type):
                     kernel, bias = layer_weights[0], None
                 else:
                     kernel, bias = None, None
+
                 conv_params = {
-                    "layer_type": layer.__class__.__name__,
-                    "weights": kernel,
-                    "biases": bias,
-                    "depthwise_kernel": None,
-                    "depthwise_bias": None,
-                    "pointwise_kernel": None,
-                    "pointwise_bias": None,
-                    "filters": config.get("filters", None),
-                    "kernel_size": config.get("kernel_size", None),
-                    "strides": config.get("strides", None),
-                    "padding": config.get("padding", None),
+                    "layer_type":    layer.__class__.__name__,
+                    "weights":       kernel,
+                    "biases":        bias,
+                    "filters":       config.get("filters", None),
+                    "kernel_size":   config.get("kernel_size", None),
+                    "strides":       config.get("strides", None),
+                    "padding":       config.get("padding", None),
                     "dilation_rate": config.get("dilation_rate", None),
-                    "use_bias": use_bias,
+                    "use_bias":      use_bias,
                 }
-                new_shape = compute_output_shape_2d(
-                    current_shape,
-                    conv_params["kernel_size"],
-                    conv_params["strides"],
-                    conv_params["padding"],
-                    filters=conv_params.get("filters"),
-                )
-                conv_params["in_shape"] = current_shape
+
+                in_length   = current_shape[0]
+                kernel_size = conv_params["kernel_size"]
+                strides     = conv_params["strides"]
+                padding     = conv_params["padding"]
+                filters     = conv_params["filters"]
+
+                if padding == "same":
+                    out_length = math.ceil(in_length / strides)
+                elif padding == "valid":
+                    out_length = math.floor((in_length - kernel_size) / strides) + 1
+                else:
+                    out_length = in_length
+
+                new_shape = (out_length, filters)
+
+                conv_params["in_shape"]  = current_shape
                 conv_params["out_shape"] = new_shape
-                current_shape = new_shape
-                conv_layer_params[-1] = conv_params
-                weights_list.append(None)
-                biases_list.append(None)
+                current_shape           = new_shape
+                conv_layer_params[-1]    = conv_params
+
+                weights_list.append(kernel)
+                biases_list.append(bias)
                 norm_layer_params.append(None)
-                activation_functions.append(activation if activation != "linear" else "linear")
-                alphas.append(getAlphaForActivation(layer, activation))
+                activation_functions.append(
+                    config.get("activation", "linear")
+                    if config.get("activation") != "linear"
+                    else "linear"
+                )
+                alphas.append(config.get("alpha", 0.0))
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
-                # layer_type.append("ConvDD")
-                if isinstance(layer, keras.layers.Conv1D) or "conv1d" in layer.name.lower():
-                    layer_type.append("Conv1D")
-                elif isinstance(layer, keras.layers.Conv2D) or "conv2d" in layer.name.lower():
-                    layer_type.append("Conv2D")
-                elif isinstance(layer, keras.layers.Conv3D) or "conv3d" in layer.name.lower():    
-                    layer_type.append("Conv3D")
+                layer_type.append("Conv1D")
+                continue
+
+
+            # Section: Process Conv2D Layers
+            if isinstance(layer, keras.layers.Conv2D) or "conv2d" in layer.name.lower():
+                use_bias = config.get("use_bias", True)
+                if use_bias and len(layer_weights) == 2:
+                    kernel, bias = layer_weights
+                elif not use_bias and len(layer_weights) == 1:
+                    kernel, bias = layer_weights[0], None
+                else:
+                    kernel, bias = None, None
+
+                conv_params = {
+                    "layer_type":    layer.__class__.__name__,
+                    "weights":       kernel,
+                    "biases":        bias,
+                    "filters":       config.get("filters", None),
+                    "kernel_size":   config.get("kernel_size", None),
+                    "strides":       config.get("strides", None),
+                    "padding":       config.get("padding", None),
+                    "dilation_rate": config.get("dilation_rate", None),
+                    "use_bias":      use_bias,
+                }
+
+                H, W, C    = current_shape
+                kH, kW     = conv_params["kernel_size"]
+                sH, sW     = conv_params["strides"]
+                pad        = conv_params["padding"]
+                filt       = conv_params["filters"]
+
+                if pad.lower() == "same":
+                    out_H = math.ceil(H / sH)
+                    out_W = math.ceil(W / sW)
+                elif pad.lower() == "valid":
+                    out_H = math.floor((H - kH) / sH) + 1
+                    out_W = math.floor((W - kW) / sW) + 1
+                else:
+                    out_H, out_W = H, W
+
+                out_C    = filt if filt is not None else C
+                new_shape = (out_H, out_W, out_C)
+
+                conv_params["in_shape"]  = current_shape
+                conv_params["out_shape"] = new_shape
+                current_shape           = new_shape
+                conv_layer_params[-1]    = conv_params
+
+                weights_list.append(kernel)
+                biases_list.append(bias)
+                norm_layer_params.append(None)
+                activation_functions.append(
+                    config.get("activation", "linear")
+                    if config.get("activation") != "linear"
+                    else "linear"
+                )
+                alphas.append(config.get("alpha", 0.0))
+                dropout_rates.append(0.0)
+                layer_shape.append(new_shape)
+                layer_type.append("Conv2D")
+                continue
+
+
+            # Section: Process Conv3D Layers
+            if isinstance(layer, keras.layers.Conv3D) or "conv3d" in layer.name.lower():
+                use_bias = config.get("use_bias", True)
+                if use_bias and len(layer_weights) == 2:
+                    kernel, bias = layer_weights
+                elif not use_bias and len(layer_weights) == 1:
+                    kernel, bias = layer_weights[0], None
+                else:
+                    kernel, bias = None, None
+
+                conv_params = {
+                    "layer_type":    layer.__class__.__name__,
+                    "weights":       kernel,
+                    "biases":        bias,
+                    "filters":       config.get("filters", None),
+                    "kernel_size":   config.get("kernel_size", None),
+                    "strides":       config.get("strides", None),
+                    "padding":       config.get("padding", None),
+                    "dilation_rate": config.get("dilation_rate", None),
+                    "use_bias":      use_bias,
+                }
+
+                D, H, W, C    = current_shape
+                kD, kH, kW    = conv_params["kernel_size"]
+                sD, sH, sW    = conv_params["strides"]
+                pad           = conv_params["padding"]
+                filt          = conv_params["filters"]
+
+                if pad.lower() == "same":
+                    d = math.ceil(D / sD)
+                    h = math.ceil(H / sH)
+                    w = math.ceil(W / sW)
+                elif pad.lower() == "valid":
+                    d = math.floor((D - kD) / sD) + 1
+                    h = math.floor((H - kH) / sH) + 1
+                    w = math.floor((W - kW) / sW) + 1
+                else:
+                    d, h, w = D, H, W
+
+                out_C    = filt if filt is not None else C
+                new_shape = (d, h, w, out_C)
+
+                conv_params["in_shape"]  = current_shape
+                conv_params["out_shape"] = new_shape
+                current_shape           = new_shape
+                conv_layer_params[-1]    = conv_params
+
+                weights_list.append(kernel)
+                biases_list.append(bias)
+                norm_layer_params.append(None)
+                activation_functions.append(
+                    config.get("activation", "linear")
+                    if config.get("activation") != "linear"
+                    else "linear"
+                )
+                alphas.append(config.get("alpha", 0.0))
+                dropout_rates.append(0.0)
+                layer_shape.append(new_shape)
+                layer_type.append("Conv3D")
                 continue
 
             ##################################################################
