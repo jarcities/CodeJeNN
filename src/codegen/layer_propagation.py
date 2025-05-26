@@ -812,6 +812,29 @@ void ConvLSTM2D(Scalar* outputs,
     }
 
     pooling_functions = {
+        "MaxPooling1D": """
+template <typename Scalar, int pool_size, int stride>
+void MaxPooling1D(Scalar *outputs, const Scalar *inputs, int in_length, int channels) noexcept
+{
+    int out_length = (in_length - pool_size) / stride + 1;
+    for (int c = 0; c < channels; ++c)
+    {
+        for (int o = 0; o < out_length; ++o)
+        {
+            Scalar max_val = inputs[(o * stride * channels) + c];
+            for (int p = 0; p < pool_size; ++p)
+            {
+                int idx = ((o * stride + p) * channels) + c;
+                if (inputs[idx] > max_val)
+                {
+                    max_val = inputs[idx];
+                }
+            }
+            outputs[o * channels + c] = max_val;
+        }
+    }
+}
+""",
         "MaxPooling2D": """
 template <typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
 void MaxPooling2D(Scalar *outputs, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
@@ -840,6 +863,35 @@ void MaxPooling2D(Scalar *outputs, const Scalar *inputs, int in_height, int in_w
                 }
                 int out_idx = (oh * out_width * channels) + (ow * channels) + c;
                 outputs[out_idx] = max_val;
+            }
+        }
+    }
+}
+""",
+        "MaxPooling3D": """
+template <typename Scalar, int pool_d, int pool_h, int pool_w, int stride_d, int stride_h, int stride_w>
+void MaxPooling3D(Scalar *outputs, const Scalar *inputs, int in_d, int in_h, int in_w, int channels) noexcept
+{
+    int out_d = (in_d - pool_d) / stride_d + 1;
+    int out_h = (in_h - pool_h) / stride_h + 1;
+    int out_w = (in_w - pool_w) / stride_w + 1;
+    for (int c = 0; c < channels; ++c) {
+        for (int d = 0; d < out_d; ++d) {
+            for (int h = 0; h < out_h; ++h) {
+                for (int w = 0; w < out_w; ++w) {
+                    Scalar max_val = inputs[(((d * stride_d * in_h + h * stride_h) * in_w + w * stride_w) * channels) + c];
+                    for (int pd = 0; pd < pool_d; ++pd) {
+                        for (int ph = 0; ph < pool_h; ++ph) {
+                            for (int pw = 0; pw < pool_w; ++pw) {
+                                int idx = ((((d * stride_d + pd) * in_h + (h * stride_h + ph)) * in_w + (w * stride_w + pw)) * channels) + c;
+                                if (inputs[idx] > max_val) {
+                                    max_val = inputs[idx];
+                                }
+                            }
+                        }
+                    }
+                    outputs[(((d * out_h + h) * out_w + w) * channels) + c] = max_val;
+                }
             }
         }
     }
