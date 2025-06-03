@@ -83,7 +83,6 @@ def codeGen(cpp_code, cpp_lambda, precision_type, weights_list, biases_list, act
         "batchNormalization": None,
         "layerNormalization": None,
         "flatten": None,
-        "convolutionalLayer": None,
     }
 
     # build user header file name
@@ -447,7 +446,6 @@ auto {name_space}(const {input_type}& initial_input) {{
 
         # layer iterator index
         layer_idx = i + 1
-        print("entered for loop")
 
         # update current layers shape
         if len(layer_shape) > i + 1:
@@ -458,13 +456,9 @@ auto {name_space}(const {input_type}& initial_input) {{
         # retrieve activation function
         mapped_act = activation_func_map.get(act_fun, "linear")
 
-        ##########################
-        ## CONVOLUTIONAL LAYERS ##
-        ##########################
-        if lt is not None and 
-        if conv_dict is not None:
+        if lt is not None and conv_dict is not None:
             ltype = conv_dict.get("layer_type", None)
-            if ltype in ["Conv1D", "Conv2D", "Conv3D", "ConvLSTM2D", "Conv1DTranspose", "Conv2DTranspose", "Conv3DTranspose", "DepthwiseConv2D", "SeparableConv2D", "MaxPooling1D", "MaxPooling2D", "MaxPooling3D", "AvgPooling1D", "AvgPooling2D", "AvgPooling3D", "GlobalAveragePooling2D"]:
+            if ltype in ["Conv1D", "Conv2D", "Conv3D", "ConvLSTM2D", "Conv1DTranspose", "Conv2DTranspose", "Conv3DTranspose", "DepthwiseConv2D", "SeparableConv2D", "MaxPooling1D", "MaxPooling2D", "MaxPooling3D", "AvgPooling1D", "AvgPooling2D", "AvgPooling3D", "GlobalMaxPooling1D", "GlobalMaxPooling2D", "GlobalMaxPooling3D", "GlobalAvgPooling1D", "GlobalAvgPooling2D", "GlobalAvgPooling3D"]:
 
                 # get layer input shape and output shape
                 in_shape = conv_dict.get(
@@ -475,7 +469,10 @@ auto {name_space}(const {input_type}& initial_input) {{
                     conv_dict.get(
                         "output_shape",
                         ("/* out_height */", "/* out_width */", "/* out_channels */")))
-
+                
+                ##########################
+                ## CONVOLUTIONAL LAYERS ##
+                ##########################
                 # 1d convolutional layers
                 if ltype == "Conv1D":
                     cpp_code += f"    // {ltype}, layer {layer_idx}\n"
@@ -491,6 +488,14 @@ auto {name_space}(const {input_type}& initial_input) {{
 
                 # 2d convolutional layers
                 elif ltype == "Conv2D":
+                    in_shape = conv_dict.get("in_shape",
+                        ("/* in_height */", "/* in_width */", "/* in_channels */"))
+                    out_shape = conv_dict.get("out_shape",
+                        conv_dict.get("output_shape",
+                        ("/* out_height */", "/* out_width */", "/* out_channels */")))
+                    if len(in_shape) == 2:
+                        in_shape = (in_shape[0], in_shape[1], 1)
+
                     kernel = conv_dict.get("kernel_size", (3, 3))
                     strides = conv_dict.get("strides", (1, 1))
                     padding = conv_dict.get("padding", "valid")
@@ -730,12 +735,10 @@ auto {name_space}(const {input_type}& initial_input) {{
         ## NORMALIZATION LAYERS ##
         ##########################
         elif (lt is not None and lt.lower() in ["batchnormalization", "batchnormalization2d"]) and norm_params is not None:
-
             gamma, beta, mean, var, eps = norm_params
 
             # 2d batch normalization layers for 2d convolutional layers (not necessarily a layer itself)
             if lt == "BatchNormalization2D":
-                # Assume last_shape is in the form (height, width, channels)
                 height, width, channels = last_shape
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    std::array<Scalar, ({height} * {width} * {channels})> layer_{layer_idx}_output;\n"
@@ -775,14 +778,11 @@ auto {name_space}(const {input_type}& initial_input) {{
                 last_shape = (out_size,)
             continue
 
-        # NEW: LayerNormalization logic; similar to batch normalization but without mean/variance data.
         elif (lt is not None and lt.lower() in ["layernormalization", "layernormalization2d"]) and norm_params is not None:
-
             gamma, beta, mean, var, eps = norm_params
 
             # 2d normlaization layers for 2d convolutional layers (not necessarily a layer itself)
             if lt == "LayerNormalization2D":
-                # Assume last_shape is (height, width, channels)
                 height, width, channels = last_shape
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    std::array<Scalar, ({height} * {width} * {channels})> layer_{layer_idx}_output;\n"
@@ -816,6 +816,19 @@ auto {name_space}(const {input_type}& initial_input) {{
                 last_shape = (out_size,)
             continue
 
+        ####################
+        ## RESHAPE LAYERS ##
+        ####################
+        elif lt == "Reshape":
+            cpp_code += f"    // {ltype}, layer {layer_idx}\n"
+            cpp_code += f"    std::array<Scalar, {get_flat_size(current_shape)}> layer_{layer_idx}_output;\n"
+            cpp_code += f"    Reshape<Scalar, {get_flat_size(current_shape)}>(\n"
+            cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data());\n\n"
+            last_layer = f"layer_{layer_idx}_output"
+            last_shape = current_shape
+            print(last_shape)
+            continue
+
         #################
         ## CORE LAYERS ##
         #################
@@ -823,7 +836,7 @@ auto {name_space}(const {input_type}& initial_input) {{
             out_size = w.shape[1]
 
             # if the dense activation is softmax, override with linear activation 
-            # since softmax handles the entire layer
+            # since softmax handles the entire layer.
             if act_fun == "softmax":
                 effective_activation = "linear"
                 effective_alpha = 0.0 
@@ -879,12 +892,13 @@ auto {name_space}(const {input_type}& initial_input) {{
         # when a layer has softmax activation, but is not an activation layer
         if activation_functions[i] == "softmax" and lt != "softmax":
             size = get_flat_size(last_shape)
-            cpp_code += f"    // Standalone softmax layer for layer {layer_idx}\n"
+            cpp_code += f"    // standalone softmax layer for layer {layer_idx}\n"
             cpp_code += f"    softmax(layer_{layer_idx}_output.data(), layer_{layer_idx}_output.data(), {size});\n\n"
             last_layer = f"layer_{layer_idx}_output"
 
     # compute output normalization
-    out_size = get_flat_size(last_shape)
+    out_norm_size = get_flat_size(last_shape)
+    out_size = last_shape
     cpp_code += f"    // Final output\n"
     cpp_code += (
         f"    constexpr std::array<Scalar, {len(output_norms) if output_norms is not None else 0}> output_norms = {{{', '.join(f'{x:10.9e}' for x in output_norms)}}};\n"
@@ -898,12 +912,38 @@ auto {name_space}(const {input_type}& initial_input) {{
     )
 
     # configure the final output layer
-    cpp_code += (
-        f"    std::array<Scalar, {out_size}> model_output;\n"
-        f"    for (int i = 0; i < {out_size}; i++) {{ model_output[i] = ({last_layer}[i] * output_norms[i]) + output_mins[i]; }}\n"
-        if output_norms is not None
-        else f"    std::array<Scalar, {out_size}> model_output = {last_layer};\n\n"
-    )
+    if output_norms is not None:
+        cpp_code += f"""
+                std::array<Scalar, {out_norm_size}> model_output;\n
+                for (int i = 0; i < {out_norm_size}; i++) {{ model_output[i] = ({last_layer}[i] * output_norms[i]) + output_mins[i]; }}\n
+        """
+        
+    # if no output normalization is applied, just reshape output layer
+    else:
+        if isinstance(out_size, tuple):
+
+            # handle multi-dimensional output
+            dims = len(out_size)
+            if dims == 1:
+                cpp_code += f"    std::array<Scalar, {out_size[0]}> model_output = {last_layer};\n\n"
+            elif dims == 2:
+                cpp_code += f"    std::array<std::array<Scalar, {out_size[1]}>, {out_size[0]}> model_output;\n"
+                cpp_code += f"    for(int i = 0; i < {out_size[0]}; i++) {{\n"
+                cpp_code += f"        for(int j = 0; j < {out_size[1]}; j++) {{\n"
+                cpp_code += f"            model_output[i][j] = {last_layer}[i * {out_size[1]} + j];\n"
+                cpp_code += "        }\n    }\n\n"
+            elif dims == 3:
+                cpp_code += f"    std::array<std::array<std::array<Scalar, {out_size[2]}>, {out_size[1]}>, {out_size[0]}> model_output;\n"
+                cpp_code += f"    for(int i = 0; i < {out_size[0]}; i++) {{\n"
+                cpp_code += f"        for(int j = 0; j < {out_size[1]}; j++) {{\n"
+                cpp_code += f"            for(int k = 0; k < {out_size[2]}; k++) {{\n"
+                cpp_code += f"                model_output[i][j][k] = {last_layer}[i * {out_size[1] * out_size[2]} + j * {out_size[2]} + k];\n"
+                cpp_code += "            }\n        }\n    }\n\n"
+
+        # hand single-dimensional output layer
+        else:
+            cpp_code += f"    std::array<Scalar, {out_size}> model_output = {last_layer};\n\n"
+
     cpp_code += f"    return model_output;\n}}\n"
 
     return cpp_code

@@ -1,4 +1,5 @@
 import os
+import re
 import absl.logging
 import warnings
 
@@ -27,6 +28,18 @@ void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const S
         activation_function(outputs[i], sum, alpha);
     }
 }
+"""
+    }
+
+    # reshape functions
+    reshape_functions = {
+        "Reshape": """
+template<typename Scalar, int N>
+void Reshape(Scalar* outputs, const Scalar* inputs) noexcept {
+    for (int i = 0; i < N; ++i) {
+        outputs[i] = inputs[i];
+    }
+}   
 """
     }
 
@@ -1120,6 +1133,8 @@ void GlobalAvgPooling3D(Scalar *output, const Scalar *inputs, int in_depth, int 
     for type in unique_layer_types:
         if type in dense_function:
             cpp_code += dense_function[type]
+        if type in reshape_functions:
+            cpp_code += reshape_functions[type]
         if type in normalization_functions:
             cpp_code += normalization_functions[type]
         if type in convolution_functions:

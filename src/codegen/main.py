@@ -85,7 +85,7 @@ else:
 
                 # Section: Load Model File
                 model, file_extension = loadModel(file_path)
-                model.summary()
+                # model.summary()
                 
                 # Section: Extract Model Parameters
                 (
@@ -100,15 +100,9 @@ else:
                     layer_shape,
                     layer_type,
                 ) = extractModel(model, file_extension)
-                print()
-                print("activation functions")
-                print(len(activation_functions))
-                print(activation_functions)
-                print()
-                print("layer type")
-                print(len(layer_type))
+
                 print(layer_type)
-                print()
+                print(activation_functions)
 
                 # Section: Generate C++ Code from Model
                 base_file_name = os.path.splitext(file_name)[0]
