@@ -29,7 +29,7 @@ void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const S
 }
 """
     }
-    
+
     # lambda activation functions
     lambda_functions = {
         "relu": """
@@ -98,7 +98,7 @@ void Dense(Scalar* outputs, const Scalar* inputs, const Scalar* weights, const S
             output[i] /= sum;
         }
     };
-"""
+""",
     }
 
     # normalization functions
@@ -808,7 +808,7 @@ void ConvLSTM2D(Scalar* outputs,
         }
     }
 }
-"""
+""",
     }
 
     pooling_functions = {
@@ -869,30 +869,50 @@ void MaxPooling2D(Scalar *outputs, const Scalar *inputs, int in_height, int in_w
 }
 """,
         "MaxPooling3D": """
-template <typename Scalar, int pool_d, int pool_h, int pool_w, int stride_d, int stride_h, int stride_w>
-void MaxPooling3D(Scalar *outputs, const Scalar *inputs, int in_d, int in_h, int in_w, int channels) noexcept
+template <typename Scalar, int pool_depth, int pool_height, int pool_width, int stride_depth, int stride_height, int stride_width>
+void MaxPooling3D(Scalar *outputs, const Scalar *inputs, int in_depth, int in_height, int in_width, int channels) noexcept
 {
-    int out_d = (in_d - pool_d) / stride_d + 1;
-    int out_h = (in_h - pool_h) / stride_h + 1;
-    int out_w = (in_w - pool_w) / stride_w + 1;
+    int out_depth = (in_depth - pool_depth) / stride_depth + 1;
+    int out_height = (in_height - pool_height) / stride_height + 1;
+    int out_width = (in_width - pool_width) / stride_width + 1;
     for (int c = 0; c < channels; ++c) {
-        for (int d = 0; d < out_d; ++d) {
-            for (int h = 0; h < out_h; ++h) {
-                for (int w = 0; w < out_w; ++w) {
-                    Scalar max_val = inputs[(((d * stride_d * in_h + h * stride_h) * in_w + w * stride_w) * channels) + c];
-                    for (int pd = 0; pd < pool_d; ++pd) {
-                        for (int ph = 0; ph < pool_h; ++ph) {
-                            for (int pw = 0; pw < pool_w; ++pw) {
-                                int idx = ((((d * stride_d + pd) * in_h + (h * stride_h + ph)) * in_w + (w * stride_w + pw)) * channels) + c;
+        for (int d = 0; d < out_depth; ++d) {
+            for (int h = 0; h < out_height; ++h) {
+                for (int w = 0; w < out_width; ++w) {
+                    Scalar max_val = inputs[(((d * stride_depth * in_height + h * stride_height) * in_width + w * stride_width) * channels) + c];
+                    for (int pd = 0; pd < pool_depth; ++pd) {
+                        for (int ph = 0; ph < pool_height; ++ph) {
+                            for (int pw = 0; pw < pool_width; ++pw) {
+                                int idx = ((((d * stride_depth + pd) * in_height + (h * stride_height + ph)) * in_width + (w * stride_width + pw)) * channels) + c;
                                 if (inputs[idx] > max_val) {
                                     max_val = inputs[idx];
                                 }
                             }
                         }
                     }
-                    outputs[(((d * out_h + h) * out_w + w) * channels) + c] = max_val;
+                    outputs[(((d * out_height + h) * out_width + w) * channels) + c] = max_val;
                 }
             }
+        }
+    }
+}
+""",
+        "AvgPooling1D": """
+template <typename Scalar, int pool_size, int stride>
+void AvgPooling1D(Scalar *outputs, const Scalar *inputs, int in_length, int channels) noexcept
+{
+    int out_length = (in_length - pool_size) / stride + 1;
+    for (int c = 0; c < channels; ++c)
+    {
+        for (int o = 0; o < out_length; ++o)
+        {
+            Scalar sum = 0;
+            for (int p = 0; p < pool_size; ++p)
+            {
+                int idx = ((o * stride + p) * channels) + c;
+                sum += inputs[idx];
+            }
+            outputs[o * channels + c] = sum / pool_size;
         }
     }
 }
@@ -927,6 +947,114 @@ void AvgPooling2D(Scalar *outputs, const Scalar *inputs, int in_height, int in_w
     }
 }
 """,
+        "AvgPooling3D": """
+template <typename Scalar, int pool_depth, int pool_height, int pool_width, int stride_depth, int stride_height, int stride_width>
+void AvgPooling3D(Scalar *outputs, const Scalar *inputs, int in_depth, int in_height, int in_width, int channels) noexcept
+{
+    int out_depth = (in_depth - pool_depth) / stride_depth + 1;
+    int out_height = (in_height - pool_height) / stride_height + 1;
+    int out_width = (in_width - pool_width) / stride_width + 1;
+    for (int c = 0; c < channels; ++c) {
+        for (int d = 0; d < out_depth; ++d) {
+            for (int h = 0; h < out_height; ++h) {
+                for (int w = 0; w < out_width; ++w) {
+                    Scalar sum = 0;
+                    for (int pd = 0; pd < pool_depth; ++pd) {
+                        for (int ph = 0; ph < pool_height; ++ph) {
+                            for (int pw = 0; pw < pool_width; ++pw) {
+                                int idx = ((((d * stride_depth + pd) * in_height + (h * stride_height + ph)) * in_width + (w * stride_width + pw)) * channels) + c;
+                                sum += inputs[idx];
+                            }
+                        }
+                    }
+                    outputs[(((d * out_height + h) * out_width + w) * channels) + c] = sum / (pool_depth * pool_height * pool_width);
+                }
+            }
+        }
+    }
+}   
+""",
+        "GlobalMaxPooling1D":"""
+template <typename Scalar>
+void GlobalMaxPooling1D(Scalar *output, const Scalar *inputs, int in_length, int channels) noexcept
+{
+    for (int c = 0; c < channels; ++c)
+    {
+        Scalar max_val = -std::numeric_limits<Scalar>::infinity();
+        for (int i = 0; i < in_length; ++i)
+        {
+            int idx = (i * channels) + c;
+            if (inputs[idx] > max_val)
+            {
+                max_val = inputs[idx];
+            }
+        }
+        output[c] = max_val;
+    }
+}
+""",
+        "GlobalMaxPooling2D": """
+template <typename Scalar>
+void GlobalMaxPooling2D(Scalar *output, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
+{
+    for (int c = 0; c < channels; ++c)
+    {
+        Scalar max_val = -std::numeric_limits<Scalar>::infinity();
+        for (int h = 0; h < in_height; ++h)
+        {
+            for (int w = 0; w < in_width; ++w)
+            {
+                int idx = (h * in_width * channels) + (w * channels) + c;
+                if (inputs[idx] > max_val)
+                {
+                    max_val = inputs[idx];
+                }
+            }
+        }
+        output[c] = max_val;
+    }
+}
+""",
+        "GlobalMaxPooling3D": """
+template <typename Scalar>
+void GlobalMaxPooling3D(Scalar *output, const Scalar *inputs, int in_depth, int in_height, int in_width, int channels) noexcept
+{
+    for (int c = 0; c < channels; ++c)
+    {
+        Scalar max_val = -std::numeric_limits<Scalar>::infinity();
+        for (int d = 0; d < in_depth; ++d)
+        {
+            for (int h = 0; h < in_height; ++h)
+            {
+                for (int w = 0; w < in_width; ++w)
+                {
+                    int idx = ((d * in_height * in_width * channels) + (h * in_width * channels) + (w * channels) + c);
+                    if (inputs[idx] > max_val)
+                    {
+                        max_val = inputs[idx];
+                    }
+                }
+            }
+        }
+        output[c] = max_val;
+    }
+}
+""",
+        "GlobalAvgPooling1D": """
+template <typename Scalar>
+void GlobalAvgPooling1D(Scalar *output, const Scalar *inputs, int in_length, int channels)
+{
+    for (int ic = 0, ic < channels, ic++)
+    {
+        for (int i = 0, i < in_length, i++)
+        {
+            int idx = (i * channels) + (channels) + c;
+            sum += inputs[idx];
+        }
+        output[c] = sum / (length);
+    }
+}
+""",
         "GlobalAvgPooling2D": """
 template <typename Scalar>
 void GlobalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int in_width, int channels) noexcept
@@ -947,6 +1075,29 @@ void GlobalAvgPooling2D(Scalar *output, const Scalar *inputs, int in_height, int
     }
 }
 """,
+
+        "GlobalAvgPooling3D": """
+template <typename Scalar>
+void GlobalAvgPooling3D(Scalar *output, const Scalar *inputs, int in_depth, int in_height, int in_width, int channels) noexcept
+{
+    for (int c = 0; c < channels; ++c)
+    {
+        Scalar sum = 0;
+        for (int d = 0; d < in_depth; ++d)
+        {
+            for (int h = 0; h < in_height; ++h)
+            {
+                for (int w = 0; w < in_width; ++w)
+                {
+                    int idx = ((d * in_height * in_width * channels) + (h * in_width * channels) + (w * channels) + c);
+                    sum += inputs[idx];
+                }
+            }
+        }
+        output[c] = sum / (in_depth * in_height * in_width);
+    }
+}
+"""
     }
 
     # set every function and append it to cpp_code

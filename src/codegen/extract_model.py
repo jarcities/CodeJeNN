@@ -1,3 +1,4 @@
+from multiprocessing import pool
 import tensorflow as tf
 import onnx
 import onnx.numpy_helper
@@ -8,14 +9,24 @@ import numpy as np
 import math
 from tensorflow import keras
 
-# Section: Configure Logging and Warnings
+# check for errors and warnings
 absl.logging.set_verbosity("error")
 warnings.filterwarnings("ignore", category=UserWarning, module="keras")
 tf.get_logger().setLevel("ERROR")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 def getAlphaForActivation(layer, activation):
-    # Section: Handle LeakyReLU and Similar Activations
+    #===================================================================================
+    # function that helps exract the alpha value for LeakyReLU or ELU activations.
+
+    # args:
+    #     layer: Keras layer object.
+    #     activation: Activation function name or configuration.
+
+    # returns:
+    #     alpha value for LeakyReLU or ELU activations, defaulting to 0.1 for LeakyReLU
+    #     and 1.0 for ELU, or 0.0 for other activations.
+    #===================================================================================
     if isinstance(layer, tf.keras.layers.LeakyReLU):
         config = layer.get_config()
         alpha = config.get('alpha', config.get('negative_slope', 0.1))
@@ -75,7 +86,30 @@ def getAlphaForActivation(layer, activation):
 #     return (out_H, out_W, out_C)
 
 def extractModel(model, file_type):
-    # Section: Initialize Extraction Variables
+    #===================================================================================
+    # function to process and extract model information from a Keras or ONNX model layer
+    # by layer, including layer types, weights, biases, activation functions,
+    # alphas, dropout rates, normalization layer parameters, convolution layer parameters,
+    # and layer shapes.
+
+    # args:
+    #     model: Keras or ONNX model object.
+    #     file_type: File type of the model, e.g., ".h5", ".keras", ".onnx".
+
+    # returns:
+    #     a tuple containing lists of layer types, weights, biases, activation functions,
+    #     alphas, dropout rates, normalization layer parameters, convolution layer parameters,
+    #     and layer shapes.
+
+    # raises:
+    #     ValueError: If the model type is not supported or if the file type is not recognized.
+    #     TypeError: If the model is not a Keras or ONNX model.
+    #     RuntimeError: If the model input shape cannot be determined.
+    #     ImportError: If the required libraries for Keras or ONNX are not installed.
+    #     Exception: If an unexpected error occurs during model extraction.
+    #     NotImplementedError: If the model contains unsupported layers or configurations.
+    #     KeyError: If a required configuration key is missing in the model layer.        
+    #===================================================================================
     layer_type = []
     weights_list = []
     biases_list = []
@@ -86,8 +120,10 @@ def extractModel(model, file_type):
     conv_layer_params = []
     layer_shape = []
 
+    # check for keras based models
     if file_type in [".h5", ".keras"]:
-        # Section: Determine Input Shape and Size
+
+        # determine model input shape
         full_shape = model.input_shape 
         if full_shape[0] is None:
             raw_shape = full_shape[1:]
@@ -97,26 +133,24 @@ def extractModel(model, file_type):
         layer_shape.append(tuple(raw_shape)) 
         current_shape = model.input_shape[1:]
 
-        # Section: Iterate Over Model Layers
+        # iterate through each layer in the model
         for layer in model.layers:
+
+            # get layer input shapem, weights and its configuration
             try:
                 layer_input_shape = layer.input_shape
             except AttributeError:
                 layer_input_shape = current_shape 
-
             conv_layer_params.append(None)
             config = layer.get_config()
             layer_weights = layer.get_weights()
 
-            # Section: Process Pure Activation Layers
-            if (
-                "activation" in layer.name.lower()
-                or isinstance(layer, keras.layers.Activation)
-            ) or (
-                not layer.get_weights()
-                and layer.__class__.__name__.lower()
-                in ["relu", "sigmoid", "tanh", "leakyrelu", "elu", "softmax", "selu", "swish", "silu"]
-            ):
+            #################
+            ## CORE LAYERS ##
+            #################
+            # pure activation layers
+            if ("activation" in layer.name.lower() or isinstance(layer, keras.layers.Activation)) \
+            or (not layer.get_weights() and layer.__class__.__name__.lower() in ["relu", "sigmoid", "tanh", "leakyrelu", "elu", "softmax", "selu", "swish", "silu"]):
                 if hasattr(layer, 'activation') and layer.activation is not None:
                     act_str = layer.activation.__name__.lower()
                 else:
@@ -131,12 +165,12 @@ def extractModel(model, file_type):
                 layer_type.append("Activation")
                 continue
 
-            # Section: Process Non-Pure Activation Layers
+            # non-pure activation layers
             activation = config.get("activation", "linear")
             if not isinstance(activation, str):
                 activation = activation.get("class_name", "linear").lower()
 
-            # Section: Process Flatten Layers
+            # flatten layers
             # (Everything is flattened anyways)
             if (isinstance(layer, keras.layers.Flatten) or "flatten" in layer.name.lower()):
                 activation_functions.append("flatten")
@@ -149,7 +183,10 @@ def extractModel(model, file_type):
                 layer_type.append("Flatten")
                 continue
 
-            # Section: Process Batch Normalization Layers
+            ##########################
+            ## NORMALIZATION LAYERS ##
+            ##########################
+            # batch normalization layers
             if (isinstance(layer, keras.layers.BatchNormalization) or "batchnormalization" in layer.name.lower()):
                 if len([d for d in layer_input_shape if d is not None]) > 2:
                     norm_type = "BatchNormalization2D"
@@ -199,12 +236,30 @@ def extractModel(model, file_type):
                     alphas.append(getAlphaForActivation(layer, activation))
                 continue
 
-            # Section: Process Max Pooling 1D Layers
+            ####################
+            ## POOLING LAYERS ##
+            ####################
+            # 1d max pooling layers
             if isinstance(layer, keras.layers.MaxPooling1D) or "maxpooling1d" in layer.name.lower():
-                pool_size = config.get("pool_size", 2)
-                strides   = config.get("strides", pool_size)
+                raw_pool = config.get("pool_size", 2)
+                pool_size = raw_pool if isinstance(raw_pool, int) else tuple(raw_pool)
+                raw_strides   = config.get("strides", pool_size)
+                strides = raw_strides if isinstance(raw_strides, int) else tuple(raw_strides)
+
                 padding   = config.get("padding", "valid")
                 in_shape  = current_shape
+
+                raw_shape = layer_input_shape[1:]
+                df = config.get("data_format", "channels_last")
+                if df == "channels_first":
+                    if   len(raw_shape) == 2:
+                        raw_shape = ( raw_shape[1], raw_shape[0] )
+                    elif len(raw_shape) == 3:
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
+                    elif len(raw_shape) == 4:
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                current_shape = raw_shape
+
                 if padding == "valid":
                     length = math.floor((in_shape[0] - pool_size) / strides) + 1
                 else: # same
@@ -231,13 +286,27 @@ def extractModel(model, file_type):
                 layer_type.append("MaxPooling1D")
                 continue
 
-            # Section: Process Max Pooling 2D Layers
+            # 2d max pooling layers
             if (isinstance(layer, keras.layers.MaxPooling2D) or "maxpooling2d" in layer.name.lower()):
-                pool_size = config.get("pool_size", (2, 2))
-                strides = config.get("strides", pool_size)
+                raw_pool = config.get("pool_size", (2, 2))
+                pool_size = (raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+                raw_strides = config.get("strides", pool_size)
+                strides     = (raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
+
                 padding = config.get("padding", "valid")
                 in_shape = current_shape 
-                # new_shape = compute_output_shape_2d(current_shape, pool_size, strides, padding)
+
+                raw_shape = layer_input_shape[1:]
+                df = config.get("data_format", "channels_last")
+                if df == "channels_first":
+                    if   len(raw_shape) == 2: 
+                        raw_shape = ( raw_shape[1], raw_shape[0] )
+                    elif len(raw_shape) == 3:  
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
+                    elif len(raw_shape) == 4: 
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                current_shape = raw_shape
+
                 H, W, C = current_shape
                 if padding.lower() == "same":
                     out_H = math.ceil(H / strides[0])
@@ -270,12 +339,26 @@ def extractModel(model, file_type):
                 layer_type.append("MaxPooling2D")
                 continue
 
-            # Section: Process Max Pooling 3D Layers
+            # 3d max pooling layers
             if isinstance(layer, keras.layers.MaxPooling3D) or "maxpooling3d" in layer.name.lower():
-                pool_size = config.get("pool_size", (2, 2, 2))
-                strides   = config.get("strides", pool_size)
+                raw_pool = config.get("pool_size", (2, 2, 2))
+                pool_size = (raw_pool, raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+                raw_strides = config.get("strides", pool_size)
+                strides = (raw_strides, raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
+                
                 padding   = config.get("padding", "valid")
                 in_shape  = current_shape
+
+                raw_shape = layer_input_shape[1:]
+                df = config.get("data_format", "channels_last")
+                if df == "channels_first":
+                    if   len(raw_shape) == 2: 
+                        raw_shape = ( raw_shape[1], raw_shape[0] )
+                    elif len(raw_shape) == 3:  
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
+                    elif len(raw_shape) == 4: 
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                current_shape = raw_shape
 
                 if padding == "valid":
                     d = math.floor((in_shape[0] - pool_size[0]) / strides[0]) + 1
@@ -309,12 +392,27 @@ def extractModel(model, file_type):
                 layer_type.append("MaxPooling3D")
                 continue
 
-            # Section: Process Average Pooling 1D Layers
+            # 1d average pooling layers
             if isinstance(layer, keras.layers.AveragePooling1D) or "averagepooling1d" in layer.name.lower():
-                pool_size = config.get("pool_size", 2)
-                strides   = config.get("strides", pool_size)
+                raw_pool = config.get("pool_size", 2)
+                pool_size = raw_pool if isinstance(raw_pool, int) else tuple(raw_pool)
+                raw_strides   = config.get("strides", pool_size)
+                strides = raw_strides if isinstance(raw_strides, int) else tuple(raw_strides)
+
                 padding   = config.get("padding", "valid")
                 in_shape  = current_shape
+
+                raw_shape = layer_input_shape[1:]
+                df = config.get("data_format", "channels_last")
+                if df == "channels_first":
+                    if   len(raw_shape) == 2: 
+                        raw_shape = ( raw_shape[1], raw_shape[0] )
+                    elif len(raw_shape) == 3:  
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
+                    elif len(raw_shape) == 4: 
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                current_shape = raw_shape
+
                 if padding == "valid":
                     length = math.floor((in_shape[0] - pool_size) / strides) + 1
                 else:
@@ -341,13 +439,27 @@ def extractModel(model, file_type):
                 layer_type.append("AvgPooling1D")
                 continue
 
-            # Section: Process Average Pooling 2D Layers
+            # 2d average pooling layers
             if (isinstance(layer, keras.layers.AveragePooling2D) or "averagepooling2d" in layer.name.lower()):
-                pool_size = config.get("pool_size", (2, 2))
-                strides = config.get("strides", pool_size)
+                raw_pool = config.get("pool_size", (2, 2))
+                pool_size = (raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+                raw_strides = config.get("strides", pool_size)
+                strides = (raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
+
                 padding = config.get("padding", "valid")
                 in_shape = current_shape 
-                # new_shape = compute_output_shape_2d(current_shape, pool_size, strides, padding)
+
+                raw_shape = layer_input_shape[1:]
+                df = config.get("data_format", "channels_last")
+                if df == "channels_first":
+                    if   len(raw_shape) == 2: 
+                        raw_shape = ( raw_shape[1], raw_shape[0] )
+                    elif len(raw_shape) == 3:  
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
+                    elif len(raw_shape) == 4: 
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                current_shape = raw_shape
+                
                 H, W, C = current_shape
                 if padding.lower() == "same":
                     out_H = math.ceil(H / strides[0])
@@ -380,7 +492,136 @@ def extractModel(model, file_type):
                 layer_type.append("AvgPooling2D")
                 continue
 
-            # Section: Process Global Average Pooling 2D Layers
+            # 3d average pooling layers
+            if isinstance(layer, keras.layers.AveragePooling3D) or "averagepooling3d" in layer.name.lower():
+                raw_pool = config.get("pool_size", (2, 2, 2))
+                pool_size = (raw_pool, raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+                raw_strides = config.get("strides", pool_size)
+                strides = (raw_strides, raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
+                padding = config.get("padding", "valid")
+                in_shape = current_shape
+
+                raw_shape = layer_input_shape[1:]
+                df = config.get("data_format", "channels_last")
+                if df == "channels_first":
+                    if   len(raw_shape) == 2: 
+                        raw_shape = ( raw_shape[1], raw_shape[0] )
+                    elif len(raw_shape) == 3:  
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
+                    elif len(raw_shape) == 4: 
+                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                current_shape = raw_shape
+
+                d = in_shape[0]
+                h = in_shape[1]
+                w = in_shape[2]
+                
+                if padding.lower() == "same":
+                    out_d = math.ceil(d / strides[0])
+                    out_h = math.ceil(h / strides[1])
+                    out_w = math.ceil(w / strides[2])
+                elif padding.lower() == "valid":
+                    out_d = math.floor((d - pool_size[0]) / strides[0]) + 1
+                    out_h = math.floor((h - pool_size[1]) / strides[1]) + 1
+                    out_w = math.floor((w - pool_size[2]) / strides[2]) + 1
+                else:
+                    out_d, out_h, out_w = d, h, w
+
+                new_shape = (out_d, out_h, out_w) + tuple(in_shape[3:]) if isinstance(in_shape, (tuple, list)) else (out_d, out_h, out_w)
+
+                pool_params = {
+                    "layer_type": layer.__class__.__name__,
+                    "pool_size": pool_size,
+                    "strides": strides,
+                    "padding": padding,
+                    "in_shape": in_shape,
+                    "output_shape": new_shape,
+                }
+                conv_layer_params[-1] = pool_params
+                current_shape = new_shape
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                activation_functions.append(None)
+                alphas.append(getAlphaForActivation(layer, activation))
+                dropout_rates.append(0.0)
+                layer_shape.append(new_shape)
+                layer_type.append("AvgPooling3D")
+                continue
+            
+            # 1d global max pooling layers
+            if isinstance(layer, keras.layers.GlobalMaxPooling1D) or "globalmaxpooling1d" in layer.name.lower():
+                pool_params = {
+                    "layer_type": "GlobalMaxPooling1D",
+                    "in_shape": current_shape,
+                    "out_shape": (current_shape[0],),
+                }
+                conv_layer_params[-1] = pool_params
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                activation_functions.append(None)
+                alphas.append(getAlphaForActivation(layer, activation))
+                dropout_rates.append(0.0)
+                layer_shape.append((current_shape[0],))
+                layer_type.append("GlobalMaxPooling1D")
+                continue
+
+            # 2d global max pooling layers
+            if isinstance(layer, keras.layers.GlobalMaxPooling2D) or "globalmaxpooling2d" in layer.name.lower():
+                pool_params = {
+                    "layer_type": "GlobalMaxPooling2D",
+                    "in_shape": current_shape,
+                    "out_shape": (current_shape[0], current_shape[1]),
+                }
+                conv_layer_params[-1] = pool_params
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                activation_functions.append(None)
+                alphas.append(getAlphaForActivation(layer, activation))
+                dropout_rates.append(0.0)
+                layer_shape.append((current_shape[0], current_shape[1]))
+                layer_type.append("GlobalMaxPooling2D")
+                continue
+
+            # 3d global max pooling layers
+            if isinstance(layer, keras.layers.GlobalMaxPooling3D) or "globalmaxpooling3d" in layer.name.lower():
+                pool_params = {
+                    "layer_type": "GlobalMaxPooling3D",
+                    "in_shape": current_shape,
+                    "out_shape": (current_shape[0], current_shape[1], current_shape[2]),
+                }
+                conv_layer_params[-1] = pool_params
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                activation_functions.append(None)
+                alphas.append(getAlphaForActivation(layer, activation))
+                dropout_rates.append(0.0)
+                layer_shape.append((current_shape[0], current_shape[1], current_shape[2]))
+                layer_type.append("GlobalMaxPooling3D")
+                continue
+
+            # 1d global average pooling layers
+            if isinstance(layer, keras.layers.GlobalAveragePooling1D) or "globalaveragepooling1d" in layer.name.lower():
+                pool_params = {
+                    "layer_type": "GlobalAveragePooling1D",
+                    "in_shape": current_shape,
+                    "out_shape": (current_shape[0],),
+                }
+                conv_layer_params[-1] = pool_params
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                activation_functions.append(None)
+                alphas.append(getAlphaForActivation(layer, activation))
+                dropout_rates.append(0.0)
+                layer_shape.append((current_shape[0],))
+                layer_type.append("GlobalAvgPooling1D")
+                continue
+
+            # 2d global average pooling layers
             if isinstance(layer, keras.layers.GlobalAveragePooling2D) or "globalaveragepooling2d" in layer.name.lower():
                 pool_params = {
                     "layer_type": "GlobalAveragePooling2D",
@@ -398,6 +639,27 @@ def extractModel(model, file_type):
                 layer_type.append("GlobalAvgPooling2D")
                 continue
 
+            # 3d global average pooling layers
+            if isinstance(layer, keras.layers.GlobalAveragePooling3D) or "globalaveragepooling3d" in layer.name.lower():
+                pool_params = {
+                    "layer_type": "GlobalAveragePooling3D",
+                    "in_shape": current_shape,
+                    "out_shape": (current_shape[3],),
+                }
+                conv_layer_params[-1] = pool_params
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                activation_functions.append(None)
+                alphas.append(getAlphaForActivation(layer, activation))
+                dropout_rates.append(0.0)
+                layer_shape.append((current_shape[3],))
+                layer_type.append("GlobalAvgPooling3D")
+                continue
+
+            ########################
+            ## CONVOLUTION LAYERS ##
+            ########################
             # Section: Process Depthwise Convolution Layers
             if (isinstance(layer, keras.layers.DepthwiseConv2D) or "depthwiseconv2d" in layer.name.lower()):
                 use_bias = config.get("use_bias", True)
@@ -460,7 +722,7 @@ def extractModel(model, file_type):
                 layer_type.append("DepthwiseConv2D")
                 continue
 
-            # Section: Process Separable Convolution Layers
+            # seperable convolution layers
             if (isinstance(layer, keras.layers.SeparableConv2D) or "separableconv2d" in layer.name.lower()):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 3:
@@ -599,7 +861,7 @@ def extractModel(model, file_type):
             #         layer_type.append("Conv3D")
             #     continue
 
-            # Section: Process Conv1D Layers
+            # 1d convolution layer
             if isinstance(layer, keras.layers.Conv1D) or "conv1d" in layer.name.lower():
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
@@ -656,7 +918,7 @@ def extractModel(model, file_type):
                 continue
 
 
-            # Section: Process Conv2D Layers
+            # 2d convolution layers
             if isinstance(layer, keras.layers.Conv2D) or "conv2d" in layer.name.lower():
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
@@ -716,7 +978,7 @@ def extractModel(model, file_type):
                 continue
 
 
-            # Section: Process Conv3D Layers
+            # 3d convolution layers
             if isinstance(layer, keras.layers.Conv3D) or "conv3d" in layer.name.lower():
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
@@ -844,7 +1106,7 @@ def extractModel(model, file_type):
             #-----------------------------------------------------------------
             ##################################################################
 
-            # Section: Process Conv1DTranspose Layers
+            # 1d transposed convolution layers
             if isinstance(layer, keras.layers.Conv1DTranspose) \
             or ("conv1dtranspose" in layer.name.lower() or "conv1d_transpose" in layer.name.lower()):
                 use_bias = config.get("use_bias", True)
@@ -892,7 +1154,7 @@ def extractModel(model, file_type):
                 layer_type.append("Conv1DTranspose")
                 continue
 
-            # Section: Process Conv2DTranspose Layers
+            # 2d transposed convolution layers
             if isinstance(layer, keras.layers.Conv2DTranspose) or ("conv2dtranspose" in layer.name.lower() or "conv2d_transpose" in layer.name.lower()):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
@@ -938,7 +1200,7 @@ def extractModel(model, file_type):
                 layer_type.append("Conv2DTranspose")
                 continue
 
-            # Section: Process Conv3DTranspose Layers
+            # 3d transposed convolution layers
             if isinstance(layer, keras.layers.Conv3DTranspose) \
             or ("conv3dtranspose" in layer.name.lower() or "conv3d_transpose" in layer.name.lower()):
                 use_bias = config.get("use_bias", True)
@@ -990,7 +1252,10 @@ def extractModel(model, file_type):
                 layer_type.append("Conv3DTranspose")
                 continue
 
-            # Section: Process Dropout Layers
+            ###########################
+            ## regularization layers ##
+            ###########################
+            # dropout layers
             if isinstance(layer, keras.layers.Dropout) or "dropout" in layer.name.lower():
                 dropout_rate = config.get("rate", 0.0)
                 activation_functions.append(None)
@@ -1003,7 +1268,49 @@ def extractModel(model, file_type):
                 layer_type.append("Dropout")
                 continue
 
-            # Section: Process Dense (Fully Connected) Layers
+            # 1d spatial dropout layers
+            if isinstance(layer, keras.layers.SpatialDropout1D) or "spatialdropout1d" in layer.name.lower():
+                dropout_rate = config.get("rate", 0.0)
+                activation_functions.append(None)
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                alphas.append(0.0)
+                dropout_rates.append(dropout_rate)
+                layer_shape.append(0)
+                layer_type.append("Dropout")
+                continue
+
+            # 2d spatial dropout layers
+            if isinstance(layer, keras.layers.SpatialDropout2D) or "spatialdropout2d" in layer.name.lower():
+                dropout_rate = config.get("rate", 0.0)
+                activation_functions.append(None)
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                alphas.append(0.0)
+                dropout_rates.append(dropout_rate)
+                layer_shape.append(0)
+                layer_type.append("Dropout")
+                continue
+
+            # 3d spatial dropout layers
+            if isinstance(layer, keras.layers.SpatialDropout3D) or "spatialdropout3d" in layer.name.lower():
+                dropout_rate = config.get("rate", 0.0)
+                activation_functions.append(None)
+                weights_list.append(None)
+                biases_list.append(None)
+                norm_layer_params.append(None)
+                alphas.append(0.0)
+                dropout_rates.append(dropout_rate)
+                layer_shape.append(0)
+                layer_type.append("Dropout")
+                continue
+
+            ###########################
+            ## additional core layer ##
+            ###########################
+            # dense layer (for multi-layer perceptrons models)
             if isinstance(layer, keras.layers.Dense) or "dense" in layer.name.lower():
                 w, b = layer_weights
                 dense_activation = config.get("activation", "linear")
