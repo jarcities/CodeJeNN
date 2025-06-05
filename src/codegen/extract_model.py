@@ -960,8 +960,8 @@ def extractModel(model, file_type):
                 current_shape           = new_shape
                 conv_layer_params[-1]    = conv_params
 
-                weights_list.append(kernel)
-                biases_list.append(bias)
+                weights_list.append(None)
+                biases_list.append(None)
                 norm_layer_params.append(None)
                 activation_functions.append(
                     config.get("activation", "linear")
@@ -1055,8 +1055,8 @@ def extractModel(model, file_type):
                 current_shape           = new_shape
                 conv_layer_params[-1]    = conv_params
 
-                weights_list.append(kernel)
-                biases_list.append(bias)
+                weights_list.append(None)
+                biases_list.append(None)
                 norm_layer_params.append(None)
                 activation_functions.append(
                     config.get("activation", "linear")
@@ -1119,8 +1119,8 @@ def extractModel(model, file_type):
                 current_shape           = new_shape
                 conv_layer_params[-1]    = conv_params
 
-                weights_list.append(kernel)
-                biases_list.append(bias)
+                weights_list.append(None)
+                biases_list.append(None)
                 norm_layer_params.append(None)
                 activation_functions.append(
                     config.get("activation", "linear")
@@ -1346,8 +1346,8 @@ def extractModel(model, file_type):
                 current_shape = new_shape
                 conv_layer_params[-1] = conv_params
 
-                weights_list.append(kernel)
-                biases_list.append(bias)
+                weights_list.append(None)
+                biases_list.append(None)
                 norm_layer_params.append(None)
                 activation_functions.append(
                     config.get("activation", "linear")

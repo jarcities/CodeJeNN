@@ -18,9 +18,11 @@ def preambleHeader():
 #include <cmath>
 #include <functional>
 #include <stdexcept>
+#include <algorithm> 
+#include <cstddef> 
 
-template<typename Scalar>
-using activationFunction = void(*)(Scalar&, Scalar, Scalar);
+// template<typename Scalar>
+// using activationFunction = void(*)(Scalar&, Scalar, Scalar);
 
 """
 
@@ -97,7 +99,7 @@ def codeGen(cpp_code, cpp_lambda, precision_type, weights_list, biases_list, act
         # from the model checking both for "channels_last" and "channels_first" formats.
         # we'll build nested array but keep the actual arrays flat, 
         # (eg. std::array<std::array<std::array<Scalar, 1>, 8>, 8>).
-        dims = list(raw_shape) 
+        dims = [d for d in raw_shape if d != 1]
 
         # start from innermost dimension outward
         input_type = "Scalar"
@@ -118,18 +120,25 @@ def codeGen(cpp_code, cpp_lambda, precision_type, weights_list, biases_list, act
 template <typename Scalar = {precision_type}>
 auto {name_space}(const {input_type}& initial_input) {{
 """
-
+    
+    ###################
+    ## FLATTEN INPUT ##
+    ###################
     # build normalization arrays if input_norms and input_mins are provided
     cpp_code += f"""
     constexpr int flat_size = {input_size}; 
     std::array<Scalar, flat_size> model_input;
-    int idx = 0;
     """
+
+    # get input dimensions of model
     dims = layer_shape[0]
     indent = ""
 
     # check if input shape is flat or not (i.e. 1D or higher, then flatten it)
     if isinstance(dims, tuple) and len(dims) > 1:
+
+        # get rid of dimensions with 1
+        dims = [d for d in raw_shape if d != 1]
 
         # build nested loops using dynamic indentation for each dimension given a 2D or higher input shape
         loop_vars = [f"i{j}" for j in range(len(dims))]
@@ -189,7 +198,7 @@ auto {name_space}(const {input_type}& initial_input) {{
     ################
     ## LAYER LOOP ##
     ################
-    for i, (w, b, norm_params, conv_dict) in enumerate(zip(weights_list, biases_list, norm_layer_params, conv_layer_params)):
+    for i, (w, b, norm_params, conv_dict, ltype) in enumerate(zip(weights_list, biases_list, norm_layer_params, conv_layer_params, layer_type)):
         layer_idx = i + 1
 
         ##################
