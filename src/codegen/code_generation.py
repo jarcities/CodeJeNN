@@ -936,13 +936,13 @@ auto {name_space}(const {input_type}& initial_input) {{
             if dims == 1:
                 cpp_code += f"    static std::array<Scalar, {out_size[0]}> model_output = {last_layer};\n\n"
             elif dims == 2:
-                cpp_code += f"    static std::array<static std::array<Scalar, {out_size[1]}>, {out_size[0]}> model_output;\n"
+                cpp_code += f"    static std::array<std::array<Scalar, {out_size[1]}>, {out_size[0]}> model_output;\n"
                 cpp_code += f"    for(int i = 0; i < {out_size[0]}; i++) {{\n"
                 cpp_code += f"        for(int j = 0; j < {out_size[1]}; j++) {{\n"
                 cpp_code += f"            model_output[i][j] = {last_layer}[i * {out_size[1]} + j];\n"
                 cpp_code += "        }\n    }\n\n"
             elif dims == 3:
-                cpp_code += f"    static std::array<static std::array<static std::array<Scalar, {out_size[2]}>, {out_size[1]}>, {out_size[0]}> model_output;\n"
+                cpp_code += f"    static std::array<std::array<std::array<Scalar, {out_size[2]}>, {out_size[1]}>, {out_size[0]}> model_output;\n"
                 cpp_code += f"    for(int i = 0; i < {out_size[0]}; i++) {{\n"
                 cpp_code += f"        for(int j = 0; j < {out_size[1]}; j++) {{\n"
                 cpp_code += f"            for(int k = 0; k < {out_size[2]}; k++) {{\n"

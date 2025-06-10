@@ -15,6 +15,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="keras")
 tf.get_logger().setLevel("ERROR")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
+
 def getAlphaForActivation(layer, activation):
     #===================================================================================
     # function that helps exract the alpha value for LeakyReLU or ELU activations.
@@ -46,44 +47,6 @@ def getAlphaForActivation(layer, activation):
         return layer.get_config().get("alpha", 1.0)
     return 0.0
 
-# def compute_output_shape_2d(input_shape, kernel, strides, padding, filters=None, depthwise=False):
-#     # Section: Compute New Output Shape for 2D Layers
-#     H, W, C = input_shape
-#     if padding.lower() == "same":
-#         out_H = math.ceil(H / strides[0])
-#         out_W = math.ceil(W / strides[1])
-#     elif padding.lower() == "valid":
-#         out_H = math.floor((H - kernel[0]) / strides[0]) + 1
-#         out_W = math.floor((W - kernel[1]) / strides[1]) + 1
-#     else:
-#         out_H, out_W = H, W
-#     out_C = C if depthwise else (filters if filters is not None else C)
-#     return (out_H, out_W, out_C)
-
-# def compute_output_shape_2d(input_shape, kernel, strides, padding, filters=None, depthwise=False):
-#     """
-#     Compute the output shape of a 2D convolution (or depthwise) layer,
-#     gracefully handling both 3-tuples (H, W, C) and 4-tuples
-#     (timesteps, H, W, C) coming from ConvLSTM2D.
-#     """
-#     # If this came from a ConvLSTM2D, drop the time dimension
-#     if len(input_shape) > 3:
-#         # input_shape == (timesteps, H, W, C)
-#         _, H, W, C = input_shape
-#     else:
-#         H, W, C = input_shape
-
-#     # compute spatial dims
-#     if padding.lower() == "same":
-#         out_H = math.ceil(H / strides[0])
-#         out_W = math.ceil(W / strides[1])
-#     else:  # "valid"
-#         out_H = math.ceil((H - kernel[0] + 1) / strides[0])
-#         out_W = math.ceil((W - kernel[1] + 1) / strides[1])
-
-#     # number of filters for Conv2D; depthwise keeps channel count
-#     out_C = C if depthwise else filters
-#     return (out_H, out_W, out_C)
 
 def extractModel(model, file_type):
     #===================================================================================

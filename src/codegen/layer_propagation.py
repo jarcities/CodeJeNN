@@ -18,10 +18,10 @@ def layer_propagation(cpp_code, activation_functions, layer_type):
     dense_function = {
         "Dense": """
 template<typename Scalar, int output_size, typename ActFun>
-void Dense(Scalar* __restrict outputs, const Scalar* __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases, int input_size, ActFun activation_function, Scalar alpha) noexcept {
+inline void Dense(Scalar* __restrict outputs, const Scalar* __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases, int input_size, ActFun activation_function, Scalar alpha) noexcept {
     for(int i = 0; i < output_size; ++i){
         Scalar sum = 0;
-        #pragma unroll
+        
         for(int j = 0; j < input_size; ++j){
             sum += inputs[j] * weights[j * output_size + i];
         }
@@ -36,8 +36,8 @@ void Dense(Scalar* __restrict outputs, const Scalar* __restrict inputs, const Sc
     reshape_functions = {
         "Reshape": """
 template<typename Scalar, int N>
-void Reshape(Scalar * __restrict outputs, const Scalar * __restrict inputs) noexcept {
-    #pragma unroll
+inline void Reshape(Scalar * __restrict outputs, const Scalar * __restrict inputs) noexcept {
+    
     for (int i = 0; i < N; ++i) {
         outputs[i] = inputs[i];
     }
@@ -102,14 +102,14 @@ void Reshape(Scalar * __restrict outputs, const Scalar * __restrict inputs) noex
     auto softmax = +[](Scalar * __restrict outputs, Scalar * __restrict inputs, int size) noexcept {
         Scalar max_val = *std::max_element(input, input + size);
         Scalar sum = 0;
-        #pragma unroll
+        
         for (int i = 0; i < size; ++i)
         {
             const Scalar exp_val = std::exp(input[i] - max_val);
             output[i] = exp_val;
             sum += exp_val;
         }
-        #pragma unroll
+        
         for (int i = 0; i < size; ++i)
         {
             output[i] /= sum;
@@ -122,23 +122,23 @@ void Reshape(Scalar * __restrict outputs, const Scalar * __restrict inputs) noex
     normalization_functions = {
         "LayerNormalization": """
 template <typename Scalar, int size>
-void LayerNormalization(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict gamma, const Scalar * __restrict beta, Scalar epsilon) noexcept
+inline void LayerNormalization(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict gamma, const Scalar * __restrict beta, Scalar epsilon) noexcept
 {
     Scalar mean = 0;
     Scalar variance = 0;
-    #pragma unroll
+    
     for (int i = 0; i < size; ++i)
     {
         mean += inputs[i];
     }
     mean /= size;
-    #pragma unroll
+    
     for (int i = 0; i < size; ++i)
     {
         variance += (inputs[i] - mean) * (inputs[i] - mean);
     }
     variance /= size;
-    #pragma unroll
+    
     for (int i = 0; i < size; ++i)
     {
         outputs[i] = gamma[i] * ((inputs[i] - mean) / std::sqrt(variance + epsilon)) + beta[i];
@@ -147,9 +147,9 @@ void LayerNormalization(Scalar * __restrict outputs, const Scalar * __restrict i
 """,
         "BatchNormalization": """
 template <typename Scalar, int size>
-void BatchNormalization(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict gamma, const Scalar * __restrict beta, const Scalar * __restrict mean, const Scalar * __restrict variance, const Scalar epsilon) noexcept
+inline void BatchNormalization(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict gamma, const Scalar * __restrict beta, const Scalar * __restrict mean, const Scalar * __restrict variance, const Scalar epsilon) noexcept
 {
-    #pragma unroll
+    
     for (int i = 0; i < size; ++i)
     {
         outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
@@ -158,14 +158,14 @@ void BatchNormalization(Scalar * __restrict outputs, const Scalar * __restrict i
 """,
         "BatchNormalization2D": """
 template <typename Scalar, int channels, int height, int width>
-void BatchNormalization2D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
+inline void BatchNormalization2D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
                           const Scalar * __restrict gamma, const Scalar * __restrict beta,
                           const Scalar * __restrict mean, const Scalar * __restrict variance,
                           Scalar epsilon) noexcept
 {
     for (int c = 0; c < channels; ++c)
     {
-        #pragma unroll
+        
         for (int i = 0; i < height * width; ++i)
         {
             int idx = i * channels + c;
@@ -177,14 +177,14 @@ void BatchNormalization2D(Scalar * __restrict outputs, const Scalar * __restrict
 """,
         "LayerNormalization2D": """
 template <typename Scalar, int channels, int height, int width>
-void LayerNormalization2D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
+inline void LayerNormalization2D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
                           const Scalar * __restrict gamma, const Scalar * __restrict beta,
                           Scalar epsilon) noexcept
 {
     for (int c = 0; c < channels; ++c)
     {
         Scalar sum = 0;
-        #pragma unroll
+        
         for (int i = 0; i < height * width; ++i)
         {
             int idx = i * channels + c;
@@ -192,14 +192,14 @@ void LayerNormalization2D(Scalar * __restrict outputs, const Scalar * __restrict
         }
         Scalar mean = sum / (height * width);
         Scalar var = 0;
-        #pragma unroll
+        
         for (int i = 0; i < height * width; ++i)
         {
             int idx = i * channels + c;
             var += (inputs[idx] - mean) * (inputs[idx] - mean);
         }
         var /= (height * width);
-        #pragma unroll
+        
         for (int i = 0; i < height * width; ++i)
         {
             int idx = i * channels + c;
@@ -214,14 +214,14 @@ void LayerNormalization2D(Scalar * __restrict outputs, const Scalar * __restrict
     convolution_functions = {
         "Conv1D": """
 template <typename Scalar, int out_size, typename ActFun>
-void Conv1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases,
+inline void Conv1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases,
                    int in_size, int kernel_size, int stride, int padding,
                    ActFun activation_function, Scalar alpha) noexcept
 {
     for (int o = 0; o < out_size; ++o)
     {
         Scalar sum = 0;
-        #pragma unroll
+        
         for (int k = 0; k < kernel_size; ++k)
         {
             int in_index = o * stride - padding + k;
@@ -238,11 +238,11 @@ void Conv1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const
 """,
         "Conv1DTranspose": """
 template <typename Scalar, int out_channels, int out_length, typename ActFun>
-void Conv1DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict kernels, const Scalar * __restrict biases, int in_channels,int in_length, int kernel_width, int stride, int padding, ActFun activation_function, Scalar alpha)
+inline void Conv1DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict kernels, const Scalar * __restrict biases, int in_channels,int in_length, int kernel_width, int stride, int padding, ActFun activation_function, Scalar alpha)
 {
     for (int ow = 0; ow < out_length; ++ow)
     {
-        #pragma unroll
+        
         for (int oc = 0; oc < out_channels; ++oc)
         {
             int idx = ow * out_channels + oc;
@@ -266,7 +266,7 @@ void Conv1DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
                 int fk = kernel_width - 1 - k;
                 int ker_base = fk * (out_channels * in_channels) + ic;
                 int out_base = ow * out_channels;
-                #pragma unroll
+                
                 for (int oc = 0; oc < out_channels; ++oc)
                 {
                     int k_idx = ker_base + oc * in_channels;
@@ -291,7 +291,7 @@ void Conv1DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
     {
         int dst = ow * out_channels;
         int src = (out_length - 1 - ow) * out_channels;
-        #pragma unroll
+        
         for (int oc = 0; oc < out_channels; ++oc)
         {
             outputs[dst + oc] = tmp[src + oc];
@@ -305,7 +305,7 @@ void Conv1DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
 """,
         "Conv2D": """
 template <typename Scalar, int out_channels, int out_height, int out_width, typename ActivationFunc>
-void Conv2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar *__restrict weights, const Scalar *__restrict biases, int in_channels, int in_height, int in_width, int kernel_height, int kernel_width, int stride_height, int stride_width, int padding_height, int padding_width, ActivationFunc activation_function, Scalar alpha) noexcept
+inline void Conv2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar *__restrict weights, const Scalar *__restrict biases, int in_channels, int in_height, int in_width, int kernel_height, int kernel_width, int stride_height, int stride_width, int padding_height, int padding_width, ActivationFunc activation_function, Scalar alpha) noexcept
 {
  
     Scalar sum_buf[out_channels];
@@ -347,7 +347,7 @@ void Conv2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const
                         const Scalar input_val = inputs[input_base + ic];
                         const Scalar *w_ptr = weights + weight_base + ic * out_channels;
 
-                        #pragma unroll
+                        
                         for (int oc = 0; oc < out_channels; ++oc) {
                             sum_buf[oc] += input_val * w_ptr[oc];
                         }
@@ -365,7 +365,7 @@ void Conv2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const
 """,
         "Conv2DTranspose": """
 template <typename Scalar, int out_channels, int out_height, int out_width, typename ActFun>
-void Conv2DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inputs,
+inline void Conv2DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inputs,
                      const Scalar * __restrict kernels, const Scalar * __restrict biases,
                      int in_channels, int in_height, int in_width,
                      int kernel_height, int kernel_width, int stride_height,
@@ -377,7 +377,7 @@ void Conv2DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
     {
         for (int w = 0; w < out_width; ++w)
         {
-            #pragma unroll
+            
             for (int oc = 0; oc < out_channels; ++oc)
             {
                 int idx = (h * out_width + w) * out_channels + oc;
@@ -411,7 +411,7 @@ void Conv2DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
                         int fw = kernel_width - 1 - kw;
                         int ker_base =
                             (fh * kernel_width + fw) * (out_channels * in_channels) + ic;
-                        #pragma unroll
+                        
                         for (int oc = 0; oc < out_channels; ++oc)
                         {
                             int k_idx = ker_base + oc * in_channels;
@@ -443,7 +443,7 @@ void Conv2DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
                 ((out_height - 1 - h) * out_width + (out_width - 1 - w)) *
                 out_channels;
 
-            #pragma unroll
+            
             for (int c = 0; c < out_channels; ++c)
                 outputs[dst_base + c] = tmp[src_base + c];
         }
@@ -454,7 +454,7 @@ void Conv2DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
 """,
         "Conv3D": """
 template <typename Scalar, int out_channels, int out_depth, int out_height, int out_width, typename ActFun>
-void Conv3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases,
+inline void Conv3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases,
                    int in_channels, int in_depth, int in_height, int in_width,
                    int kernel_depth, int kernel_height, int kernel_width, int stride_depth, int stride_height, int stride_width,
                    int padding_depth, int padding_height, int padding_width,
@@ -475,7 +475,7 @@ void Conv3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const
                         {
                             for (int kh = 0; kh < kernel_height; ++kh)
                             {
-                                #pragma unroll
+                                
                                 for (int kw = 0; kw < kernel_width; ++kw)
                                 {
                                     int in_d = od * stride_depth - padding_depth + kd;
@@ -509,7 +509,7 @@ void Conv3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const
         "Conv3DTranspose": """
 template <typename Scalar, int out_channels, int out_depth, int out_height,
           int out_width, typename ActFun>
-void Conv3DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inputs,
+inline void Conv3DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inputs,
                      const Scalar * __restrict kernels, const Scalar * __restrict biases,
                      int in_channels, int in_depth, int in_height, int in_width,
                      int kernel_depth, int kernel_height, int kernel_width,
@@ -524,7 +524,7 @@ void Conv3DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
         {
             for (int w = 0; w < out_width; ++w)
             {
-                #pragma unroll
+                
                 for (int oc = 0; oc < out_channels; ++oc)
                 {
                     int idx = ((d * out_height + h) * out_width + w) * out_channels + oc;
@@ -574,7 +574,7 @@ void Conv3DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
                                                    (out_channels * in_channels) +
                                                ic;
 
-                                #pragma unroll
+                                
                                 for (int oc = 0; oc < out_channels; ++oc)
                                 {
                                     int k_idx = ker_base + oc * in_channels;
@@ -612,7 +612,7 @@ void Conv3DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
                          out_width +
                      (out_width - 1 - w)) *
                     out_channels;
-                #pragma unroll
+                
                 for (int c = 0; c < out_channels; ++c)
                 {
                     outputs[dst_base + c] = tmp[src_base + c];
@@ -628,7 +628,7 @@ void Conv3DTranspose(Scalar * __restrict outputs, const Scalar * __restrict inpu
 """,
         "DepthwiseConv2D": """
 template <typename Scalar, typename ActFun>
-void DepthwiseConv2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases,
+inline void DepthwiseConv2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases,
                             int out_channels, int out_height, int out_width,
                             int in_channels, int in_height, int in_width,
                             int kernel_height, int kernel_width, int stride_height, int stride_width,
@@ -644,7 +644,7 @@ void DepthwiseConv2D(Scalar * __restrict outputs, const Scalar * __restrict inpu
                 Scalar sum = 0;
                 for (int kh = 0; kh < kernel_height; ++kh)
                 {
-                    #pragma unroll
+                    
                     for (int kw = 0; kw < kernel_width; ++kw)
                     {
                         int in_h = oh * stride_height - padding_height + kh;
@@ -667,7 +667,7 @@ void DepthwiseConv2D(Scalar * __restrict outputs, const Scalar * __restrict inpu
 """,
         "SeparableConv2D": """
 template <typename Scalar>
-void DepthwiseForsSeparableConv2D(Scalar *__restrict outputs, const Scalar *__restrict inputs, const Scalar *__restrict weights, const Scalar *__restrict biases,
+inline void DepthwiseForsSeparableConv2D(Scalar *__restrict outputs, const Scalar *__restrict inputs, const Scalar *__restrict weights, const Scalar *__restrict biases,
                                   int out_height, int out_width,
                                   int in_channels, int in_height, int in_width,
                                   int kernel_height, int kernel_width, int stride_height, int stride_width,
@@ -682,7 +682,7 @@ void DepthwiseForsSeparableConv2D(Scalar *__restrict outputs, const Scalar *__re
                 Scalar sum = 0;
                 for (int kh = 0; kh < kernel_height; ++kh)
                 {
-                    #pragma unroll
+                    
                     for (int kw = 0; kw < kernel_width; ++kw)
                     {
                         int in_h = oh * stride_height - padding_height + kh;
@@ -704,7 +704,7 @@ void DepthwiseForsSeparableConv2D(Scalar *__restrict outputs, const Scalar *__re
 }
 
 template <typename Scalar, int out_channels, int out_height, int out_width, typename ActFun>
-void SeparableConv2D(
+inline void SeparableConv2D(
     Scalar *__restrict outputs,
     const Scalar *__restrict inputs,
     const Scalar *__restrict depthwise_weights,
@@ -729,7 +729,7 @@ void SeparableConv2D(
         for (int i = 0; i < out_height * out_width; ++i)
         {
             Scalar sum = 0;
-            #pragma unroll
+            
             for (int ic = 0; ic < in_channels; ++ic)
             {
                 int index = i * in_channels + ic;
@@ -745,7 +745,7 @@ void SeparableConv2D(
 """,
         "ConvLSTM2D": """
 template<typename Scalar, typename ActFun>
-void ConvLSTM2D(Scalar* __restrict outputs,
+inline void ConvLSTM2D(Scalar* __restrict outputs,
                        const Scalar* __restrict inputs,
                        const Scalar* __restrict kernel,
                        const Scalar* __restrict recurrent_kernel,
@@ -788,7 +788,7 @@ void ConvLSTM2D(Scalar* __restrict outputs,
                     Scalar sum_i = 0, sum_f = 0, sum_g = 0, sum_o = 0;
                     for (int ic = 0; ic < in_channels; ++ic) {
                         for (int kh = 0; kh < kernel_height; ++kh) {
-                            #pragma unroll
+                            
                             for (int kw = 0; kw < kernel_width; ++kw) {
                                 int ih = oh * stride_height - padding_height + kh;
                                 int iw = ow * stride_width  - padding_width  + kw;
@@ -820,7 +820,7 @@ void ConvLSTM2D(Scalar* __restrict outputs,
                     Scalar rec_i = 0, rec_f = 0, rec_g = 0, rec_o = 0;
                     for (int kc = 0; kc < filters; ++kc) {
                         for (int kh = 0; kh < kernel_height; ++kh) {
-                            #pragma unroll
+                            
                             for (int kw = 0; kw < kernel_width; ++kw) {
                                 int ih = oh * stride_height - padding_height + kh;
                                 int iw = ow * stride_width  - padding_width  + kw;
@@ -868,7 +868,7 @@ void ConvLSTM2D(Scalar* __restrict outputs,
     pooling_functions = {
         "MaxPooling1D": """
 template <typename Scalar, int pool_size, int stride>
-void MaxPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels) noexcept
+inline void MaxPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels) noexcept
 {
     int out_length = (in_length - pool_size) / stride + 1;
     for (int c = 0; c < channels; ++c)
@@ -876,7 +876,7 @@ void MaxPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
         for (int o = 0; o < out_length; ++o)
         {
             Scalar max_val = inputs[(o * stride * channels) + c];
-            #pragma unroll
+            
             for (int p = 0; p < pool_size; ++p)
             {
                 int idx = ((o * stride + p) * channels) + c;
@@ -892,7 +892,7 @@ void MaxPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
 """,
         "MaxPooling2D": """
 template <typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
-void MaxPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_height, int in_width, int channels) noexcept
+inline void MaxPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_height, int in_width, int channels) noexcept
 {
     int out_height = (in_height - pool_height) / stride_h + 1;
     int out_width = (in_width - pool_width) / stride_w + 1;
@@ -905,7 +905,7 @@ void MaxPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
                 Scalar max_val = -std::numeric_limits<Scalar>::infinity();
                 for (int ph = 0; ph < pool_height; ++ph)
                 {
-                    #pragma unroll
+                    
                     for (int pw = 0; pw < pool_width; ++pw)
                     {
                         int in_h = oh * stride_h + ph;
@@ -926,7 +926,7 @@ void MaxPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
 """,
         "MaxPooling3D": """
 template <typename Scalar, int pool_depth, int pool_height, int pool_width, int stride_depth, int stride_height, int stride_width>
-void MaxPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_depth, int in_height, int in_width, int channels) noexcept
+inline void MaxPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_depth, int in_height, int in_width, int channels) noexcept
 {
     int out_depth = (in_depth - pool_depth) / stride_depth + 1;
     int out_height = (in_height - pool_height) / stride_height + 1;
@@ -938,7 +938,7 @@ void MaxPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
                     Scalar max_val = inputs[(((d * stride_depth * in_height + h * stride_height) * in_width + w * stride_width) * channels) + c];
                     for (int pd = 0; pd < pool_depth; ++pd) {
                         for (int ph = 0; ph < pool_height; ++ph) {
-                            #pragma unroll
+                            
                             for (int pw = 0; pw < pool_width; ++pw) {
                                 int idx = ((((d * stride_depth + pd) * in_height + (h * stride_height + ph)) * in_width + (w * stride_width + pw)) * channels) + c;
                                 if (inputs[idx] > max_val) {
@@ -956,7 +956,7 @@ void MaxPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
 """,
         "AvgPooling1D": """
 template <typename Scalar, int pool_size, int stride>
-void AvgPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels) noexcept
+inline void AvgPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels) noexcept
 {
     int out_length = (in_length - pool_size) / stride + 1;
     for (int c = 0; c < channels; ++c)
@@ -964,7 +964,7 @@ void AvgPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
         for (int o = 0; o < out_length; ++o)
         {
             Scalar sum = 0;
-            #pragma unroll
+            
             for (int p = 0; p < pool_size; ++p)
             {
                 int idx = ((o * stride + p) * channels) + c;
@@ -977,7 +977,7 @@ void AvgPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
 """,
         "AvgPooling2D": """
 template <typename Scalar, int pool_height, int pool_width, int stride_h, int stride_w>
-void AvgPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_height, int in_width, int channels) noexcept
+inline void AvgPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_height, int in_width, int channels) noexcept
 {
     int out_height = (in_height - pool_height) / stride_h + 1;
     int out_width = (in_width - pool_width) / stride_w + 1;
@@ -990,7 +990,7 @@ void AvgPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
                 Scalar sum = 0;
                 for (int ph = 0; ph < pool_height; ++ph)
                 {
-                    #pragma unroll
+                    
                     for (int pw = 0; pw < pool_width; ++pw)
                     {
                         int in_h = oh * stride_h + ph;
@@ -1008,7 +1008,7 @@ void AvgPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
 """,
         "AvgPooling3D": """
 template <typename Scalar, int pool_depth, int pool_height, int pool_width, int stride_depth, int stride_height, int stride_width>
-void AvgPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_depth, int in_height, int in_width, int channels) noexcept
+inline void AvgPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_depth, int in_height, int in_width, int channels) noexcept
 {
     int out_depth = (in_depth - pool_depth) / stride_depth + 1;
     int out_height = (in_height - pool_height) / stride_height + 1;
@@ -1020,7 +1020,7 @@ void AvgPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
                     Scalar sum = 0;
                     for (int pd = 0; pd < pool_depth; ++pd) {
                         for (int ph = 0; ph < pool_height; ++ph) {
-                            #pragma unroll
+                            
                             for (int pw = 0; pw < pool_width; ++pw) {
                                 int idx = ((((d * stride_depth + pd) * in_height + (h * stride_height + ph)) * in_width + (w * stride_width + pw)) * channels) + c;
                                 sum += inputs[idx];
@@ -1036,12 +1036,12 @@ void AvgPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs,
 """,
         "GlobalMaxPooling1D":"""
 template <typename Scalar>
-void GlobalMaxPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels) noexcept
+inline void GlobalMaxPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels) noexcept
 {
     for (int c = 0; c < channels; ++c)
     {
         Scalar max_val = -std::numeric_limits<Scalar>::infinity();
-        #pragma unroll
+        
         for (int i = 0; i < in_length; ++i)
         {
             int idx = (i * channels) + c;
@@ -1056,14 +1056,14 @@ void GlobalMaxPooling1D(Scalar * __restrict outputs, const Scalar * __restrict i
 """,
         "GlobalMaxPooling2D": """
 template <typename Scalar>
-void GlobalMaxPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_height, int in_width, int channels) noexcept
+inline void GlobalMaxPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_height, int in_width, int channels) noexcept
 {
     for (int c = 0; c < channels; ++c)
     {
         Scalar max_val = -std::numeric_limits<Scalar>::infinity();
         for (int h = 0; h < in_height; ++h)
         {
-            #pragma unroll
+            
             for (int w = 0; w < in_width; ++w)
             {
                 int idx = (h * in_width * channels) + (w * channels) + c;
@@ -1079,7 +1079,7 @@ void GlobalMaxPooling2D(Scalar * __restrict outputs, const Scalar * __restrict i
 """,
         "GlobalMaxPooling3D": """
 template <typename Scalar>
-void GlobalMaxPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_depth, int in_height, int in_width, int channels) noexcept
+inline void GlobalMaxPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_depth, int in_height, int in_width, int channels) noexcept
 {
     for (int c = 0; c < channels; ++c)
     {
@@ -1088,7 +1088,7 @@ void GlobalMaxPooling3D(Scalar * __restrict outputs, const Scalar * __restrict i
         {
             for (int h = 0; h < in_height; ++h)
             {
-                #pragma unroll
+                
                 for (int w = 0; w < in_width; ++w)
                 {
                     int idx = ((d * in_height * in_width * channels) + (h * in_width * channels) + (w * channels) + c);
@@ -1105,11 +1105,11 @@ void GlobalMaxPooling3D(Scalar * __restrict outputs, const Scalar * __restrict i
 """,
         "GlobalAvgPooling1D": """
 template <typename Scalar>
-void GlobalAvgPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels)
+inline void GlobalAvgPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels)
 {
     for (int ic = 0, ic < channels, ic++)
     {
-        #pragma unroll
+        
         for (int i = 0, i < in_length, i++)
         {
             int idx = (i * channels) + (channels) + c;
@@ -1121,7 +1121,7 @@ void GlobalAvgPooling1D(Scalar * __restrict outputs, const Scalar * __restrict i
 """,
         "GlobalAvgPooling2D": """
 template <typename Scalar>
-void GlobalAvgPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_height, int in_width, int channels) noexcept
+inline void GlobalAvgPooling2D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_height, int in_width, int channels) noexcept
 {
     // Compute global average per channel.
     for (int c = 0; c < channels; ++c)
@@ -1129,7 +1129,7 @@ void GlobalAvgPooling2D(Scalar * __restrict outputs, const Scalar * __restrict i
         Scalar sum = 0;
         for (int h = 0; h < in_height; ++h)
         {
-            #pragma unroll
+            
             for (int w = 0; w < in_width; ++w)
             {
                 int idx = (h * in_width * channels) + (w * channels) + c;
@@ -1143,7 +1143,7 @@ void GlobalAvgPooling2D(Scalar * __restrict outputs, const Scalar * __restrict i
 
         "GlobalAvgPooling3D": """
 template <typename Scalar>
-void GlobalAvgPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_depth, int in_height, int in_width, int channels) noexcept
+inline void GlobalAvgPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_depth, int in_height, int in_width, int channels) noexcept
 {
     for (int c = 0; c < channels; ++c)
     {
@@ -1152,7 +1152,7 @@ void GlobalAvgPooling3D(Scalar * __restrict outputs, const Scalar * __restrict i
         {
             for (int h = 0; h < in_height; ++h)
             {
-                #pragma unroll
+                
                 for (int w = 0; w < in_width; ++w)
                 {
                     int idx = ((d * in_height * in_width * channels) + (h * in_width * channels) + (w * channels) + c);

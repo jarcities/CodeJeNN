@@ -137,7 +137,7 @@ else:
                 )
 
                 print()
-                with open(f"{save_path}.h", "w") as f:
+                with open(f"{save_path}.hpp", "w") as f:
                     f.write(cpp_code)
                 print(save_path)
 
