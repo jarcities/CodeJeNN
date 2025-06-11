@@ -96,18 +96,8 @@ def extractModel(model, file_type):
         layer_shape.append(tuple(raw_shape)) 
         current_shape = model.input_shape[1:]
 
-        ##############
-        idx = 1
-        ##############
-
         # iterate through each layer in the model
         for layer in model.layers:
-
-            ########################
-            print(idx)
-            idx += 1
-            print(layer)
-            ########################
 
             # get layer input shapem, weights and its configuration
             try:
@@ -149,7 +139,6 @@ def extractModel(model, file_type):
 
             # reshape layers
             if (isinstance(layer, keras.layers.Reshape) or "reshape" in layer.name.lower()):
-                print("entered")
                 if len(layer_weights) == 0:
                     new_shape = config.get("target_shape", None)
                     if new_shape is None:
@@ -176,7 +165,7 @@ def extractModel(model, file_type):
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
-                print("THIS SHAPE", new_shape) ############################################
+                # print("THIS SHAPE", new_shape) ############################################
                 layer_type.append("Reshape")
                 current_shape = new_shape
                 continue
@@ -948,7 +937,6 @@ def extractModel(model, file_type):
                     kernel, bias = layer_weights[0], None
                 else:
                     kernel, bias = None, None
-                print("entered conv2d")
 
                 conv_params = {
                     "layer_type":    layer.__class__.__name__,
@@ -961,9 +949,6 @@ def extractModel(model, file_type):
                     "dilation_rate": config.get("dilation_rate", None),
                     "use_bias":      use_bias,
                 }
-                print(current_shape)
-
-                print("before shape calculation")
 
                 # if len(current_shape) < 3:
                 #     # if shape is 2d
@@ -999,8 +984,6 @@ def extractModel(model, file_type):
                 pad        = conv_params["padding"]
                 filt       = conv_params["filters"]
 
-                print("after shape calculation")
-
                 if pad.lower() == "same":
                     out_H = math.ceil(H / sH)
                     out_W = math.ceil(W / sW)
@@ -1030,7 +1013,6 @@ def extractModel(model, file_type):
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
                 layer_type.append("Conv2D")
-                print("exited conv2d")
                 continue
 
 

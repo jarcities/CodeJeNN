@@ -101,8 +101,8 @@ else:
                     layer_type,
                 ) = extractModel(model, file_extension)
 
-                print(layer_type)
-                print(activation_functions)
+                # print(layer_type)
+                # print(activation_functions)
 
                 # Section: Generate C++ Code from Model
                 base_file_name = os.path.splitext(file_name)[0]
