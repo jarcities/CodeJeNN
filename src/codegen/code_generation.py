@@ -135,7 +135,7 @@ auto {name_space}(const {input_type}& initial_input) {{
     indent = ""
 
     # check if input shape is flat or not (i.e. 1D or higher, then flatten it)
-    if isinstance(dims, tuple) and len(dims) > 1:
+    if isinstance(dims, tuple) and len(dims) > 1 and input_norms is None:
 
         # get rid of dimensions with 1
         dims = [d for d in raw_shape if d != 1]
@@ -165,7 +165,7 @@ auto {name_space}(const {input_type}& initial_input) {{
         for d_i in range(len(dims), 0, -1):
             cpp_code += "    " * d_i + "}\n"
 
-    else:
+    elif input_norms is None:
 
         # fallback 1D
         cpp_code += f"    for (int i=0; i<flat_size; i++) {{ model_input[i] = initial_input[i]; }}\n"
@@ -184,10 +184,7 @@ auto {name_space}(const {input_type}& initial_input) {{
         cpp_code += ", ".join(f"{x:10.9e}" for x in input_mins)
         cpp_code += "};\n\n"
 
-        cpp_code += f"    std::array<Scalar, {input_size}> model_input;\n\n"
-        cpp_code += f"    for (int i = 0; i < {input_size}; i++) {{\n"
-        cpp_code += f"        model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]);\n"
-        cpp_code += "    }\n\n"
+        cpp_code += f"    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]); }} \n\n"
         cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
     else:
         cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n'
