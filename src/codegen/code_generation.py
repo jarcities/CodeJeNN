@@ -115,82 +115,82 @@ def codeGen(cpp_code, cpp_lambda, precision_type, weights_list, biases_list, act
     cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
 
 
-    # start generating the NN function header
-    cpp_code += f"""
-template <typename Scalar = {precision_type}>
-auto {name_space}(const {input_type}& initial_input) {{
-"""
+#     # start generating the NN function header
+#     cpp_code += f"""
+# template <typename Scalar = {precision_type}>
+# auto {name_space}(const {input_type}& initial_input) {{
+# """
     
-    ###################
-    ## FLATTEN INPUT ##
-    ###################
-    # build normalization arrays if input_norms and input_mins are provided
-    cpp_code += f"""
-    constexpr int flat_size = {input_size}; 
-    std::array<Scalar, flat_size> model_input;
-    """
+#     ###################
+#     ## FLATTEN INPUT ##
+#     ###################
+#     # build normalization arrays if input_norms and input_mins are provided
+#     cpp_code += f"""
+#     constexpr int flat_size = {input_size}; 
+#     std::array<Scalar, flat_size> model_input;
+#     """
 
-    # get input dimensions of model
-    dims = layer_shape[0]
-    indent = ""
+#     # get input dimensions of model
+#     dims = layer_shape[0]
+#     indent = ""
 
-    # check if input shape is flat or not (i.e. 1D or higher, then flatten it)
-    if isinstance(dims, tuple) and len(dims) > 1 and input_norms is None:
+#     # check if input shape is flat or not (i.e. 1D or higher, then flatten it)
+#     if isinstance(dims, tuple) and len(dims) > 1 and input_norms is None:
 
-        # get rid of dimensions with 1
-        dims = [d for d in raw_shape if d != 1]
+#         # get rid of dimensions with 1
+#         dims = [d for d in raw_shape if d != 1]
 
-        # build nested loops using dynamic indentation for each dimension given a 2D or higher input shape
-        loop_vars = [f"i{j}" for j in range(len(dims))]
-        for d_i, d_val in enumerate(dims):
-            cpp_code += f"{indent}for (int {loop_vars[d_i]} = 0; {loop_vars[d_i]} < {d_val}; {loop_vars[d_i]}++) {{\n"
-            indent = "      " * (d_i + 1)  
+#         # build nested loops using dynamic indentation for each dimension given a 2D or higher input shape
+#         loop_vars = [f"i{j}" for j in range(len(dims))]
+#         for d_i, d_val in enumerate(dims):
+#             cpp_code += f"{indent}for (int {loop_vars[d_i]} = 0; {loop_vars[d_i]} < {d_val}; {loop_vars[d_i]}++) {{\n"
+#             indent = "      " * (d_i + 1)  
 
-        # compute the 1D index in row-major order with extra indentation
-        index_expr = ""
-        for d_i in range(len(dims)):
-            stride = 1
-            for d_j in range(d_i + 1, len(dims)):
-                stride *= dims[d_j]
-            if d_i > 0:
-                index_expr += " + "
-            index_expr += f"{loop_vars[d_i]} * {stride}"
-        cpp_code += "    " * (len(dims) + 1) + f"int flatIndex = {index_expr};\n"
-        cpp_code += "    " * (len(dims) + 1) + f"model_input[flatIndex] = initial_input"
-        for lv in loop_vars:
-            cpp_code += f"[{lv}]"
-        cpp_code += ";\n"
+#         # compute the 1D index in row-major order with extra indentation
+#         index_expr = ""
+#         for d_i in range(len(dims)):
+#             stride = 1
+#             for d_j in range(d_i + 1, len(dims)):
+#                 stride *= dims[d_j]
+#             if d_i > 0:
+#                 index_expr += " + "
+#             index_expr += f"{loop_vars[d_i]} * {stride}"
+#         cpp_code += "    " * (len(dims) + 1) + f"int flatIndex = {index_expr};\n"
+#         cpp_code += "    " * (len(dims) + 1) + f"model_input[flatIndex] = initial_input"
+#         for lv in loop_vars:
+#             cpp_code += f"[{lv}]"
+#         cpp_code += ";\n"
 
-        # close loops using matching indentation levels
-        for d_i in range(len(dims), 0, -1):
-            cpp_code += "    " * d_i + "}\n"
+#         # close loops using matching indentation levels
+#         for d_i in range(len(dims), 0, -1):
+#             cpp_code += "    " * d_i + "}\n"
 
-    elif input_norms is None:
+#     elif input_norms is None:
 
-        # fallback 1D
-        cpp_code += f"    for (int i=0; i<flat_size; i++) {{ model_input[i] = initial_input[i]; }}\n"
+#         # fallback 1D
+#         cpp_code += f"    for (int i=0; i<flat_size; i++) {{ model_input[i] = initial_input[i]; }}\n"
 
-    # this is where we input our normalization parameters if we do have some
-    if input_norms is not None:
-        cpp_code += (
-            f"    constexpr std::array<Scalar, {len(input_norms)}> input_norms = {{"
-        )
-        cpp_code += ", ".join(f"{x:10.9e}" for x in input_norms)
-        cpp_code += "};\n\n"
+#     # this is where we input our normalization parameters if we do have some
+#     if input_norms is not None:
+#         cpp_code += (
+#             f"    constexpr std::array<Scalar, {len(input_norms)}> input_norms = {{"
+#         )
+#         cpp_code += ", ".join(f"{x:10.9e}" for x in input_norms)
+#         cpp_code += "};\n\n"
 
-        cpp_code += (
-            f"    constexpr std::array<Scalar, {len(input_mins)}> input_mins = {{"
-        )
-        cpp_code += ", ".join(f"{x:10.9e}" for x in input_mins)
-        cpp_code += "};\n\n"
+#         cpp_code += (
+#             f"    constexpr std::array<Scalar, {len(input_mins)}> input_mins = {{"
+#         )
+#         cpp_code += ", ".join(f"{x:10.9e}" for x in input_mins)
+#         cpp_code += "};\n\n"
 
-        cpp_code += f"    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]); }} \n\n"
-        cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
-    else:
-        cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n'
+#         cpp_code += f"    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]); }} \n\n"
+#         cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
+#     else:
+#         cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n'
 
 
-    cpp_code += "\n\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n\n"
+#     cpp_code += "\n\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n\n"
 
     ################
     ## LAYER LOOP ##
@@ -420,6 +420,103 @@ auto {name_space}(const {input_type}& initial_input) {{
 
     
     cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
+
+
+    # compute output normalization
+    out_norm_size = get_flat_size(last_shape)
+    out_size = last_shape
+    cpp_code += f"    // Final output\n"
+    cpp_code += (
+        f"    constexpr static std::array<Scalar, {len(output_norms) if output_norms is not None else 0}> output_norms = {{{', '.join(f'{x:10.9e}' for x in output_norms)}}};\n"
+        if output_norms is not None
+        else ""
+    )
+    cpp_code += (
+        f"    constexpr static std::array<Scalar, {len(output_mins) if output_norms is not None else 0}> output_mins = {{{', '.join(f'{x:10.9e}' for x in output_mins)}}};\n\n"
+        if output_norms is not None
+        else ""
+    )
+
+
+    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
+
+
+    # start generating the NN function header
+    cpp_code += f"""
+template <typename Scalar = {precision_type}>
+auto {name_space}(const {input_type}& initial_input) {{
+"""
+    
+    ###################
+    ## FLATTEN INPUT ##
+    ###################
+    # build normalization arrays if input_norms and input_mins are provided
+    cpp_code += f"""
+    constexpr int flat_size = {input_size}; 
+    std::array<Scalar, flat_size> model_input;
+    """
+
+    # get input dimensions of model
+    dims = layer_shape[0]
+    indent = ""
+
+    # check if input shape is flat or not (i.e. 1D or higher, then flatten it)
+    if isinstance(dims, tuple) and len(dims) > 1 and input_norms is None:
+
+        # get rid of dimensions with 1
+        dims = [d for d in raw_shape if d != 1]
+
+        # build nested loops using dynamic indentation for each dimension given a 2D or higher input shape
+        loop_vars = [f"i{j}" for j in range(len(dims))]
+        for d_i, d_val in enumerate(dims):
+            cpp_code += f"{indent}for (int {loop_vars[d_i]} = 0; {loop_vars[d_i]} < {d_val}; {loop_vars[d_i]}++) {{\n"
+            indent = "      " * (d_i + 1)  
+
+        # compute the 1D index in row-major order with extra indentation
+        index_expr = ""
+        for d_i in range(len(dims)):
+            stride = 1
+            for d_j in range(d_i + 1, len(dims)):
+                stride *= dims[d_j]
+            if d_i > 0:
+                index_expr += " + "
+            index_expr += f"{loop_vars[d_i]} * {stride}"
+        cpp_code += "    " * (len(dims) + 1) + f"int flatIndex = {index_expr};\n"
+        cpp_code += "    " * (len(dims) + 1) + f"model_input[flatIndex] = initial_input"
+        for lv in loop_vars:
+            cpp_code += f"[{lv}]"
+        cpp_code += ";\n"
+
+        # close loops using matching indentation levels
+        for d_i in range(len(dims), 0, -1):
+            cpp_code += "    " * d_i + "}\n"
+
+    elif input_norms is None:
+
+        # fallback 1D
+        cpp_code += f"    for (int i=0; i<flat_size; i++) {{ model_input[i] = initial_input[i]; }}\n"
+
+    # this is where we input our normalization parameters if we do have some
+    if input_norms is not None:
+        cpp_code += (
+            f"    constexpr std::array<Scalar, {len(input_norms)}> input_norms = {{"
+        )
+        cpp_code += ", ".join(f"{x:10.9e}" for x in input_norms)
+        cpp_code += "};\n\n"
+
+        cpp_code += (
+            f"    constexpr std::array<Scalar, {len(input_mins)}> input_mins = {{"
+        )
+        cpp_code += ", ".join(f"{x:10.9e}" for x in input_mins)
+        cpp_code += "};\n\n"
+
+        cpp_code += f"    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_mins[i]) / (input_norms[i]); }} \n\n"
+        cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
+    else:
+        cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n'
+
+
+    cpp_code += "\n\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n\n"
 
 
     #################################
@@ -902,20 +999,24 @@ auto {name_space}(const {input_type}& initial_input) {{
             cpp_code += f"    softmax(layer_{layer_idx}_output.data(), layer_{layer_idx}_output.data(), {size});\n\n"
             last_layer = f"layer_{layer_idx}_output"
 
-    # compute output normalization
-    out_norm_size = get_flat_size(last_shape)
-    out_size = last_shape
-    cpp_code += f"    // Final output\n"
-    cpp_code += (
-        f"    constexpr static std::array<Scalar, {len(output_norms) if output_norms is not None else 0}> output_norms = {{{', '.join(f'{x:10.9e}' for x in output_norms)}}};\n"
-        if output_norms is not None
-        else ""
-    )
-    cpp_code += (
-        f"    constexpr static std::array<Scalar, {len(output_mins) if output_norms is not None else 0}> output_mins = {{{', '.join(f'{x:10.9e}' for x in output_mins)}}};\n\n"
-        if output_norms is not None
-        else ""
-    )
+    # # compute output normalization
+    # out_norm_size = get_flat_size(last_shape)
+    # out_size = last_shape
+    # cpp_code += f"    // Final output\n"
+    # cpp_code += (
+    #     f"    constexpr static std::array<Scalar, {len(output_norms) if output_norms is not None else 0}> output_norms = {{{', '.join(f'{x:10.9e}' for x in output_norms)}}};\n"
+    #     if output_norms is not None
+    #     else ""
+    # )
+    # cpp_code += (
+    #     f"    constexpr static std::array<Scalar, {len(output_mins) if output_norms is not None else 0}> output_mins = {{{', '.join(f'{x:10.9e}' for x in output_mins)}}};\n\n"
+    #     if output_norms is not None
+    #     else ""
+    # )
+
+
+    cpp_code += "\n\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n\n"
+
 
     # configure the final output layer
     if output_norms is not None:
