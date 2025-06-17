@@ -24,7 +24,7 @@ def normParam(normalization_file):
     input_mins = []
     output_mins = []
     if normalization_file.endswith(('.dat', '.csv', '.txt')):
-        df = pd.read_csv(normalization_file, sep=':', names=['key', 'values'], header=None, engine='python')
+        df = pd.read_csv(normalization_file, sep=':', names=['key', 'values'], header=None, engine='c')
         for _, row in df.iterrows():
             key = row['key'].strip()
             vals = row['values'].strip()
