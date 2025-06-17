@@ -98,6 +98,15 @@ inline void Reshape(Scalar * __restrict outputs, const Scalar * __restrict input
         output = input * sigmoid;
     };
 """,
+        "gelu": """
+    static constexpr Scalar kC0 = 0.044715;
+    static constexpr Scalar kSqrt2PiInv = Scalar(0.7978845608028654);
+    auto gelu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+        Scalar x3 = input * input * input;
+        Scalar y  = kSqrt2PiInv * (input + kC0 * x3);
+        output     = Scalar(0.5) * input * (Scalar(1) + std::tanh(y));
+    };
+""",
         "softmax": """
     auto softmax = +[](Scalar * __restrict outputs, Scalar * __restrict inputs, int size) noexcept {
         Scalar max_val = *std::max_element(input, input + size);
@@ -205,6 +214,24 @@ inline void LayerNormalization2D(Scalar * __restrict outputs, const Scalar * __r
             int idx = i * channels + c;
             outputs[idx] = gamma[c] * ((inputs[idx] - mean) / std::sqrt(var + epsilon)) + beta[c];
         }
+    }
+}
+""",
+        "UnitNormalization": """
+template <typename Scalar, int size>
+inline void UnitNormalization(Scalar * __restrict outputs,
+                              const Scalar * __restrict inputs,
+                              Scalar epsilon) noexcept
+{
+    Scalar sum_sq = 0;
+    for (int i = 0; i < size; ++i) 
+    {
+        sum_sq += inputs[i] * inputs[i];
+    }
+    Scalar inv_norm = Scalar(1) / std::sqrt(sum_sq + epsilon);
+    for (int i = 0; i < size; ++i) 
+    {
+        outputs[i] = inputs[i] * inv_norm;
     }
 }
 """,
@@ -1034,7 +1061,7 @@ inline void AvgPooling3D(Scalar * __restrict outputs, const Scalar * __restrict 
     }
 }   
 """,
-        "GlobalMaxPooling1D":"""
+        "GlobalMaxPooling1D": """
 template <typename Scalar>
 inline void GlobalMaxPooling1D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels) noexcept
 {
@@ -1140,7 +1167,6 @@ inline void GlobalAvgPooling2D(Scalar * __restrict outputs, const Scalar * __res
     }
 }
 """,
-
         "GlobalAvgPooling3D": """
 template <typename Scalar>
 inline void GlobalAvgPooling3D(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_depth, int in_height, int in_width, int channels) noexcept
@@ -1163,7 +1189,7 @@ inline void GlobalAvgPooling3D(Scalar * __restrict outputs, const Scalar * __res
         output[c] = sum / (in_depth * in_height * in_width);
     }
 }
-"""
+""",
     }
 
     # set every function and append it to cpp_code

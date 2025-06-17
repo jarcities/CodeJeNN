@@ -17,7 +17,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 
 def getAlphaForActivation(layer, activation):
-    #===================================================================================
+    # ===================================================================================
     # function that helps exract the alpha value for LeakyReLU or ELU activations.
 
     # args:
@@ -27,21 +27,21 @@ def getAlphaForActivation(layer, activation):
     # returns:
     #     alpha value for LeakyReLU or ELU activations, defaulting to 0.1 for LeakyReLU
     #     and 1.0 for ELU, or 0.0 for other activations.
-    #===================================================================================
+    # ===================================================================================
     if isinstance(layer, tf.keras.layers.LeakyReLU):
         config = layer.get_config()
-        alpha = config.get('alpha', config.get('negative_slope', 0.1))
+        alpha = config.get("alpha", config.get("negative_slope", 0.1))
         return alpha
     if isinstance(activation, dict):
         if activation.get("class_name") == "LeakyReLU":
             config = activation.get("config", {})
-            alpha = config.get('alpha', config.get('negative_slope', 0.1))
-            return alpha        
+            alpha = config.get("alpha", config.get("negative_slope", 0.1))
+            return alpha
     if activation == "leakyrelu":
-        if hasattr(layer, 'get_config'):
+        if hasattr(layer, "get_config"):
             config = layer.get_config()
-            if 'alpha' in config or 'negative_slope' in config:
-                return config.get('alpha', config.get('negative_slope', 0.1))
+            if "alpha" in config or "negative_slope" in config:
+                return config.get("alpha", config.get("negative_slope", 0.1))
         return 0.1
     elif activation == "elu":
         return layer.get_config().get("alpha", 1.0)
@@ -49,7 +49,7 @@ def getAlphaForActivation(layer, activation):
 
 
 def extractModel(model, file_type):
-    #===================================================================================
+    # ===================================================================================
     # function to process and extract model information from a Keras or ONNX model layer
     # by layer, including layer types, weights, biases, activation functions,
     # alphas, dropout rates, normalization layer parameters, convolution layer parameters,
@@ -71,8 +71,8 @@ def extractModel(model, file_type):
     #     ImportError: If the required libraries for Keras or ONNX are not installed.
     #     Exception: If an unexpected error occurs during model extraction.
     #     NotImplementedError: If the model contains unsupported layers or configurations.
-    #     KeyError: If a required configuration key is missing in the model layer.        
-    #===================================================================================
+    #     KeyError: If a required configuration key is missing in the model layer.
+    # ===================================================================================
     layer_type = []
     weights_list = []
     biases_list = []
@@ -87,13 +87,13 @@ def extractModel(model, file_type):
     if file_type in [".h5", ".keras"]:
 
         # determine model input shape
-        full_shape = model.input_shape 
+        full_shape = model.input_shape
         if full_shape[0] is None:
             raw_shape = full_shape[1:]
         else:
             raw_shape = full_shape
         input_flat_size = int(np.prod(raw_shape))
-        layer_shape.append(tuple(raw_shape)) 
+        layer_shape.append(tuple(raw_shape))
         current_shape = model.input_shape[1:]
 
         # iterate through each layer in the model
@@ -103,7 +103,7 @@ def extractModel(model, file_type):
             try:
                 layer_input_shape = layer.input_shape
             except AttributeError:
-                layer_input_shape = current_shape 
+                layer_input_shape = current_shape
             conv_layer_params.append(None)
             config = layer.get_config()
             layer_weights = layer.get_weights()
@@ -112,9 +112,28 @@ def extractModel(model, file_type):
             ## CORE LAYERS ##
             #################
             # pure activation layers
-            if ("activation" in layer.name.lower() or isinstance(layer, keras.layers.Activation)) \
-            or (not layer.get_weights() and layer.__class__.__name__.lower() in ["relu", "sigmoid", "tanh", "leakyrelu", "elu", "softmax", "selu", "swish", "silu"]):
-                if hasattr(layer, 'activation') and layer.activation is not None:
+            if (
+                "activation" in layer.name.lower()
+                or isinstance(layer, keras.layers.Activation)
+            ) or (
+                not layer.get_weights()
+                and layer.__class__.__name__.lower()
+                in [
+                    "relu",
+                    "sigmoid",
+                    "tanh",
+                    "leakyrelu",
+                    "linear",
+                    "elu",
+                    "selu",
+                    "swish",
+                    "prelu",
+                    "silu",
+                    "gelu",
+                    "softmax",
+                ]
+            ):
+                if hasattr(layer, "activation") and layer.activation is not None:
                     act_str = layer.activation.__name__.lower()
                 else:
                     act_str = layer.__class__.__name__.lower()
@@ -138,11 +157,16 @@ def extractModel(model, file_type):
             ####################
 
             # reshape layers
-            if (isinstance(layer, keras.layers.Reshape) or "reshape" in layer.name.lower()):
+            if (
+                isinstance(layer, keras.layers.Reshape)
+                or "reshape" in layer.name.lower()
+            ):
                 if len(layer_weights) == 0:
                     new_shape = config.get("target_shape", None)
                     if new_shape is None:
-                        raise ValueError(f"Reshape layer {layer.name} has no target shape defined.")
+                        raise ValueError(
+                            f"Reshape layer {layer.name} has no target shape defined."
+                        )
                     if isinstance(new_shape, list):
                         new_shape = tuple(new_shape)
                     elif isinstance(new_shape, int):
@@ -152,7 +176,7 @@ def extractModel(model, file_type):
 
                 # if len(current_shape) < 3:
                 #     # if shape is 2d
-                #     H, W = current_shape 
+                #     H, W = current_shape
                 #     C = 1
                 # else:
                 #     # if shape is 3d
@@ -172,7 +196,10 @@ def extractModel(model, file_type):
 
             # flatten layers
             # (everything is flattened anyways)
-            if (isinstance(layer, keras.layers.Flatten) or "flatten" in layer.name.lower()):
+            if (
+                isinstance(layer, keras.layers.Flatten)
+                or "flatten" in layer.name.lower()
+            ):
                 activation_functions.append("flatten")
                 weights_list.append(None)
                 biases_list.append(None)
@@ -187,7 +214,10 @@ def extractModel(model, file_type):
             ## NORMALIZATION LAYERS ##
             ##########################
             # batch normalization layers
-            if (isinstance(layer, keras.layers.BatchNormalization) or "batchnormalization" in layer.name.lower()):
+            if (
+                isinstance(layer, keras.layers.BatchNormalization)
+                or "batchnormalization" in layer.name.lower()
+            ):
                 if len([d for d in layer_input_shape if d is not None]) > 2:
                     norm_type = "BatchNormalization2D"
                 else:
@@ -195,8 +225,18 @@ def extractModel(model, file_type):
                 if len(layer_weights) == 4:
                     gamma, beta, moving_mean, moving_variance = layer_weights
                     epsilon = config.get("epsilon", 1e-5)
-                    norm_layer_params.append((gamma, beta, moving_mean, moving_variance, epsilon))
-                    layer_shape.append((gamma.shape, beta.shape, moving_mean.shape, moving_variance.shape, 1))
+                    norm_layer_params.append(
+                        (gamma, beta, moving_mean, moving_variance, epsilon)
+                    )
+                    layer_shape.append(
+                        (
+                            gamma.shape,
+                            beta.shape,
+                            moving_mean.shape,
+                            moving_variance.shape,
+                            1,
+                        )
+                    )
                     weights_list.append(None)
                     biases_list.append(None)
                     activation_functions.append(None)
@@ -211,8 +251,11 @@ def extractModel(model, file_type):
                     alphas.append(0.0)
                 continue
 
-            # Section: Process Layer Normalization Layers
-            if (isinstance(layer, keras.layers.LayerNormalization) or "layernormalization" in layer.name.lower()):
+            # layer normalization layers
+            if (
+                isinstance(layer, keras.layers.LayerNormalization)
+                or "layernormalization" in layer.name.lower()
+            ):
                 if len([d for d in layer_input_shape if d is not None]) > 2:
                     norm_type = "LayerNormalization2D"
                 else:
@@ -236,46 +279,90 @@ def extractModel(model, file_type):
                     alphas.append(getAlphaForActivation(layer, activation))
                 continue
 
+            # unit normalization layers
+            if (
+                isinstance(layer, keras.layers.UnitNormalization)
+                or "unitnormalization" in layer.name.lower()
+            ):
+                conv_layer_params.append(None)
+                # eps = keras.backend.epsilon()
+                epsilon = config.get("epsilon", 1e-5)
+                norm_layer_params.append((None, None, None, None, epsilon))
+                layer_shape.append(None)
+                activation_functions.append(None)
+                weights_list.append(None)
+                biases_list.append(None)
+                alphas.append(0.0)
+                dropout_rates.append(0.0)
+                layer_type.append("UnitNormalization")
+                continue
+            # if (isinstance(layer, keras.layers.UnitNormalization) or "unitnormalization" in layer.name.lower()):
+            #     conv_layer_params.append(None)
+            #     lw = layer.get_weights()
+            #     norm_layer_params.append((None, None, None, None, None))
+            #     layer_shape.append(None)
+            #     activation_functions.append(None)
+            #     weights_list.append(None)
+            #     biases_list.append(None)
+            #     alphas.append(0.0)
+            #     dropout_rates.append(0.0)
+            #     layer_type.append("UnitNormalization")
+            #     continue
+
             ####################
             ## POOLING LAYERS ##
             ####################
             # 1d max pooling layers
-            if isinstance(layer, keras.layers.MaxPooling1D) or "maxpooling1d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.MaxPooling1D)
+                or "maxpooling1d" in layer.name.lower()
+            ):
                 raw_pool = config.get("pool_size", 2)
                 pool_size = raw_pool if isinstance(raw_pool, int) else tuple(raw_pool)
-                raw_strides   = config.get("strides", pool_size)
-                strides = raw_strides if isinstance(raw_strides, int) else tuple(raw_strides)
+                raw_strides = config.get("strides", pool_size)
+                strides = (
+                    raw_strides if isinstance(raw_strides, int) else tuple(raw_strides)
+                )
 
-                padding   = config.get("padding", "valid")
-                in_shape  = current_shape
+                padding = config.get("padding", "valid")
+                in_shape = current_shape
 
                 raw_shape = layer_input_shape[1:]
                 df = config.get("data_format", "channels_last")
                 if df == "channels_first":
-                    if   len(raw_shape) == 2:
-                        raw_shape = ( raw_shape[1], raw_shape[0] )
+                    if len(raw_shape) == 2:
+                        raw_shape = (raw_shape[1], raw_shape[0])
                     elif len(raw_shape) == 3:
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
+                        raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
                     elif len(raw_shape) == 4:
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                        raw_shape = (
+                            raw_shape[1],
+                            raw_shape[2],
+                            raw_shape[3],
+                            raw_shape[0],
+                        )
                 current_shape = raw_shape
 
                 if padding == "valid":
                     length = math.floor((in_shape[0] - pool_size) / strides) + 1
-                else: # same
+                else:  # same
                     length = math.ceil(in_shape[0] / strides)
-                new_shape = (length,) + tuple(in_shape[1:]) if isinstance(in_shape, (tuple, list)) else (length,)
+                new_shape = (
+                    (length,) + tuple(in_shape[1:])
+                    if isinstance(in_shape, (tuple, list))
+                    else (length,)
+                )
 
                 pool_params = {
-                    "layer_type":  layer.__class__.__name__,
-                    "pool_size":   pool_size,
-                    "strides":     strides,
-                    "padding":     padding,
-                    "in_shape":    in_shape,
+                    "layer_type": layer.__class__.__name__,
+                    "pool_size": pool_size,
+                    "strides": strides,
+                    "padding": padding,
+                    "in_shape": in_shape,
                     "output_shape": new_shape,
                 }
-                conv_layer_params[-1]   = pool_params
-                current_shape           = new_shape
+                conv_layer_params[-1] = pool_params
+                current_shape = new_shape
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
@@ -287,24 +374,40 @@ def extractModel(model, file_type):
                 continue
 
             # 2d max pooling layers
-            if (isinstance(layer, keras.layers.MaxPooling2D) or "maxpooling2d" in layer.name.lower()):
+            if (
+                isinstance(layer, keras.layers.MaxPooling2D)
+                or "maxpooling2d" in layer.name.lower()
+            ):
                 raw_pool = config.get("pool_size", (2, 2))
-                pool_size = (raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+                pool_size = (
+                    (raw_pool, raw_pool)
+                    if isinstance(raw_pool, int)
+                    else tuple(raw_pool)
+                )
                 raw_strides = config.get("strides", pool_size)
-                strides     = (raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
-                
+                strides = (
+                    (raw_strides, raw_strides)
+                    if isinstance(raw_strides, int)
+                    else tuple(raw_strides)
+                )
+
                 padding = config.get("padding", "valid")
-                in_shape = current_shape 
+                in_shape = current_shape
 
                 raw_shape = layer_input_shape[1:]
                 df = config.get("data_format", "channels_last")
                 if df == "channels_first":
-                    if   len(raw_shape) == 2: 
-                        raw_shape = ( raw_shape[1], raw_shape[0] )
-                    elif len(raw_shape) == 3:  
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
-                    elif len(raw_shape) == 4: 
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                    if len(raw_shape) == 2:
+                        raw_shape = (raw_shape[1], raw_shape[0])
+                    elif len(raw_shape) == 3:
+                        raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
+                    elif len(raw_shape) == 4:
+                        raw_shape = (
+                            raw_shape[1],
+                            raw_shape[2],
+                            raw_shape[3],
+                            raw_shape[0],
+                        )
                 current_shape = raw_shape
 
                 if len(current_shape) < 3:
@@ -348,24 +451,40 @@ def extractModel(model, file_type):
                 continue
 
             # 3d max pooling layers
-            if isinstance(layer, keras.layers.MaxPooling3D) or "maxpooling3d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.MaxPooling3D)
+                or "maxpooling3d" in layer.name.lower()
+            ):
                 raw_pool = config.get("pool_size", (2, 2, 2))
-                pool_size = (raw_pool, raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+                pool_size = (
+                    (raw_pool, raw_pool, raw_pool)
+                    if isinstance(raw_pool, int)
+                    else tuple(raw_pool)
+                )
                 raw_strides = config.get("strides", pool_size)
-                strides = (raw_strides, raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
-                
-                padding   = config.get("padding", "valid")
-                in_shape  = current_shape
+                strides = (
+                    (raw_strides, raw_strides, raw_strides)
+                    if isinstance(raw_strides, int)
+                    else tuple(raw_strides)
+                )
+
+                padding = config.get("padding", "valid")
+                in_shape = current_shape
 
                 raw_shape = layer_input_shape[1:]
                 df = config.get("data_format", "channels_last")
                 if df == "channels_first":
-                    if   len(raw_shape) == 2: 
-                        raw_shape = ( raw_shape[1], raw_shape[0] )
-                    elif len(raw_shape) == 3:  
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
-                    elif len(raw_shape) == 4: 
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                    if len(raw_shape) == 2:
+                        raw_shape = (raw_shape[1], raw_shape[0])
+                    elif len(raw_shape) == 3:
+                        raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
+                    elif len(raw_shape) == 4:
+                        raw_shape = (
+                            raw_shape[1],
+                            raw_shape[2],
+                            raw_shape[3],
+                            raw_shape[0],
+                        )
                 current_shape = raw_shape
 
                 if padding == "valid":
@@ -377,18 +496,22 @@ def extractModel(model, file_type):
                     h = math.ceil(in_shape[1] / strides[1])
                     w = math.ceil(in_shape[2] / strides[2])
 
-                new_shape = (d, h, w) + tuple(in_shape[3:]) if isinstance(in_shape, (tuple, list)) else (d, h, w)
+                new_shape = (
+                    (d, h, w) + tuple(in_shape[3:])
+                    if isinstance(in_shape, (tuple, list))
+                    else (d, h, w)
+                )
 
                 pool_params = {
-                    "layer_type":   layer.__class__.__name__,
-                    "pool_size":    pool_size,
-                    "strides":      strides,
-                    "padding":      padding,
-                    "in_shape":     in_shape,
+                    "layer_type": layer.__class__.__name__,
+                    "pool_size": pool_size,
+                    "strides": strides,
+                    "padding": padding,
+                    "in_shape": in_shape,
                     "output_shape": new_shape,
                 }
                 conv_layer_params[-1] = pool_params
-                current_shape        = new_shape
+                current_shape = new_shape
 
                 weights_list.append(None)
                 biases_list.append(None)
@@ -401,42 +524,56 @@ def extractModel(model, file_type):
                 continue
 
             # 1d average pooling layers
-            if isinstance(layer, keras.layers.AveragePooling1D) or "averagepooling1d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.AveragePooling1D)
+                or "averagepooling1d" in layer.name.lower()
+            ):
                 raw_pool = config.get("pool_size", 2)
                 pool_size = raw_pool if isinstance(raw_pool, int) else tuple(raw_pool)
-                raw_strides   = config.get("strides", pool_size)
-                strides = raw_strides if isinstance(raw_strides, int) else tuple(raw_strides)
+                raw_strides = config.get("strides", pool_size)
+                strides = (
+                    raw_strides if isinstance(raw_strides, int) else tuple(raw_strides)
+                )
 
-                padding   = config.get("padding", "valid")
-                in_shape  = current_shape
+                padding = config.get("padding", "valid")
+                in_shape = current_shape
 
                 raw_shape = layer_input_shape[1:]
                 df = config.get("data_format", "channels_last")
                 if df == "channels_first":
-                    if   len(raw_shape) == 2: 
-                        raw_shape = ( raw_shape[1], raw_shape[0] )
-                    elif len(raw_shape) == 3:  
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
-                    elif len(raw_shape) == 4: 
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                    if len(raw_shape) == 2:
+                        raw_shape = (raw_shape[1], raw_shape[0])
+                    elif len(raw_shape) == 3:
+                        raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
+                    elif len(raw_shape) == 4:
+                        raw_shape = (
+                            raw_shape[1],
+                            raw_shape[2],
+                            raw_shape[3],
+                            raw_shape[0],
+                        )
                 current_shape = raw_shape
 
                 if padding == "valid":
                     length = math.floor((in_shape[0] - pool_size) / strides) + 1
                 else:
                     length = math.ceil(in_shape[0] / strides)
-                new_shape = (length,) + tuple(in_shape[1:]) if isinstance(in_shape, (tuple, list)) else (length,)
+                new_shape = (
+                    (length,) + tuple(in_shape[1:])
+                    if isinstance(in_shape, (tuple, list))
+                    else (length,)
+                )
 
                 pool_params = {
-                    "layer_type":    layer.__class__.__name__,
-                    "pool_size":     pool_size,
-                    "strides":       strides,
-                    "padding":       padding,
-                    "in_shape":      in_shape,
-                    "output_shape":  new_shape,
+                    "layer_type": layer.__class__.__name__,
+                    "pool_size": pool_size,
+                    "strides": strides,
+                    "padding": padding,
+                    "in_shape": in_shape,
+                    "output_shape": new_shape,
                 }
                 conv_layer_params[-1] = pool_params
-                current_shape        = new_shape
+                current_shape = new_shape
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
@@ -448,26 +585,42 @@ def extractModel(model, file_type):
                 continue
 
             # 2d average pooling layers
-            if (isinstance(layer, keras.layers.AveragePooling2D) or "averagepooling2d" in layer.name.lower()):
+            if (
+                isinstance(layer, keras.layers.AveragePooling2D)
+                or "averagepooling2d" in layer.name.lower()
+            ):
                 raw_pool = config.get("pool_size", (2, 2))
-                pool_size = (raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+                pool_size = (
+                    (raw_pool, raw_pool)
+                    if isinstance(raw_pool, int)
+                    else tuple(raw_pool)
+                )
                 raw_strides = config.get("strides", pool_size)
-                strides = (raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
+                strides = (
+                    (raw_strides, raw_strides)
+                    if isinstance(raw_strides, int)
+                    else tuple(raw_strides)
+                )
 
                 padding = config.get("padding", "valid")
-                in_shape = current_shape 
+                in_shape = current_shape
 
                 raw_shape = layer_input_shape[1:]
                 df = config.get("data_format", "channels_last")
                 if df == "channels_first":
-                    if   len(raw_shape) == 2: 
-                        raw_shape = ( raw_shape[1], raw_shape[0] )
-                    elif len(raw_shape) == 3:  
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
-                    elif len(raw_shape) == 4: 
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                    if len(raw_shape) == 2:
+                        raw_shape = (raw_shape[1], raw_shape[0])
+                    elif len(raw_shape) == 3:
+                        raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
+                    elif len(raw_shape) == 4:
+                        raw_shape = (
+                            raw_shape[1],
+                            raw_shape[2],
+                            raw_shape[3],
+                            raw_shape[0],
+                        )
                 current_shape = raw_shape
-                
+
                 H, W, C = current_shape
                 if padding.lower() == "same":
                     out_H = math.ceil(H / strides[0])
@@ -501,29 +654,45 @@ def extractModel(model, file_type):
                 continue
 
             # 3d average pooling layers
-            if isinstance(layer, keras.layers.AveragePooling3D) or "averagepooling3d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.AveragePooling3D)
+                or "averagepooling3d" in layer.name.lower()
+            ):
                 raw_pool = config.get("pool_size", (2, 2, 2))
-                pool_size = (raw_pool, raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+                pool_size = (
+                    (raw_pool, raw_pool, raw_pool)
+                    if isinstance(raw_pool, int)
+                    else tuple(raw_pool)
+                )
                 raw_strides = config.get("strides", pool_size)
-                strides = (raw_strides, raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
+                strides = (
+                    (raw_strides, raw_strides, raw_strides)
+                    if isinstance(raw_strides, int)
+                    else tuple(raw_strides)
+                )
                 padding = config.get("padding", "valid")
                 in_shape = current_shape
 
                 raw_shape = layer_input_shape[1:]
                 df = config.get("data_format", "channels_last")
                 if df == "channels_first":
-                    if   len(raw_shape) == 2: 
-                        raw_shape = ( raw_shape[1], raw_shape[0] )
-                    elif len(raw_shape) == 3:  
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[0] )
-                    elif len(raw_shape) == 4: 
-                        raw_shape = ( raw_shape[1], raw_shape[2], raw_shape[3], raw_shape[0] )
+                    if len(raw_shape) == 2:
+                        raw_shape = (raw_shape[1], raw_shape[0])
+                    elif len(raw_shape) == 3:
+                        raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
+                    elif len(raw_shape) == 4:
+                        raw_shape = (
+                            raw_shape[1],
+                            raw_shape[2],
+                            raw_shape[3],
+                            raw_shape[0],
+                        )
                 current_shape = raw_shape
 
                 d = in_shape[0]
                 h = in_shape[1]
                 w = in_shape[2]
-                
+
                 if padding.lower() == "same":
                     out_d = math.ceil(d / strides[0])
                     out_h = math.ceil(h / strides[1])
@@ -535,7 +704,11 @@ def extractModel(model, file_type):
                 else:
                     out_d, out_h, out_w = d, h, w
 
-                new_shape = (out_d, out_h, out_w) + tuple(in_shape[3:]) if isinstance(in_shape, (tuple, list)) else (out_d, out_h, out_w)
+                new_shape = (
+                    (out_d, out_h, out_w) + tuple(in_shape[3:])
+                    if isinstance(in_shape, (tuple, list))
+                    else (out_d, out_h, out_w)
+                )
 
                 pool_params = {
                     "layer_type": layer.__class__.__name__,
@@ -556,9 +729,12 @@ def extractModel(model, file_type):
                 layer_shape.append(new_shape)
                 layer_type.append("AvgPooling3D")
                 continue
-            
+
             # 1d global max pooling layers
-            if isinstance(layer, keras.layers.GlobalMaxPooling1D) or "globalmaxpooling1d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.GlobalMaxPooling1D)
+                or "globalmaxpooling1d" in layer.name.lower()
+            ):
                 pool_params = {
                     "layer_type": "GlobalMaxPooling1D",
                     "in_shape": current_shape,
@@ -576,7 +752,10 @@ def extractModel(model, file_type):
                 continue
 
             # 2d global max pooling layers
-            if isinstance(layer, keras.layers.GlobalMaxPooling2D) or "globalmaxpooling2d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.GlobalMaxPooling2D)
+                or "globalmaxpooling2d" in layer.name.lower()
+            ):
                 pool_params = {
                     "layer_type": "GlobalMaxPooling2D",
                     "in_shape": current_shape,
@@ -594,7 +773,10 @@ def extractModel(model, file_type):
                 continue
 
             # 3d global max pooling layers
-            if isinstance(layer, keras.layers.GlobalMaxPooling3D) or "globalmaxpooling3d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.GlobalMaxPooling3D)
+                or "globalmaxpooling3d" in layer.name.lower()
+            ):
                 pool_params = {
                     "layer_type": "GlobalMaxPooling3D",
                     "in_shape": current_shape,
@@ -607,12 +789,17 @@ def extractModel(model, file_type):
                 activation_functions.append(None)
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
-                layer_shape.append((current_shape[0], current_shape[1], current_shape[2]))
+                layer_shape.append(
+                    (current_shape[0], current_shape[1], current_shape[2])
+                )
                 layer_type.append("GlobalMaxPooling3D")
                 continue
 
             # 1d global average pooling layers
-            if isinstance(layer, keras.layers.GlobalAveragePooling1D) or "globalaveragepooling1d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.GlobalAveragePooling1D)
+                or "globalaveragepooling1d" in layer.name.lower()
+            ):
                 pool_params = {
                     "layer_type": "GlobalAveragePooling1D",
                     "in_shape": current_shape,
@@ -630,7 +817,10 @@ def extractModel(model, file_type):
                 continue
 
             # 2d global average pooling layers
-            if isinstance(layer, keras.layers.GlobalAveragePooling2D) or "globalaveragepooling2d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.GlobalAveragePooling2D)
+                or "globalaveragepooling2d" in layer.name.lower()
+            ):
                 pool_params = {
                     "layer_type": "GlobalAveragePooling2D",
                     "in_shape": current_shape,
@@ -648,7 +838,10 @@ def extractModel(model, file_type):
                 continue
 
             # 3d global average pooling layers
-            if isinstance(layer, keras.layers.GlobalAveragePooling3D) or "globalaveragepooling3d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.GlobalAveragePooling3D)
+                or "globalaveragepooling3d" in layer.name.lower()
+            ):
                 pool_params = {
                     "layer_type": "GlobalAveragePooling3D",
                     "in_shape": current_shape,
@@ -669,7 +862,10 @@ def extractModel(model, file_type):
             ## CONVOLUTION LAYERS ##
             ########################
             # Section: Process Depthwise Convolution Layers
-            if (isinstance(layer, keras.layers.DepthwiseConv2D) or "depthwiseconv2d" in layer.name.lower()):
+            if (
+                isinstance(layer, keras.layers.DepthwiseConv2D)
+                or "depthwiseconv2d" in layer.name.lower()
+            ):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
                     depthwise_kernel, bias = layer_weights
@@ -724,19 +920,28 @@ def extractModel(model, file_type):
                 biases_list.append(None)
                 alphas.append(getAlphaForActivation(layer, activation))
                 norm_layer_params.append(None)
-                activation_functions.append(activation if activation != "linear" else "linear")
+                activation_functions.append(
+                    activation if activation != "linear" else "linear"
+                )
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
                 layer_type.append("DepthwiseConv2D")
                 continue
 
             # seperable convolution layers
-            if (isinstance(layer, keras.layers.SeparableConv2D) or "separableconv2d" in layer.name.lower()):
+            if (
+                isinstance(layer, keras.layers.SeparableConv2D)
+                or "separableconv2d" in layer.name.lower()
+            ):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 3:
                     depthwise_kernel, pointwise_kernel, bias = layer_weights
                 elif not use_bias and len(layer_weights) == 2:
-                    depthwise_kernel, pointwise_kernel, bias = layer_weights[0], layer_weights[1], None
+                    depthwise_kernel, pointwise_kernel, bias = (
+                        layer_weights[0],
+                        layer_weights[1],
+                        None,
+                    )
                 else:
                     depthwise_kernel, pointwise_kernel, bias = None, None, None
                 conv_params = {
@@ -785,7 +990,9 @@ def extractModel(model, file_type):
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
-                activation_functions.append(activation if activation != "linear" else "linear")
+                activation_functions.append(
+                    activation if activation != "linear" else "linear"
+                )
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
@@ -865,13 +1072,17 @@ def extractModel(model, file_type):
             #         layer_type.append("Conv1D")
             #     elif isinstance(layer, keras.layers.Conv2D) or "conv2d" in layer.name.lower():
             #         layer_type.append("Conv2D")
-            #     elif isinstance(layer, keras.layers.Conv3D) or "conv3d" in layer.name.lower():    
+            #     elif isinstance(layer, keras.layers.Conv3D) or "conv3d" in layer.name.lower():
             #         layer_type.append("Conv3D")
             #     continue
 
             # 1d convolution layer
-            if isinstance(layer, keras.layers.Conv1D) or "conv1d" in layer.name.lower() \
-            and not isinstance(layer, keras.layers.Conv1DTranspose) and not "conv1dtranspose" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.Conv1D)
+                or "conv1d" in layer.name.lower()
+                and not isinstance(layer, keras.layers.Conv1DTranspose)
+                and not "conv1dtranspose" in layer.name.lower()
+            ):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
                     kernel, bias = layer_weights
@@ -881,22 +1092,22 @@ def extractModel(model, file_type):
                     kernel, bias = None, None
 
                 conv_params = {
-                    "layer_type":    layer.__class__.__name__,
-                    "weights":       kernel,
-                    "biases":        bias,
-                    "filters":       config.get("filters", None),
-                    "kernel_size":   config.get("kernel_size", None),
-                    "strides":       config.get("strides", None),
-                    "padding":       config.get("padding", None),
+                    "layer_type": layer.__class__.__name__,
+                    "weights": kernel,
+                    "biases": bias,
+                    "filters": config.get("filters", None),
+                    "kernel_size": config.get("kernel_size", None),
+                    "strides": config.get("strides", None),
+                    "padding": config.get("padding", None),
                     "dilation_rate": config.get("dilation_rate", None),
-                    "use_bias":      use_bias,
+                    "use_bias": use_bias,
                 }
 
-                in_length   = current_shape[0]
+                in_length = current_shape[0]
                 kernel_size = conv_params["kernel_size"]
-                strides     = conv_params["strides"]
-                padding     = conv_params["padding"]
-                filters     = conv_params["filters"]
+                strides = conv_params["strides"]
+                padding = conv_params["padding"]
+                filters = conv_params["filters"]
 
                 if padding == "same":
                     out_length = math.ceil(in_length / strides)
@@ -907,10 +1118,10 @@ def extractModel(model, file_type):
 
                 new_shape = (out_length, filters)
 
-                conv_params["in_shape"]  = current_shape
+                conv_params["in_shape"] = current_shape
                 conv_params["out_shape"] = new_shape
-                current_shape           = new_shape
-                conv_layer_params[-1]    = conv_params
+                current_shape = new_shape
+                conv_layer_params[-1] = conv_params
 
                 weights_list.append(None)
                 biases_list.append(None)
@@ -926,10 +1137,13 @@ def extractModel(model, file_type):
                 layer_type.append("Conv1D")
                 continue
 
-
             # 2d convolution layers
-            if isinstance(layer, keras.layers.Conv2D) or "conv2d" in layer.name.lower() \
-            and not isinstance(layer, keras.layers.Conv2DTranspose) and not "conv2dtranspose" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.Conv2D)
+                or "conv2d" in layer.name.lower()
+                and not isinstance(layer, keras.layers.Conv2DTranspose)
+                and not "conv2dtranspose" in layer.name.lower()
+            ):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
                     kernel, bias = layer_weights
@@ -939,15 +1153,15 @@ def extractModel(model, file_type):
                     kernel, bias = None, None
 
                 conv_params = {
-                    "layer_type":    layer.__class__.__name__,
-                    "weights":       kernel,
-                    "biases":        bias,
-                    "filters":       config.get("filters", None),
-                    "kernel_size":   config.get("kernel_size", None),
-                    "strides":       config.get("strides", None),
-                    "padding":       config.get("padding", None),
+                    "layer_type": layer.__class__.__name__,
+                    "weights": kernel,
+                    "biases": bias,
+                    "filters": config.get("filters", None),
+                    "kernel_size": config.get("kernel_size", None),
+                    "strides": config.get("strides", None),
+                    "padding": config.get("padding", None),
                     "dilation_rate": config.get("dilation_rate", None),
-                    "use_bias":      use_bias,
+                    "use_bias": use_bias,
                 }
 
                 # if len(current_shape) < 3:
@@ -979,10 +1193,10 @@ def extractModel(model, file_type):
                         H, W, C = current_shape
 
                 # H, W, C    = current_shape
-                kH, kW     = conv_params["kernel_size"]
-                sH, sW     = conv_params["strides"]
-                pad        = conv_params["padding"]
-                filt       = conv_params["filters"]
+                kH, kW = conv_params["kernel_size"]
+                sH, sW = conv_params["strides"]
+                pad = conv_params["padding"]
+                filt = conv_params["filters"]
 
                 if pad.lower() == "same":
                     out_H = math.ceil(H / sH)
@@ -993,13 +1207,13 @@ def extractModel(model, file_type):
                 else:
                     out_H, out_W = H, W
 
-                out_C    = filt if filt is not None else C
+                out_C = filt if filt is not None else C
                 new_shape = (out_H, out_W, out_C)
 
-                conv_params["in_shape"]  = current_shape
+                conv_params["in_shape"] = current_shape
                 conv_params["out_shape"] = new_shape
-                current_shape           = new_shape
-                conv_layer_params[-1]    = conv_params
+                current_shape = new_shape
+                conv_layer_params[-1] = conv_params
 
                 weights_list.append(None)
                 biases_list.append(None)
@@ -1015,10 +1229,13 @@ def extractModel(model, file_type):
                 layer_type.append("Conv2D")
                 continue
 
-
             # 3d convolution layers
-            if isinstance(layer, keras.layers.Conv3D) or "conv3d" in layer.name.lower() \
-            and not isinstance(layer, keras.layers.Conv3DTranspose) and not "conv3dtranspose" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.Conv3D)
+                or "conv3d" in layer.name.lower()
+                and not isinstance(layer, keras.layers.Conv3DTranspose)
+                and not "conv3dtranspose" in layer.name.lower()
+            ):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
                     kernel, bias = layer_weights
@@ -1028,22 +1245,22 @@ def extractModel(model, file_type):
                     kernel, bias = None, None
 
                 conv_params = {
-                    "layer_type":    layer.__class__.__name__,
-                    "weights":       kernel,
-                    "biases":        bias,
-                    "filters":       config.get("filters", None),
-                    "kernel_size":   config.get("kernel_size", None),
-                    "strides":       config.get("strides", None),
-                    "padding":       config.get("padding", None),
+                    "layer_type": layer.__class__.__name__,
+                    "weights": kernel,
+                    "biases": bias,
+                    "filters": config.get("filters", None),
+                    "kernel_size": config.get("kernel_size", None),
+                    "strides": config.get("strides", None),
+                    "padding": config.get("padding", None),
                     "dilation_rate": config.get("dilation_rate", None),
-                    "use_bias":      use_bias,
+                    "use_bias": use_bias,
                 }
 
-                D, H, W, C    = current_shape
-                kD, kH, kW    = conv_params["kernel_size"]
-                sD, sH, sW    = conv_params["strides"]
-                pad           = conv_params["padding"]
-                filt          = conv_params["filters"]
+                D, H, W, C = current_shape
+                kD, kH, kW = conv_params["kernel_size"]
+                sD, sH, sW = conv_params["strides"]
+                pad = conv_params["padding"]
+                filt = conv_params["filters"]
 
                 if pad.lower() == "same":
                     d = math.ceil(D / sD)
@@ -1056,13 +1273,13 @@ def extractModel(model, file_type):
                 else:
                     d, h, w = D, H, W
 
-                out_C    = filt if filt is not None else C
+                out_C = filt if filt is not None else C
                 new_shape = (d, h, w, out_C)
 
-                conv_params["in_shape"]  = current_shape
+                conv_params["in_shape"] = current_shape
                 conv_params["out_shape"] = new_shape
-                current_shape           = new_shape
-                conv_layer_params[-1]    = conv_params
+                current_shape = new_shape
+                conv_layer_params[-1] = conv_params
 
                 weights_list.append(None)
                 biases_list.append(None)
@@ -1079,7 +1296,7 @@ def extractModel(model, file_type):
                 continue
 
             ##################################################################
-            #-----------------------------------------------------------------
+            # -----------------------------------------------------------------
             # # Section: Process ConvLSTM2D Layers
             # if isinstance(layer, keras.layers.ConvLSTM2D) or "convlstm2d" in layer.name.lower() or "conv_lstm2d" in layer.name.lower():
             #     # pull config
@@ -1142,12 +1359,16 @@ def extractModel(model, file_type):
             #     layer_shape.append(new_shape)
             #     layer_type.append("ConvLSTM2D")
             #     continue
-            #-----------------------------------------------------------------
+            # -----------------------------------------------------------------
             ##################################################################
 
             # 1d transposed convolution layers
-            if isinstance(layer, keras.layers.Conv1DTranspose) or "conv1dtranspose" in layer.name.lower() \
-            and not isinstance(layer, keras.layers.Conv1D) and "conv1d" not in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.Conv1DTranspose)
+                or "conv1dtranspose" in layer.name.lower()
+                and not isinstance(layer, keras.layers.Conv1D)
+                and "conv1d" not in layer.name.lower()
+            ):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
                     kernel, bias = layer_weights
@@ -1169,24 +1390,26 @@ def extractModel(model, file_type):
 
                 new_shape = (out_length, filters)
                 conv_params = {
-                    "layer_type":   "Conv1DTranspose",
-                    "weights":      kernel,
-                    "biases":       bias,
-                    "filters":      filters,
-                    "kernel_size":  kernel_size,
-                    "strides":      strides,
-                    "padding":      padding,
+                    "layer_type": "Conv1DTranspose",
+                    "weights": kernel,
+                    "biases": bias,
+                    "filters": filters,
+                    "kernel_size": kernel_size,
+                    "strides": strides,
+                    "padding": padding,
                     "dilation_rate": config.get("dilation_rate", 1),
-                    "use_bias":     use_bias,
-                    "in_shape":     current_shape,
-                    "out_shape":    new_shape,
+                    "use_bias": use_bias,
+                    "in_shape": current_shape,
+                    "out_shape": new_shape,
                 }
                 current_shape = new_shape
                 conv_layer_params[-1] = conv_params
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
-                activation_functions.append(activation if activation != "linear" else "linear")
+                activation_functions.append(
+                    activation if activation != "linear" else "linear"
+                )
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
@@ -1194,8 +1417,12 @@ def extractModel(model, file_type):
                 continue
 
             # 2d transposed convolution layers
-            if isinstance(layer, keras.layers.Conv2DTranspose) or "conv2dtranspose" in layer.name.lower()  \
-            and not isinstance(layer, keras.layers.Conv2D) and "conv2d" not in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.Conv2DTranspose)
+                or "conv2dtranspose" in layer.name.lower()
+                and not isinstance(layer, keras.layers.Conv2D)
+                and "conv2d" not in layer.name.lower()
+            ):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
                     kernel, bias = layer_weights
@@ -1205,15 +1432,15 @@ def extractModel(model, file_type):
                     kernel, bias = None, None
 
                 conv_params = {
-                    "layer_type":   "Conv2DTranspose",
-                    "weights":      kernel,
-                    "biases":       bias,
-                    "filters":      config.get("filters", None),
-                    "kernel_size":  config.get("kernel_size", (3, 3)),
-                    "strides":      config.get("strides", (1, 1)),
-                    "padding":      config.get("padding", "valid").lower(),
+                    "layer_type": "Conv2DTranspose",
+                    "weights": kernel,
+                    "biases": bias,
+                    "filters": config.get("filters", None),
+                    "kernel_size": config.get("kernel_size", (3, 3)),
+                    "strides": config.get("strides", (1, 1)),
+                    "padding": config.get("padding", "valid").lower(),
                     "dilation_rate": config.get("dilation_rate", (1, 1)),
-                    "use_bias":     use_bias,
+                    "use_bias": use_bias,
                 }
 
                 # in_shape = current_shape
@@ -1282,11 +1509,11 @@ def extractModel(model, file_type):
                     out_W = (W - 1) * sW + kW
                 else:
                     out_H, out_W = H, W
-                
+
                 out_C = filters if filters is not None else C
                 new_shape = (out_H, out_W, out_C)
 
-                conv_params["in_shape"]  = in_shape
+                conv_params["in_shape"] = in_shape
                 conv_params["out_shape"] = new_shape
                 current_shape = new_shape
                 conv_layer_params[-1] = conv_params
@@ -1306,8 +1533,12 @@ def extractModel(model, file_type):
                 continue
 
             # 3d transposed convolution layers
-            if isinstance(layer, keras.layers.Conv3DTranspose) or "conv3dtranspose" in layer.name.lower() \
-            and not isinstance(layer, keras.layers.Conv3D) and "conv3d" not in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.Conv3DTranspose)
+                or "conv3dtranspose" in layer.name.lower()
+                and not isinstance(layer, keras.layers.Conv3D)
+                and "conv3d" not in layer.name.lower()
+            ):
                 use_bias = config.get("use_bias", True)
                 if use_bias and len(layer_weights) == 2:
                     kernel, bias = layer_weights
@@ -1317,10 +1548,10 @@ def extractModel(model, file_type):
                     kernel, bias = None, None
 
                 in_d, in_h, in_w = current_shape
-                strides     = config.get("strides", (1, 1, 1))
+                strides = config.get("strides", (1, 1, 1))
                 kernel_size = config.get("kernel_size", (3, 3, 3))
-                padding     = config.get("padding", "valid").lower()
-                filters     = config.get("filters", None)
+                padding = config.get("padding", "valid").lower()
+                filters = config.get("filters", None)
 
                 if padding == "same":
                     out_d = in_d * strides[0]
@@ -1333,24 +1564,26 @@ def extractModel(model, file_type):
 
                 new_shape = (out_d, out_h, out_w, filters)
                 conv_params = {
-                    "layer_type":   "Conv3DTranspose",
-                    "weights":      kernel,
-                    "biases":       bias,
-                    "filters":      filters,
-                    "kernel_size":  kernel_size,
-                    "strides":      strides,
-                    "padding":      padding,
+                    "layer_type": "Conv3DTranspose",
+                    "weights": kernel,
+                    "biases": bias,
+                    "filters": filters,
+                    "kernel_size": kernel_size,
+                    "strides": strides,
+                    "padding": padding,
                     "dilation_rate": config.get("dilation_rate", (1, 1, 1)),
-                    "use_bias":     use_bias,
-                    "in_shape":     current_shape,
-                    "out_shape":    new_shape,
+                    "use_bias": use_bias,
+                    "in_shape": current_shape,
+                    "out_shape": new_shape,
                 }
                 current_shape = new_shape
                 conv_layer_params[-1] = conv_params
                 weights_list.append(None)
                 biases_list.append(None)
                 norm_layer_params.append(None)
-                activation_functions.append(activation if activation != "linear" else "linear")
+                activation_functions.append(
+                    activation if activation != "linear" else "linear"
+                )
                 alphas.append(getAlphaForActivation(layer, activation))
                 dropout_rates.append(0.0)
                 layer_shape.append(new_shape)
@@ -1361,7 +1594,10 @@ def extractModel(model, file_type):
             ## REGULARIZATION LAYERS ##
             ###########################
             # dropout layers
-            if isinstance(layer, keras.layers.Dropout) or "dropout" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.Dropout)
+                or "dropout" in layer.name.lower()
+            ):
                 dropout_rate = config.get("rate", 0.0)
                 activation_functions.append(None)
                 weights_list.append(None)
@@ -1374,7 +1610,10 @@ def extractModel(model, file_type):
                 continue
 
             # 1d spatial dropout layers
-            if isinstance(layer, keras.layers.SpatialDropout1D) or "spatialdropout1d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.SpatialDropout1D)
+                or "spatialdropout1d" in layer.name.lower()
+            ):
                 dropout_rate = config.get("rate", 0.0)
                 activation_functions.append(None)
                 weights_list.append(None)
@@ -1387,7 +1626,10 @@ def extractModel(model, file_type):
                 continue
 
             # 2d spatial dropout layers
-            if isinstance(layer, keras.layers.SpatialDropout2D) or "spatialdropout2d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.SpatialDropout2D)
+                or "spatialdropout2d" in layer.name.lower()
+            ):
                 dropout_rate = config.get("rate", 0.0)
                 activation_functions.append(None)
                 weights_list.append(None)
@@ -1400,7 +1642,10 @@ def extractModel(model, file_type):
                 continue
 
             # 3d spatial dropout layers
-            if isinstance(layer, keras.layers.SpatialDropout3D) or "spatialdropout3d" in layer.name.lower():
+            if (
+                isinstance(layer, keras.layers.SpatialDropout3D)
+                or "spatialdropout3d" in layer.name.lower()
+            ):
                 dropout_rate = config.get("rate", 0.0)
                 activation_functions.append(None)
                 weights_list.append(None)
@@ -1420,7 +1665,9 @@ def extractModel(model, file_type):
                 w, b = layer_weights
                 dense_activation = config.get("activation", "linear")
                 if not isinstance(dense_activation, str):
-                    dense_activation = dense_activation.get("class_name", "linear").lower()
+                    dense_activation = dense_activation.get(
+                        "class_name", "linear"
+                    ).lower()
                 weights_list.append(w)
                 biases_list.append(b)
                 norm_layer_params.append(None)
