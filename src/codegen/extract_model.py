@@ -108,6 +108,27 @@ def extractModel(model, file_type):
             config = layer.get_config()
             layer_weights = layer.get_weights()
 
+            #########################
+            ## PREPOCESSING LAYERS ##
+            #########################
+            if (
+                isinstance(layer, keras.layers.Rescaling)
+                or "rescaling" in layer.name.lower()
+            ):
+                scale = config.get("scale", 1.0)
+                scale = np.array(scale["config"]["value"], dtype=float)
+                offset = config.get("offset", 0.0)
+                offset = np.array(offset["config"]["value"], dtype=float)
+                norm_layer_params.append((scale, offset))
+                weights_list.append(None)
+                biases_list.append(None)
+                activation_functions.append(None)
+                alphas.append(0.0)
+                dropout_rates.append(0.0)
+                layer_shape.append(len(scale))
+                layer_type.append("Rescale")
+                continue
+
             #################
             ## CORE LAYERS ##
             #################

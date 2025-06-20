@@ -37,11 +37,23 @@ inline void Dense(Scalar* __restrict outputs, const Scalar* __restrict inputs, c
         "Reshape": """
 template<typename Scalar, int N>
 inline void Reshape(Scalar * __restrict outputs, const Scalar * __restrict inputs) noexcept {
-    
     for (int i = 0; i < N; ++i) {
         outputs[i] = inputs[i];
     }
 }   
+"""
+    }
+
+    # preprocessing functions
+    preprocessing_functions = {
+        "Rescale": """
+template<typename Scalar, int output_size>
+inline void Rescale(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict scale, const Scalar * __restrict offset) noexcept 
+{
+    for (int i = 0; i < output_size; ++i) {
+        outputs[i] = inputs[i] * scale[i] + offset[i];
+    }
+}
 """
     }
 
@@ -1210,6 +1222,8 @@ inline void GlobalAvgPooling3D(Scalar * __restrict outputs, const Scalar * __res
     unique_layer_types = {lt for lt in layer_type if lt is not None}
 
     for type in unique_layer_types:
+        if type in preprocessing_functions:
+            cpp_code += preprocessing_functions[type]
         if type in dense_function:
             cpp_code += dense_function[type]
         if type in reshape_functions:
