@@ -1,19 +1,15 @@
 from calendar import c
 import os
-import shutil
 import argparse
 import numpy as np
-from layer_propagation import layer_propagation
-from code_generation import preambleHeader, codeGen
-from extract_model import extractModel
-from load_model import loadModel
-from test_script import testSource
-from normalization_parameters import normParam
-import sys
+from A_load_model import loadModel
+from B_extract_model import extractModel
+from C_layer_propagation import layer_propagation
+from D_code_generation import preambleHeader, codeGen
+from Z_test_script import testSource
+from Z_normalization_parameters import normParam
 
-#################
 ## ARG PARSING ##
-#################
 parser = argparse.ArgumentParser(
     description="code generate trained neural net files into a given directory."
 )
@@ -34,9 +30,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-#########################
 ## DATA TYPE PRECISION ##
-#########################
 if args.precision is not None:
     if args.precision not in ["float", "double"]:
         print("\nERROR: Precision type must be 'float' or 'double'.\n")
@@ -48,9 +42,7 @@ else:
 model_dir = args.input
 save_dir = args.output
 
-########################################
 ## CHECK INPUT AND OUTPUT DIRECTORIES ##
-########################################
 if not os.path.exists(model_dir):
     print(f"ERROR: Input directory '{model_dir}' does not exist.")
     exit(1)
@@ -59,9 +51,7 @@ elif not os.path.exists(save_dir):
     os.makedirs(save_dir)
 else:
 
-    ###########################################
     ## PROCESS EACH MODEL IN INPUT DIRECTORY ##
-    ###########################################
     for file_name in os.listdir(model_dir):
         file_path = os.path.join(model_dir, file_name)
 
@@ -74,16 +64,14 @@ else:
         ):
             continue
 
-        ##################################
         ## CHECK FILE AND PROCESS MODEL ##
-        ##################################
         if os.path.isfile(file_path):
             try:
                 base_file_name = os.path.splitext(file_name)[0]
 
-                ######################################
-                ## PROCESS NORMALIZATION PARAMETERS ##
-                ######################################
+                #########################################
+                ## 1. PROCESS NORMALIZATION PARAMETERS ##
+                #########################################
                 dat_file = os.path.join(model_dir, f"{base_file_name}.dat")
                 csv_file = os.path.join(model_dir, f"{base_file_name}.csv")
                 txt_file = os.path.join(model_dir, f"{base_file_name}.txt")
@@ -108,9 +96,9 @@ else:
                         None,
                     )
 
-                ################
-                ## LOAD MODEL ##
-                ################
+                ###################
+                ## 2. LOAD MODEL ##
+                ###################
                 try:
                     model, file_extension = loadModel(file_path)
                     # model.summary()
@@ -118,9 +106,9 @@ else:
                     print("\nError in loading model:", e)
                     continue
 
-                ##############################
-                ## EXTRACT MODEL EVERYTHING ##
-                ##############################
+                #################################
+                ## 3. EXTRACT MODEL EVERYTHING ##
+                #################################
                 try:
                     (
                         weights_list,
@@ -130,7 +118,8 @@ else:
                         dropout_rates,
                         batch_norm_params,
                         conv_layer_params,
-                        input_size,
+                        input_flat_size,
+                        output_flat_size,
                         layer_shape,
                         layer_type,
                     ) = extractModel(model, file_extension)
@@ -140,16 +129,16 @@ else:
                     print("\nError in extracting model:", e)
                     continue
 
-                #########################
-                ## INITIALIZE C++ CODE ##
-                #########################
+                ############################
+                ## 4. INITIALIZE C++ CODE ##
+                ############################
                 base_file_name = os.path.splitext(file_name)[0]
                 save_path = os.path.join(save_dir, base_file_name)
                 cpp_code = preambleHeader()
 
-                #########################################
-                ## PROCESS LAYER PROPAGATION FUNCTIONS ##
-                #########################################
+                ############################################
+                ## 5. PROCESS LAYER PROPAGATION FUNCTIONS ##
+                ############################################
                 try:
                     cpp_code, cpp_lambda = layer_propagation(
                         cpp_code, activation_functions, layer_type
@@ -158,9 +147,9 @@ else:
                     print("\nError in generating layer propagation functions:", e)
                     continue
 
-                #############################
-                ## GENERATE FINAL C++ CODE ##
-                #############################
+                ################################
+                ## 6. GENERATE FINAL C++ CODE ##
+                ################################
                 try:
                     cpp_code = codeGen(
                         cpp_code,
@@ -173,7 +162,8 @@ else:
                         dropout_rates,
                         batch_norm_params,
                         conv_layer_params,
-                        input_size,
+                        input_flat_size,
+                        output_flat_size,
                         save_path,
                         input_norms,
                         input_mins,
