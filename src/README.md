@@ -88,6 +88,8 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
     * If such errors occurs, the user is very, and I mean very encouraged to add and update the logic and submit a pull request and merge. 
 
+### PLEASE REFER TO MARKDOWN FILES IN `../OTHERS/` TO UNDERSTAND WHAT LAYERS CODEJENN SUPPORTS
+
 # Code Generation Steps
 1. First create trained neural nets using tensorflow keras and save in the supported file extensions.
 
