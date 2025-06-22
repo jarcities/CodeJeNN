@@ -17,6 +17,8 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
   * **bin/** ⮕ Default folder where genereated header files are created (you can link another directory if you want).
 
+  * **testing/** ⮕ Folder to compare and contrast header file to keras' output per layer.
+
 # Code Generation Explanation and Limiations
 
 ### File Type and Directory:
@@ -41,7 +43,7 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
     * The normalization/standardization file name must match the name of the **.keras**, **.h5**, or **.onnx** file to make sure the proper parameters are generated correctly.
 
-    * A full example OF HOW TO PROPERLY NAME THE NORMALIZATION PARAMETERS is in the **example.dat** file in **dump_model/** or in the **../tutorials/** directory. The important thing to remember is to use space as delimiters, use the correct variable and file name, and put all array of values in brackets.
+    * A full example OF HOW TO PROPERLY NAME THE NORMALIZATION PARAMETERS is in the **example.dat** file in **dump_model/** or in the **../tutorials/** directory. The important thing to remember is to use commas as delimiters, use the correct variable and file name, and put all array of values in brackets.
 
 ### Model Architecture
 
@@ -51,7 +53,7 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
     * Sequential models or stacked layer models referes to how the user can build an MLP or CNN using tensorflow keras. You can stack different types of layers on top whether they are Dense, Conv2D, Activations, Normalization layers and etc. 
 
-* Unfortunately, at the time of writing, tensorflow keras does not have API for GNNs.
+* Unfortunately, at the time of writing, tensorflow keras is currently implementing API for GNNs.
 
 * To truly understand how complex and deep these architectures can be code generated, the user is referred to the **../tutorial/** directory.
 

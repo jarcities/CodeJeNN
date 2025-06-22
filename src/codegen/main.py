@@ -184,5 +184,3 @@ else:
             except ValueError as e:
                 print(f"\nERROR: '{file_name}' is not readable (skipping): {e}  - -\n")
                 continue
-
-    # print()
