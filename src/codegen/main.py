@@ -1,17 +1,15 @@
-
-# Section: Library Imports
+from calendar import c
 import os
-import shutil
 import argparse
 import numpy as np
-from layer_propagation import layer_propagation
-from code_generation import preambleHeader, codeGen
-from extract_model import extractModel
-from load_model import loadModel
-from test_script import testSource
-from normalization_parameters import normParam
+from A_load_model import loadModel
+from B_extract_model import extractModel
+from C_layer_propagation import layer_propagation
+from D_code_generation import preambleHeader, codeGen
+from Z_test_script import testSource
+from Z_normalization_parameters import normParam
 
-# Section: Argument Parsing
+## ARG PARSING ##
 parser = argparse.ArgumentParser(
     description="code generate trained neural net files into a given directory."
 )
@@ -32,7 +30,7 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-# Section: Validate Precision Input
+## DATA TYPE PRECISION ##
 if args.precision is not None:
     if args.precision not in ["float", "double"]:
         print("\nERROR: Precision type must be 'float' or 'double'.\n")
@@ -44,7 +42,7 @@ else:
 model_dir = args.input
 save_dir = args.output
 
-# Section: Check Directory Existence and Setup
+## CHECK INPUT AND OUTPUT DIRECTORIES ##
 if not os.path.exists(model_dir):
     print(f"ERROR: Input directory '{model_dir}' does not exist.")
     exit(1)
@@ -52,7 +50,8 @@ elif not os.path.exists(save_dir):
     print(f"WARNING: Output directory '{save_dir}' does not exist. Creating it now...")
     os.makedirs(save_dir)
 else:
-    # Section: Process Each Model File
+
+    ## PROCESS EACH MODEL IN INPUT DIRECTORY ##
     for file_name in os.listdir(model_dir):
         file_path = os.path.join(model_dir, file_name)
 
@@ -65,89 +64,123 @@ else:
         ):
             continue
 
+        ## CHECK FILE AND PROCESS MODEL ##
         if os.path.isfile(file_path):
             try:
                 base_file_name = os.path.splitext(file_name)[0]
 
-                # Section: Load Normalization Parameters (if available)
+                #########################################
+                ## 1. PROCESS NORMALIZATION PARAMETERS ##
+                #########################################
                 dat_file = os.path.join(model_dir, f"{base_file_name}.dat")
                 csv_file = os.path.join(model_dir, f"{base_file_name}.csv")
                 txt_file = os.path.join(model_dir, f"{base_file_name}.txt")
 
                 if os.path.exists(dat_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(dat_file)
+                    input_norms, input_mins, output_norms, output_mins = normParam(
+                        dat_file
+                    )
                 elif os.path.exists(csv_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(csv_file)
+                    input_norms, input_mins, output_norms, output_mins = normParam(
+                        csv_file
+                    )
                 elif os.path.exists(txt_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(txt_file)
+                    input_norms, input_mins, output_norms, output_mins = normParam(
+                        txt_file
+                    )
                 else:
-                    input_norms, input_mins, output_norms, output_mins = (None, None, None, None)
+                    input_norms, input_mins, output_norms, output_mins = (
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
 
-                # Section: Load Model File
-                model, file_extension = loadModel(file_path)
-                model.summary()
-                
-                # Section: Extract Model Parameters
-                (
-                    weights_list,
-                    biases_list,
-                    activation_functions,
-                    alphas,
-                    dropout_rates,
-                    batch_norm_params,
-                    conv_layer_params,
-                    input_size,
-                    layer_shape,
-                    layer_type,
-                ) = extractModel(model, file_extension)
-                print()
-                print("activation functions")
-                print(len(activation_functions))
-                print(activation_functions)
-                print()
-                print("layer type")
-                print(len(layer_type))
-                print(layer_type)
-                print()
+                ###################
+                ## 2. LOAD MODEL ##
+                ###################
+                try:
+                    model, file_extension = loadModel(file_path)
+                    # model.summary()
+                except ValueError as e:
+                    print("\nError in loading model:", e)
+                    continue
 
-                # Section: Generate C++ Code from Model
+                #################################
+                ## 3. EXTRACT MODEL EVERYTHING ##
+                #################################
+                try:
+                    (
+                        weights_list,
+                        biases_list,
+                        activation_functions,
+                        alphas,
+                        dropout_rates,
+                        batch_norm_params,
+                        conv_layer_params,
+                        input_flat_size,
+                        output_flat_size,
+                        layer_shape,
+                        layer_type,
+                    ) = extractModel(model, file_extension)
+                    # print(layer_type)
+                    # print(activation_functions)
+                except ValueError as e:
+                    print("\nError in extracting model:", e)
+                    continue
+
+                ############################
+                ## 4. INITIALIZE C++ CODE ##
+                ############################
                 base_file_name = os.path.splitext(file_name)[0]
                 save_path = os.path.join(save_dir, base_file_name)
                 cpp_code = preambleHeader()
 
-                # Process activations and lambda definitions
-                cpp_code, cpp_lambda = layer_propagation(
-                    cpp_code, activation_functions, layer_type
-                )
+                ############################################
+                ## 5. PROCESS LAYER PROPAGATION FUNCTIONS ##
+                ############################################
+                try:
+                    cpp_code, cpp_lambda = layer_propagation(
+                        cpp_code, activation_functions, layer_type
+                    )
+                except ValueError as e:
+                    print("\nError in generating layer propagation functions:", e)
+                    continue
 
-                # Generate final code, passing conv_layer_params among others.
-                cpp_code = codeGen(
-                    cpp_code,
-                    cpp_lambda,
-                    precision_type,
-                    weights_list,
-                    biases_list,
-                    activation_functions,
-                    alphas,
-                    dropout_rates,
-                    batch_norm_params,
-                    conv_layer_params,
-                    input_size,
-                    save_path,
-                    input_norms,
-                    input_mins,
-                    output_norms,
-                    output_mins,
-                    layer_shape,
-                    layer_type,
-                )
+                ################################
+                ## 6. GENERATE FINAL C++ CODE ##
+                ################################
+                try:
+                    cpp_code = codeGen(
+                        cpp_code,
+                        cpp_lambda,
+                        precision_type,
+                        weights_list,
+                        biases_list,
+                        activation_functions,
+                        alphas,
+                        dropout_rates,
+                        batch_norm_params,
+                        conv_layer_params,
+                        input_flat_size,
+                        output_flat_size,
+                        save_path,
+                        input_norms,
+                        input_mins,
+                        output_norms,
+                        output_mins,
+                        layer_shape,
+                        layer_type,
+                    )
+                except ValueError as e:
+                    print("\nError in generating C++ code:", e)
+                    continue
 
                 print()
-                with open(f"{save_path}.h", "w") as f:
+                with open(f"{save_path}.hpp", "w") as f:
                     f.write(cpp_code)
-                print(save_path)
+                print("Saved model in ", save_path)
 
             except ValueError as e:
-                print(f"\n - -  file type is not readable --> '{file_name}': {e}  - -\n")
-
-    print()
+                print(f"\nERROR: '{file_name}' is not readable (skipping): {e}  - -\n")
+                continue
