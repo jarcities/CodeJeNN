@@ -51,6 +51,7 @@ def codeGen(
     output_mins,
     layer_shape,
     layer_type,
+    base_file_name
 ):
     # ===============================================================================
     # function to generate put all the cpp code together from the previous scripts
@@ -133,7 +134,7 @@ def codeGen(
     # start generating the NN function header
     cpp_code += f"""
 template <typename Scalar = {precision_type}>
-auto {name_space}(const {input_type}& initial_input) {{\n
+inline auto {name_space}(const {input_type}& initial_input) {{\n
 """
 
     ##################################
@@ -524,7 +525,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
             try:
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar,  {get_flat_size(current_shape)}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    Rescale<Scalar, {current_shape}>(\n"
+                cpp_code += f"    Rescale_{base_file_name}<Scalar, {current_shape}>(\n"
                 cpp_code += (
                     f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 )
@@ -544,7 +545,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
         elif ltype == "Reshape":
             cpp_code += f"    // {ltype}, layer {layer_idx}\n"
             cpp_code += f"    static std::array<Scalar, {get_flat_size(current_shape)}> layer_{layer_idx}_output;\n"
-            cpp_code += f"    Reshape<Scalar, {get_flat_size(current_shape)}>(\n"
+            cpp_code += f"    Reshape_{base_file_name}<Scalar, {get_flat_size(current_shape)}>(\n"
             cpp_code += (
                 f"        layer_{layer_idx}_output.data(), {last_layer}.data());\n\n"
             )
@@ -574,7 +575,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
             cpp_code += (
                 f"    static std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
             )
-            cpp_code += f"    Dense<Scalar, {out_size}>(\n"
+            cpp_code += f"    Dense_{base_file_name}<Scalar, {out_size}>(\n"
             cpp_code += (
                 f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
             )
@@ -636,7 +637,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 height, width, channels = last_shape
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({height} * {width} * {channels})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    BatchNormalization2D<Scalar, {channels}, {height}, {width}>(\n"
+                cpp_code += f"    BatchNormalization2D_{base_file_name}<Scalar, {channels}, {height}, {width}>(\n"
                 cpp_code += (
                     f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 )
@@ -655,7 +656,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 out_size = len(gamma)
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    BatchNormalization<Scalar, {out_size}>(\n"
+                cpp_code += f"    BatchNormalization_{base_file_name}<Scalar, {out_size}>(\n"
                 cpp_code += (
                     f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 )
@@ -681,7 +682,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 height, width, channels = last_shape
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({height} * {width} * {channels})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    LayerNormalization2D<Scalar, {channels}, {height}, {width}>(\n"
+                cpp_code += f"    LayerNormalization2D_{base_file_name}<Scalar, {channels}, {height}, {width}>(\n"
                 cpp_code += (
                     f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 )
@@ -697,7 +698,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 out_size = len(gamma)
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    LayerNormalization<Scalar, {out_size}>(\n"
+                cpp_code += f"    LayerNormalization_{base_file_name}<Scalar, {out_size}>(\n"
                 cpp_code += (
                     f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 )
@@ -715,7 +716,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
             cpp_code += (
                 f"    static std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
             )
-            cpp_code += f"    UnitNormalization<Scalar, {size}>(\n"
+            cpp_code += f"    UnitNormalization_{base_file_name}<Scalar, {size}>(\n"
             cpp_code += (
                 f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
             )
@@ -746,7 +747,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
             if ltype == "Conv1D":
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {out_shape[2]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    Conv1D<Scalar, {out_shape[2]}>(\n"
+                cpp_code += f"    Conv1D_{base_file_name}<Scalar, {out_shape[2]}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
                 cpp_code += f"        {in_shape[2]}, {conv_dict.get('kernel_size', (3,))[0]}, {conv_dict.get('strides', (1,))[0]}, 0,\n"
@@ -784,7 +785,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                     pad_w = kernel[1] // 2
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    Conv2D<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
+                cpp_code += f"    Conv2D_{base_file_name}<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
                 cpp_code += (
@@ -812,7 +813,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                     f"{out_shape[0]} * {out_shape[1]} * {out_shape[2]} * {out_shape[3]}"
                     f"> layer_{layer_idx}_output;\n"
                 )
-                cpp_code += f"    Conv3D<Scalar, {out_shape[3]}, {out_shape[0]}, {out_shape[1]}, {out_shape[2]}>(\n"
+                cpp_code += f"    Conv3D_{base_file_name}<Scalar, {out_shape[3]}, {out_shape[0]}, {out_shape[1]}, {out_shape[2]}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
                 cpp_code += f"        {in_shape[3]}, {in_shape[0]}, {in_shape[1]}, {in_shape[2]},\n"
@@ -833,7 +834,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                     pad_w = kernel[1] // 2
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {in_shape[2]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    DepthwiseConv2D(\n"
+                cpp_code += f"    DepthwiseConv2D_{base_file_name}(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 cpp_code += f"        depthwiseKernel_{layer_idx}.data(), depthwiseBias_{layer_idx}.data(),\n"
                 cpp_code += (
@@ -859,7 +860,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                     pad_w = kernel[1] // 2
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    SeparableConv2D<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
+                cpp_code += f"    SeparableConv2D_{base_file_name}<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 cpp_code += f"        sepDepthwise_{layer_idx}.data(), sepPointwise_{layer_idx}.data(), sepPointwiseBias_{layer_idx}.data(),\n"
                 cpp_code += (
@@ -883,7 +884,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]})> layer_{layer_idx}_output;\n"
                 cpp_code += (
-                    f"    Conv1DTranspose<Scalar, {out_shape[1]}, {out_shape[0]}>"
+                    f"    Conv1DTranspose_{base_file_name}<Scalar, {out_shape[1]}, {out_shape[0]}>"
                 )
                 cpp_code += "(layer_{0}_output.data(), {1}.data(), convKernel_{0}.data(), convBias_{0}.data(),".format(
                     layer_idx, last_layer
@@ -906,7 +907,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 in_shape = conv_dict.get("in_shape")
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    Conv2DTranspose<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
+                cpp_code += f"    Conv2DTranspose_{base_file_name}<Scalar, {out_shape[2]}, {out_shape[0]}, {out_shape[1]}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
                 cpp_code += (
@@ -929,7 +930,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                     pd, ph, pw = kd // 2, kh // 2, kw // 2
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]} * {out_shape[3]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    Conv3DTranspose<Scalar, {out_shape[3]}, {out_shape[0]}, {out_shape[1]}, {out_shape[2]}>"
+                cpp_code += f"    Conv3DTranspose_{base_file_name}<Scalar, {out_shape[3]}, {out_shape[0]}, {out_shape[1]}, {out_shape[2]}>"
                 cpp_code += "(layer_{0}_output.data(), {1}.data(), convKernel_{0}.data(), convBias_{0}.data(),".format(
                     layer_idx, last_layer
                 )
@@ -979,7 +980,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 strides = conv_dict.get("strides", pool_size)
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    MaxPooling1D<Scalar, {pool_size}, {strides}>(\n"
+                cpp_code += f"    MaxPooling1D_{base_file_name}<Scalar, {pool_size}, {strides}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = out_shape
@@ -991,7 +992,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 strides = conv_dict.get("strides", pool_size)
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    MaxPooling2D<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
+                cpp_code += f"    MaxPooling2D_{base_file_name}<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = out_shape
@@ -1003,7 +1004,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 strides = conv_dict.get("strides", pool_size)
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    MaxPooling3D<Scalar, {pool_size[0]}, {pool_size[1]}, {pool_size[2]}, {strides[0]}, {strides[1]}, {strides[2]}>(\n"
+                cpp_code += f"    MaxPooling3D_{base_file_name}<Scalar, {pool_size[0]}, {pool_size[1]}, {pool_size[2]}, {strides[0]}, {strides[1]}, {strides[2]}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {in_shape[3]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = out_shape
@@ -1015,7 +1016,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 strides = conv_dict.get("strides", pool_size)
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    AvgPooling1D<Scalar, {pool_size}, {strides}>(\n"
+                cpp_code += f"    AvgPooling1D_{base_file_name}<Scalar, {pool_size}, {strides}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = out_shape
@@ -1027,7 +1028,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 strides = conv_dict.get("strides", pool_size)
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    AvgPooling2D<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
+                cpp_code += f"    AvgPooling2D_{base_file_name}<Scalar, {pool_size[0]}, {pool_size[1]}, {strides[0]}, {strides[1]}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = out_shape
@@ -1039,7 +1040,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
                 strides = conv_dict.get("strides", pool_size)
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    AvgPooling3D<Scalar, {pool_size[0]}, {pool_size[1]}, {pool_size[2]}, {strides[0]}, {strides[1]}, {strides[2]}>(\n"
+                cpp_code += f"    AvgPooling3D_{base_file_name}<Scalar, {pool_size[0]}, {pool_size[1]}, {pool_size[2]}, {strides[0]}, {strides[1]}, {strides[2]}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {in_shape[3]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = out_shape
@@ -1049,7 +1050,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
             elif ltype == "GlobalMaxPooling1D":
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {in_shape[1]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GlobalMaxPooling1D(\n"
+                cpp_code += f"    GlobalMaxPooling1D_{base_file_name}(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = (in_shape[1],)
@@ -1059,7 +1060,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
             elif ltype == "GlobalMaxPooling2D":
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {in_shape[2]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GlobalMaxPooling2D(\n"
+                cpp_code += f"    GlobalMaxPooling2D_{base_file_name}(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = (in_shape[2],)
@@ -1069,7 +1070,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
             elif ltype == "GlobalAvgPooling1D":
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {in_shape[1]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GlobalAvgPooling1D(\n"
+                cpp_code += f"    GlobalAvgPooling1D_{base_file_name}(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = (in_shape[1],)
@@ -1079,7 +1080,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
             elif ltype == "GlobalAveragePooling2D":
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {in_shape[2]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GlobalAvgPooling2D(\n"
+                cpp_code += f"    GlobalAvgPooling2D_{base_file_name}(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = (in_shape[2],)
@@ -1089,7 +1090,7 @@ auto {name_space}(const {input_type}& initial_input) {{\n
             elif ltype == "GlobalAvgPooling3D":
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {in_shape[3]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GlobalAvgPooling3D(\n"
+                cpp_code += f"    GlobalAvgPooling3D_{base_file_name}(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {in_shape[3]});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = (in_shape[3],)

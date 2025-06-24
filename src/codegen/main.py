@@ -111,18 +111,21 @@ else:
                 #################################
                 try:
                     (
-                        weights_list,
-                        biases_list,
-                        activation_functions,
-                        alphas,
-                        dropout_rates,
-                        batch_norm_params,
-                        conv_layer_params,
-                        input_flat_size,
-                        output_flat_size,
-                        layer_shape,
-                        layer_type,
-                    ) = extractModel(model, file_extension)
+                    weights_list,
+                    biases_list,
+                    activation_functions,
+                    alphas,
+                    dropout_rates,
+                    batch_norm_params,
+                    conv_layer_params,
+                    input_flat_size,
+                    output_flat_size,
+                    layer_shape,
+                    layer_type,
+                    ) = extractModel(
+                        model,
+                        file_extension
+                        )
                     # print(layer_type)
                     # print(activation_functions)
                 except ValueError as e:
@@ -141,7 +144,10 @@ else:
                 ############################################
                 try:
                     cpp_code, cpp_lambda = layer_propagation(
-                        cpp_code, activation_functions, layer_type
+                        cpp_code, 
+                        activation_functions, 
+                        layer_type, 
+                        base_file_name
                     )
                 except ValueError as e:
                     print("\nError in generating layer propagation functions:", e)
@@ -171,6 +177,7 @@ else:
                         output_mins,
                         layer_shape,
                         layer_type,
+                        base_file_name
                     )
                 except ValueError as e:
                     print("\nError in generating C++ code:", e)
