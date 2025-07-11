@@ -2,3 +2,8 @@ training/BE_DATA/
 training/EULER_825/
 training/ROSENBROCK_400/
 training/SDIRK2_192/
+dump_model/*.csv
+dump_model/*.keras
+dump_model/*.h5
+bin/*.hpp
+bin/*.h
