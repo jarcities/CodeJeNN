@@ -105,6 +105,7 @@ def codeGen(
         "silu": "silu",
         "gelu": "gelu",
         "softmax": "softmax",
+        "mish": "mish",
         "flatten": None,
     }
 

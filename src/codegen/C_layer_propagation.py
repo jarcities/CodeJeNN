@@ -62,52 +62,62 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
     # lambda activation functions
     lambda_functions = {
         "relu": """
-    auto relu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto relu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         output = input > 0 ? input : 0;
     };
 """,
         "sigmoid": """
-    auto sigmoid = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto sigmoid = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         output = 1 / (1 + std::exp(-input));
     };
 """,
         "tanhCustom": """
-    auto tanhCustom = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto tanhCustom = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         output = std::tanh(input);
     };
 """,
         "leakyrelu": """
-    auto leakyrelu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto leakyrelu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         output = input > 0 ? input : alpha * input;
     };
 """,
         "linear": """
-    auto linear = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto linear = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         output = input;
     };
 """,
         "elu": """
-    auto elu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto elu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         output = input > 0 ? input : alpha * (std::exp(input) - 1);
     };
 """,
         "selu": """
-    auto selu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto selu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         output = 1.0507009873554804934193349852946 * (input > 0 ? input : 1.6732632423543772848170429916717 * (std::exp(input) - 1));
     };
 """,
         "swish": """
-    auto swish = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto swish = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         output = input / (1 + std::exp(-alpha * input));
     };
 """,
         "prelu": """
-    auto prelu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto prelu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         output = input > 0 ? input : alpha * input;
     };
 """,
         "silu": """
-    auto silu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto silu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         auto sigmoid = 1 / (1 + std::exp(-input));
         output = input * sigmoid;
     };
@@ -115,14 +125,16 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
         "gelu": """
     static constexpr Scalar kC0 = 0.044715;
     static constexpr Scalar kSqrt2PiInv = Scalar(0.7978845608028654);
-    auto gelu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept {
+    auto gelu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
         Scalar x3 = input * input * input;
         Scalar y  = kSqrt2PiInv * (input + kC0 * x3);
         output     = Scalar(0.5) * input * (Scalar(1) + std::tanh(y));
     };
 """,
         "softmax": """
-    auto softmax = +[](Scalar * __restrict outputs, Scalar * __restrict inputs, int size) noexcept {
+    auto softmax = +[](Scalar * __restrict outputs, Scalar * __restrict inputs, int size) noexcept 
+    {
         Scalar max_val = *std::max_element(input, input + size);
         Scalar sum = 0;
         
@@ -139,6 +151,19 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
         }
     };
 """,
+        "mish": """
+    auto mish = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
+        Scalar softplus;
+        if (input > Scalar(20))          
+            softplus = input;
+        else if (input < Scalar(-20))    
+            softplus = std::exp(input);
+        else
+            softplus = std::log1p(std::exp(input));
+        output = input * std::tanh(softplus);
+    };
+"""
     }
 
     # normalization functions

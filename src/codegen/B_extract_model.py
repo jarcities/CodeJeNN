@@ -199,6 +199,7 @@ def extractModel(model, file_type):
                     "silu",
                     "gelu",
                     "softmax",
+                    "mish"
                 ]
             ):
                 try:
