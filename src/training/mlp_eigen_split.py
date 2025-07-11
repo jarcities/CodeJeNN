@@ -424,7 +424,7 @@ model.compile(optimizer=opt,
               loss=compare_to_A
             #   loss=diag_penalty
             #   loss=tf.keras.losses.mse()
-              ,jit_compile=True)
+              )
 initial_weights = model.get_weights()
 
 #train logic in parallel using joblib
