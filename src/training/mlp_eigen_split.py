@@ -12,12 +12,27 @@ from sklearn.model_selection import KFold
 from joblib import Parallel, delayed
 import copy
 
+#data
+DATA_DIR_1 = "./training/BE_DATA"
+NUM_SAMPLES_BE = 383
+
+DATA_DIR_2 = "./training/R_DATA"
+NUM_SAMPLES_2 = 2000
+
+DATA_DIR_3 = "./training/SD2_DATA"
+NUM_SAMPLES_3 = 200
+
+DATA_DIR_4 = "./training/SD4_DATA"
+NUM_SAMPLES_4 = 4775
+
+DATA_DIR_5 = "./training/Y_DATA"
+NUM_SAMPLES_5 = 200
+
 #config
-DATA_DIR = "./training/BE_DATA"
+NUM_DATA_DIR = 5
 MODEL_PATH = "./dump_model/MLP_LU"
 CSV_FILE = "./dump_model/MLP_LU.csv"
 SPARSITY = "./training/sparsity_pattern.txt"
-NUM_SAMPLES = 383
 M = 97
 FLAT_DIM = M * M
 BATCH_SIZE = 64
@@ -27,9 +42,9 @@ LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
 RANDOM_SEED = 42
-EPS = 1e-18
+EPS = 1e-12
 NEGATIVE_SLOPE = 1e-3
-K = 10  #no. of folds
+K = 5  #no. of folds
 
 #get and mask sparsity pattern
 with open(SPARSITY, "r") as f:

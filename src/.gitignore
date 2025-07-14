@@ -1,7 +1,9 @@
+training/inline/
 training/BE_DATA/
-training/EULER_825/
-training/ROSENBROCK_400/
-training/SDIRK2_192/
+training/R_DATA/
+training/SD2_DATA/
+training/SD4_DATA/
+training/Y_DATA/
 dump_model/*.csv
 dump_model/*.keras
 dump_model/*.h5
