@@ -163,6 +163,13 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
             softplus = std::log1p(std::exp(input));
         output = input * std::tanh(softplus);
     };
+""",
+        "softplus": """
+    auto softplus = +[](Scalar& output, Scalar input, Scalar alpha) noexcept
+    {
+        // output = std::log1p(std::exp(input));
+        output = (input > 20) ? input : std::log1p(std::exp(input));
+    };
 """
     }
 

@@ -9,13 +9,15 @@ from tensorflow.keras.utils import get_custom_objects
 import ast
 import scipy as sp
 from sklearn.model_selection import KFold
+import tensorflow.keras.backend as K
+K.set_floatx('float64')
 
 #config
 DATA_DIR = "./training/BE_DATA"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
 CSV_FILE = "./dump_model/MLP_LU.csv"
 SPARSITY = "./training/sparsity_pattern.txt"
-NUM_SAMPLES = 383 
+NUM_SAMPLES = 384
 M = 97
 FLAT_DIM = M * M
 BATCH_SIZE = 64
@@ -25,8 +27,8 @@ LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
 RANDOM_SEED = 42
-EPS = 1e-18
-NEGATIVE_SLOPE = 1e-3
+EPS = 1e-12
+NEGATIVE_SLOPE = 1e-6
 
 #get and mask sparsity pattern
 with open(SPARSITY, "r") as f:
@@ -42,7 +44,9 @@ skipped = 0
 X_list, y_list = [], []
 for i in range(NUM_SAMPLES):
     A = np.loadtxt(
-        os.path.join(DATA_DIR, f"jacobian_{i}.csv"), delimiter=",", dtype=np.float32
+        os.path.join(DATA_DIR, f"jacobian_{i}.csv"), 
+        delimiter=",", 
+        dtype=np.float64
     )
 
     #A_inv instead
@@ -62,6 +66,14 @@ for i in range(NUM_SAMPLES):
         skipped += 1
         continue
 
+    # #save LU
+    # np.savetxt(
+    #     os.path.join(f"./training/LU_BE_DATA_ILU/LU_{i}.csv"),
+    #     LU,
+    #     delimiter=",",
+    #     fmt="%.6f"  # adjust precision if needed
+    # )
+
     #add to data sample list
     X_list.append(A.ravel()[mask]) #take nonzero entries
     y_list.append(LU.ravel())
@@ -72,9 +84,11 @@ y = np.stack(y_list, axis=0)
 
 #compute mean/std on the reduced inputs
 X_mean = X.mean(axis=0)
-X_std = X.std(axis=0) + EPS
+# X_std = X.std(axis=0) + EPS
+X_std = np.maximum(X.std(axis=0), EPS)
 y_mean = y.mean(axis=0)
-y_std = y.std(axis=0) + EPS
+# y_std = y.std(axis=0) + EPS
+y_std = np.maximum(y.std(axis=0), EPS)
 
 X_norm = (X - X_mean) / X_std
 y_norm = (y - y_mean) / y_std
@@ -92,13 +106,15 @@ inputs = layers.Input(shape=(INPUT_DIM,))
 x = layers.Dense(HIDDEN_UNITS, activation=None)(inputs)
 x = layers.BatchNormalization()(x)
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
-x = layers.Activation("gelu")(x)
+x = layers.Activation("softplus")(x)
 
 x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
-x = layers.Activation("gelu")(x)
+x = layers.Activation("softplus")(x)
 
 outputs = layers.Dense(FLAT_DIM, activation=None)(x)
+# x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
+x = layers.Activation("softplus")(x)
 
 model = models.Model(inputs, outputs)
 ###########
@@ -118,14 +134,16 @@ def compare_to_A(y_true, y_pred):
     diag     = tf.linalg.band_part(LU, 0, 0)
     strict_lower = lower_all - diag
     batch_size = tf.shape(LU)[0]
-    I = tf.eye(M, batch_shape=[batch_size])
+    I = tf.eye(M, batch_shape=[batch_size], dtype=LU.dtype)
     L = I + strict_lower
     A_pred = tf.matmul(L, U)
     A_true = tf.reshape(y_true, [-1, M, M])
-    return tf.reduce_mean(tf.keras.losses.logcosh(A_true, A_pred))
+    return tf.reduce_mean(tf.keras.losses.mae(A_true, A_pred))
 
 #compile
-opt = optimizers.Adam(learning_rate=LEARNING_RATE, clipnorm=CLIP_NORM)
+opt = optimizers.Adam(learning_rate=LEARNING_RATE, 
+                      clipnorm=CLIP_NORM
+                      )
 model.compile(optimizer=opt, 
             #   loss=tf.keras.losses.LogCosh()
               loss=compare_to_A
@@ -135,11 +153,14 @@ model.compile(optimizer=opt,
 
 #callbacks
 early_stop = callbacks.EarlyStopping(
-    monitor="val_loss", patience=200, restore_best_weights=True
+    monitor="val_loss", patience=50, restore_best_weights=True
 )
 checkpoint = callbacks.ModelCheckpoint(MODEL_PATH, save_best_only=True)
 reduce_lr = callbacks.ReduceLROnPlateau(
-    monitor="val_loss", factor=0.025, patience=50, min_lr=1e-10
+    monitor="val_loss", 
+    factor=0.2, #factor=0.025
+    patience=25, 
+    min_lr=1e-7 #min_lr=1e-10
 )
 
 #train
@@ -150,12 +171,12 @@ history = model.fit(
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
     callbacks=[early_stop, checkpoint, reduce_lr],
-    verbose=0,
+    verbose=1,
 )
 
 #evaluate
 val_loss = model.evaluate(X_val, y_val, verbose=0)
-print(f"final normalized-val mse: {val_loss:.6f}")
+print(f"\nfinal validation error: {val_loss:.6f}")
 
 #save normalization stats
 with open(CSV_FILE, "w") as f:
