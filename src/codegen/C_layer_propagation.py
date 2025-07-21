@@ -1253,6 +1253,15 @@ inline void GlobalAvgPooling3D_{base_file_name}(Scalar * __restrict outputs, con
         for act in current_activations:
             if act in lambda_functions:
                 cpp_lambda += lambda_functions[act]
+        #####################################################################
+            if act not in lambda_functions:
+                lambda_functions[act] = f"""
+        auto {act} = +[](Scalar& output, Scalar input, Scalar alpha) noexcept
+        {{
+            // TODO: implement custom activation '{act}'
+        }};
+        """
+        #####################################################################
 
         # deduplicate layer_type list
         unique_layer_types = {lt for lt in layer_type if lt is not None}

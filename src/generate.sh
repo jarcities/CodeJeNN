@@ -6,4 +6,9 @@
 ### default ###
 python3 ./training/mlp_eigen.py
 # python3 ./training/mlp_eigen_split.py
-python3 ./codegen/main.py --input="./dump_model" --output="./bin" --precision="double"
+python3 \
+    ./codegen/main.py \
+    --input="./dump_model" \
+    --output="./bin" \
+    --precision="double" \
+    # --user_activation="nonzero_diag_activation"

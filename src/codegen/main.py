@@ -14,19 +14,28 @@ parser = argparse.ArgumentParser(
     description="code generate trained neural net files into a given directory."
 )
 parser.add_argument(
-    "--input", type=str, required=True, help="path of folder with trained model files"
+    "--input", 
+    type=str, 
+    required=True, 
+    help="path of folder with trained model files"
 )
 parser.add_argument(
     "--output",
     type=str,
     required=True,
-    help="path of folder to save generated header files",
+    help="path of folder to save generated header files"
 )
 parser.add_argument(
     "--precision",
     type=str,
     required=False,
-    help='precision type to run neural net, either "double" or "float"',
+    help='precision type to run neural net, either "double" or "float"'
+)
+parser.add_argument(
+    "--custom_activation",
+    type=str,
+    required=False,
+    help='custom activation function to use, if any'
 )
 args = parser.parse_args()
 
@@ -41,6 +50,13 @@ else:
 
 model_dir = args.input
 save_dir = args.output
+
+#############################################
+if args.custom_activation is not None:
+    user_activation = args.custom_activation
+else:
+    user_activation = None
+#############################################
 
 ## CHECK INPUT AND OUTPUT DIRECTORIES ##
 if not os.path.exists(model_dir):
@@ -100,7 +116,7 @@ else:
                 ## 2. LOAD MODEL ##
                 ###################
                 try:
-                    model, file_extension = loadModel(file_path)
+                    model, file_extension = loadModel(file_path, base_file_name, user_activation)
                     # model.summary()
                 except ValueError as e:
                     print("\nError in loading model:", e)
@@ -111,21 +127,19 @@ else:
                 #################################
                 try:
                     (
-                    weights_list,
-                    biases_list,
-                    activation_functions,
-                    alphas,
-                    dropout_rates,
-                    batch_norm_params,
-                    conv_layer_params,
-                    input_flat_size,
-                    output_flat_size,
-                    layer_shape,
-                    layer_type,
-                    ) = extractModel(
-                        model,
-                        file_extension
-                        )
+                        weights_list,
+                        biases_list,
+                        activation_functions,
+                        activation_configs, 
+                        alphas,
+                        dropout_rates,
+                        batch_norm_params,
+                        conv_layer_params,
+                        input_flat_size,
+                        output_flat_size,
+                        layer_shape,
+                        layer_type,
+                    ) = extractModel(model, file_extension, base_file_name)
                     # print(layer_type)
                     # print(activation_functions)
                 except ValueError as e:
@@ -135,7 +149,6 @@ else:
                 ############################
                 ## 4. INITIALIZE C++ CODE ##
                 ############################
-                base_file_name = os.path.splitext(file_name)[0]
                 save_path = os.path.join(save_dir, base_file_name)
                 cpp_code = preambleHeader()
 
@@ -144,10 +157,7 @@ else:
                 ############################################
                 try:
                     cpp_code, cpp_lambda = layer_propagation(
-                        cpp_code, 
-                        activation_functions, 
-                        layer_type, 
-                        base_file_name
+                        cpp_code, activation_functions, layer_type, base_file_name
                     )
                 except ValueError as e:
                     print("\nError in generating layer propagation functions:", e)
@@ -177,7 +187,7 @@ else:
                         output_mins,
                         layer_shape,
                         layer_type,
-                        base_file_name
+                        base_file_name,
                     )
                 except ValueError as e:
                     print("\nError in generating C++ code:", e)

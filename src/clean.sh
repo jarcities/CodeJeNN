@@ -3,3 +3,4 @@
 rm bin/*.hpp
 rm dump_model/*
 rm -rf codegen/__pycache__
+rm -rf __pycache__

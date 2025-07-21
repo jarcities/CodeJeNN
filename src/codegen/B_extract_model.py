@@ -48,7 +48,7 @@ def getAlphaForActivation(layer, activation):
     return 0.0
 
 
-def extractModel(model, file_type):
+def extractModel(model, file_type, base_file_name=None):
     # ===================================================================================
     # function to process and extract model information from a Keras or ONNX model layer
     # by layer, including layer types, weights, biases, activation functions,
@@ -82,6 +82,7 @@ def extractModel(model, file_type):
     norm_layer_params = []
     conv_layer_params = []
     layer_shape = []
+    activation_configs = []
 
     # check for keras based models
     if file_type in [".h5", ".keras"]:
@@ -155,18 +156,32 @@ def extractModel(model, file_type):
             if isinstance(layer, keras.layers.Dense) or "dense" in layer.name.lower():
                 try:
                     w, b = layer_weights
-                    dense_activation = config.get("activation", "linear")
-                    if not isinstance(dense_activation, str):
-                        dense_activation = dense_activation.get(
-                            "class_name", "linear"
-                        ).lower()
+                    # dense_activation = config.get("activation", "linear")
+                    # if not isinstance(dense_activation, str):
+                    #     dense_activation = dense_activation.get(
+                    #         "class_name", "linear"
+                    #     ).lower()
+
+                    ####################################################
+                    raw_act = config.get("activation", "linear")
+                    if isinstance(raw_act, dict):
+                        act_name   = raw_act["class_name"].lower()
+                        act_params = raw_act.get("config", {})
+                    else:
+                        act_name   = str(raw_act).lower()
+                        act_params = {}
+                    activation_functions.append(act_name)
+                    activation_configs.append(act_params)
+                    alphas.append(getAlphaForActivation(layer, act_name))
+                    #####################################################
+
                     weights_list.append(w)
                     biases_list.append(b)
                     norm_layer_params.append(None)
                     layer_shape.append(w.shape[1])
                     layer_type.append("Dense")
-                    activation_functions.append(dense_activation)
-                    alphas.append(getAlphaForActivation(layer, dense_activation))
+                    # activation_functions.append(dense_activation)
+                    # alphas.append(getAlphaForActivation(layer, dense_activation))
                     dropout_rates.append(config.get("dropout_rate", 0.0))
                     continue
                 except ValueError as e:
@@ -204,15 +219,41 @@ def extractModel(model, file_type):
                 ]
             ):
                 try:
-                    if hasattr(layer, "activation") and layer.activation is not None:
-                        act_str = layer.activation.__name__.lower()
+                    # if hasattr(layer, "activation") and layer.activation is not None:
+                    #     act_str = layer.activation.__name__.lower()
+                    # else:
+                    #     act_str = layer.__class__.__name__.lower()
+                    # activation_functions.append(act_str)
+
+                    ###############################################################################
+                    cfg = layer.get_config()
+                    # When using a generic Activation layer, cfg["activation"] may itself be a dict
+                    raw_act = cfg.get("activation", None)
+                    if isinstance(raw_act, dict):
+                        act_name   = raw_act["class_name"].lower()
+                        act_params = raw_act.get("config", {})
+                    elif raw_act:
+                        act_name   = str(raw_act).lower()
+                        act_params = {}
                     else:
-                        act_str = layer.__class__.__name__.lower()
-                    activation_functions.append(act_str)
+                        # e.g. a standalone LeakyReLU, PReLU, etc.
+                        act_name   = layer.__class__.__name__.lower()
+                        # pull any layer‐specific params
+                        layer_cfg  = cfg
+                        act_params = {
+                            k: layer_cfg[k]
+                            for k in ("alpha","negative_slope","shared_axes")
+                            if k in layer_cfg
+                        }
+
+                    activation_functions.append(act_name)
+                    activation_configs.append(act_params)
+                    ###############################################################################
+
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
-                    alphas.append(getAlphaForActivation(layer, act_str))
+                    alphas.append(getAlphaForActivation(layer, act_name))
                     dropout_rates.append(0.0)
                     layer_shape.append(0)
                     layer_type.append("Activation")
@@ -1833,6 +1874,7 @@ def extractModel(model, file_type):
         weights_list,
         biases_list,
         activation_functions,
+        activation_configs, 
         alphas,
         dropout_rates,
         norm_layer_params,
