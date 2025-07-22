@@ -170,6 +170,13 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
         // output = std::log1p(std::exp(input));
         output = (input > 20) ? input : std::log1p(std::exp(input));
     };
+""",
+        "custom_act": """
+    auto {act_name} = +[](Scalar& output, Scalar input, Scalar alpha) noexcept
+    {{
+        //TODO: implement custom activation '{act_name}'
+        output = input; //default fallback
+    }};
 """
     }
 
@@ -1253,14 +1260,11 @@ inline void GlobalAvgPooling3D_{base_file_name}(Scalar * __restrict outputs, con
         for act in current_activations:
             if act in lambda_functions:
                 cpp_lambda += lambda_functions[act]
+        # print(cpp_lambda)
         #####################################################################
-            if act not in lambda_functions:
-                lambda_functions[act] = f"""
-        auto {act} = +[](Scalar& output, Scalar input, Scalar alpha) noexcept
-        {{
-            // TODO: implement custom activation '{act}'
-        }};
-        """
+            else:
+                custom_lambda = lambda_functions["custom_act"].format(act_name=act)
+                cpp_lambda += custom_lambda
         #####################################################################
 
         # deduplicate layer_type list

@@ -56,6 +56,7 @@ if args.custom_activation is not None:
     user_activation = args.custom_activation
 else:
     user_activation = None
+# print(user_activation)
 #############################################
 
 ## CHECK INPUT AND OUTPUT DIRECTORIES ##
@@ -188,6 +189,7 @@ else:
                         layer_shape,
                         layer_type,
                         base_file_name,
+                        user_activation
                     )
                 except ValueError as e:
                     print("\nError in generating C++ code:", e)

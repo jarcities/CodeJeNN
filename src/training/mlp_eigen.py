@@ -133,10 +133,10 @@ x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
 
-outputs = layers.Dense(FLAT_DIM, activation=None)(x)
-# outputs = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(outputs)
-# outputs = layers.Activation("relu")(outputs)
-outputs = layers.Dense(FLAT_DIM, activation=nonzero_diag_activation, name='nonzero_diag_activation')(x)
+x = layers.Dense(FLAT_DIM, activation=None)(x)
+# x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
+# x = layers.Activation("relu")(x)
+outputs = layers.Activation(nonzero_diag_activation, name='nonzero_diag_activation')(x)
 
 model = models.Model(inputs, outputs)
 ###########

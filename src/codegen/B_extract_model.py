@@ -125,9 +125,9 @@ def extractModel(model, file_type, base_file_name=None):
 
             layer_idx += 1
 
-            ######################
-            ## GET LAYER CONFIG ##
-            ######################
+            ################################
+            ## GET LAYER CONFIG & ACT FUN ##
+            ################################
             try:
                 layer_input_shape = layer.input_shape
             except AttributeError:
@@ -135,15 +135,11 @@ def extractModel(model, file_type, base_file_name=None):
             conv_layer_params.append(None)
             config = layer.get_config()
             layer_weights = layer.get_weights()
-            
-            #######################################
-            ## CENTRALIZED ACTIVATION EXTRACTION ##
-            #######################################
             activation = getActivation(layer, config)
             if not isinstance(activation, str):
                 activation = activation.get("class_name", "linear").lower()
-            
-            # Extract activation configuration for complex activations
+
+            # for complex activation functions
             raw_act = config.get("activation", "linear")
             if isinstance(raw_act, dict):
                 act_name = raw_act["class_name"].lower()
@@ -152,22 +148,74 @@ def extractModel(model, file_type, base_file_name=None):
                 act_name = str(raw_act).lower()
                 act_params = {}
             else:
-                # e.g. a standalone LeakyReLU, PReLU, etc.
+                # standalone LeakyReLU, PReLU, etc.
                 act_name = layer.__class__.__name__.lower()
-                # pull any layer‐specific params
                 layer_cfg = config
                 act_params = {
                     k: layer_cfg[k]
-                    for k in ("alpha","negative_slope","shared_axes")
+                    for k in ("alpha", "negative_slope", "shared_axes")
                     if k in layer_cfg
                 }
-            
-            # Special handling for custom activation functions
-            # Check if this is an Activation layer with a custom function
-            if isinstance(layer, keras.layers.Activation) and hasattr(layer.activation, '__name__'):
+
+            # for custom activation functions
+            builtin_activations = [
+                "relu",
+                "sigmoid",
+                "tanh",
+                "leakyrelu",
+                "linear",
+                "elu",
+                "selu",
+                "swish",
+                "prelu",
+                "silu",
+                "gelu",
+                "softmax",
+                "mish",
+                "softplus",
+            ]
+            if isinstance(layer, keras.layers.Activation) and hasattr(
+                layer.activation, "__name__"
+            ):
                 custom_act_name = layer.activation.__name__
-                # Check if it's a custom activation (not a standard keras activation)
-                if custom_act_name not in [
+                if custom_act_name not in builtin_activations:
+                    act_name = custom_act_name
+            elif hasattr(layer, "activation") and layer.activation is not None:
+                if hasattr(layer.activation, "__name__"):
+                    activation_name = layer.activation.__name__
+                    if activation_name not in builtin_activations:
+                        act_name = activation_name
+                elif callable(layer.activation) and hasattr(
+                    layer.activation, "__name__"
+                ):
+                    activation_name = layer.activation.__name__
+                    if activation_name not in builtin_activations:
+                        act_name = activation_name
+            if act_name in builtin_activations and hasattr(layer, "get_config"):
+                layer_config = layer.get_config()
+                activation_config = layer_config.get("activation", None)
+                if (
+                    isinstance(activation_config, dict)
+                    and "class_name" in activation_config
+                ):
+                    class_name = activation_config["class_name"]
+                    if class_name not in builtin_activations:
+                        act_name = class_name.lower()
+
+            # Get alpha value for activation
+            alpha_value = getAlphaForActivation(layer, activation)
+
+            #######################
+            ## ACTIVATION LAYERS ##
+            #######################
+            # pure activation layers
+            if (
+                "activation" in layer.name.lower()
+                or isinstance(layer, keras.layers.Activation)
+            ) or (
+                not layer.get_weights()
+                and layer.__class__.__name__.lower()
+                in [
                     "relu",
                     "sigmoid",
                     "tanh",
@@ -181,14 +229,30 @@ def extractModel(model, file_type, base_file_name=None):
                     "gelu",
                     "softmax",
                     "mish",
-                    "softplus"]:
-                    act_name = custom_act_name
-            
-            # Get alpha value for activation
-            alpha_value = getAlphaForActivation(layer, activation)
+                    "softplus",
+                ]
+            ):
+                try:
+                    activation_functions.append(act_name)
+                    activation_configs.append(act_params)
+
+                    weights_list.append(None)
+                    biases_list.append(None)
+                    norm_layer_params.append(None)
+                    alphas.append(alpha_value)
+                    dropout_rates.append(0.0)
+                    layer_shape.append(0)
+                    layer_type.append("Activation")
+                    continue
+                except ValueError as e:
+                    print(
+                        f"\nError in extracting parameters: activation layer {layer_idx} --> ",
+                        e,
+                    )
+                    continue
 
             #########################
-            ## PREPOCESSING LAYERS ##
+            ## PREPROCESSING LAYERS ##
             #########################
             if (
                 isinstance(layer, keras.layers.Rescaling)
@@ -241,52 +305,6 @@ def extractModel(model, file_type, base_file_name=None):
                 except ValueError as e:
                     print(
                         f"\nError in extracting parameters: dense layer {layer_idx} --> ",
-                        e,
-                    )
-                    continue
-
-            #######################
-            ## ACTIVATION LAYERS ##
-            #######################
-            # pure activation layers
-            if (
-                "activation" in layer.name.lower()
-                or isinstance(layer, keras.layers.Activation)
-            ) or (
-                not layer.get_weights()
-                and layer.__class__.__name__.lower()
-                in [
-                    "relu",
-                    "sigmoid",
-                    "tanh",
-                    "leakyrelu",
-                    "linear",
-                    "elu",
-                    "selu",
-                    "swish",
-                    "prelu",
-                    "silu",
-                    "gelu",
-                    "softmax",
-                    "mish",
-                    "softplus"
-                ]
-            ):
-                try:
-                    activation_functions.append(act_name)
-                    activation_configs.append(act_params)
-
-                    weights_list.append(None)
-                    biases_list.append(None)
-                    norm_layer_params.append(None)
-                    alphas.append(alpha_value)
-                    dropout_rates.append(0.0)
-                    layer_shape.append(0)
-                    layer_type.append("Activation")
-                    continue
-                except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: activation layer {layer_idx} --> ",
                         e,
                     )
                     continue
@@ -1863,7 +1881,7 @@ def extractModel(model, file_type, base_file_name=None):
         weights_list,
         biases_list,
         activation_functions,
-        activation_configs, 
+        activation_configs,
         alphas,
         dropout_rates,
         norm_layer_params,

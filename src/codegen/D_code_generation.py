@@ -51,7 +51,8 @@ def codeGen(
     output_mins,
     layer_shape,
     layer_type,
-    base_file_name
+    base_file_name,
+    user_activation
 ):
     # ===============================================================================
     # function to generate put all the cpp code together from the previous scripts
@@ -108,6 +109,7 @@ def codeGen(
         "mish": "mish",
         "softplus": "softplus",
         "flatten": None,
+        user_activation: user_activation if user_activation else None
     }
 
     # build user header file name
@@ -589,7 +591,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             last_shape = (out_size,)
             continue
 
-        # activation layers
+        #######################
+        ## ACTIVATION LAYERS ##
+        #######################
         elif ltype == "Activation":
 
             # since softmax is a standalone layer, we handle it separately
