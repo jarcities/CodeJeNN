@@ -140,8 +140,8 @@ else:
                         layer_shape,
                         layer_type,
                     ) = extractModel(model, file_extension, base_file_name)
-                    # print(layer_type)
-                    # print(activation_functions)
+                    print(layer_type)
+                    print(activation_functions)
                 except ValueError as e:
                     print("\nError in extracting model:", e)
                     continue

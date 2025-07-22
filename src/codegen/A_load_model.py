@@ -87,6 +87,7 @@
 
 
 
+from email.mime import base
 import os
 import tensorflow as tf
 from tensorflow.python.keras.models import load_model as tf_load_model
@@ -106,9 +107,12 @@ def loadModel(file_path, base_file_name, user_activation):
     #custom activation function handling
     activation_name = user_activation   
     if activation_name:
+        import sys
+        sys.path.append(os.path.abspath("dump_model"))
         import importlib
         module = importlib.import_module(base_file_name)
         act_fun = getattr(module, activation_name)
+        act_fun = act_fun.__name__
     else:
         act_fun = None
     custom_objects = {

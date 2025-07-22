@@ -48,6 +48,24 @@ def getAlphaForActivation(layer, activation):
     return 0.0
 
 
+def getActivation(layer, config):
+    # ===================================================================================
+    # extracts the name of the activation function from a Keras layer.
+    # ===================================================================================
+    act_name = config.get("activation", None)
+
+    # If config just returns 'linear' or None, try layer.activation directly
+    if act_name in (None, "linear"):
+        activation_attr = getattr(layer, "activation", None)
+        if activation_attr is None:
+            return "linear"
+        elif hasattr(activation_attr, "__name__"):
+            return activation_attr.__name__
+        else:
+            return str(activation_attr)
+    return act_name
+
+
 def extractModel(model, file_type, base_file_name=None):
     # ===================================================================================
     # function to process and extract model information from a Keras or ONNX model layer
@@ -107,7 +125,9 @@ def extractModel(model, file_type, base_file_name=None):
 
             layer_idx += 1
 
-            # get layer input shape, weights and its configuration
+            ######################
+            ## GET LAYER CONFIG ##
+            ######################
             try:
                 layer_input_shape = layer.input_shape
             except AttributeError:
@@ -115,6 +135,57 @@ def extractModel(model, file_type, base_file_name=None):
             conv_layer_params.append(None)
             config = layer.get_config()
             layer_weights = layer.get_weights()
+            
+            #######################################
+            ## CENTRALIZED ACTIVATION EXTRACTION ##
+            #######################################
+            activation = getActivation(layer, config)
+            if not isinstance(activation, str):
+                activation = activation.get("class_name", "linear").lower()
+            
+            # Extract activation configuration for complex activations
+            raw_act = config.get("activation", "linear")
+            if isinstance(raw_act, dict):
+                act_name = raw_act["class_name"].lower()
+                act_params = raw_act.get("config", {})
+            elif raw_act:
+                act_name = str(raw_act).lower()
+                act_params = {}
+            else:
+                # e.g. a standalone LeakyReLU, PReLU, etc.
+                act_name = layer.__class__.__name__.lower()
+                # pull any layer‐specific params
+                layer_cfg = config
+                act_params = {
+                    k: layer_cfg[k]
+                    for k in ("alpha","negative_slope","shared_axes")
+                    if k in layer_cfg
+                }
+            
+            # Special handling for custom activation functions
+            # Check if this is an Activation layer with a custom function
+            if isinstance(layer, keras.layers.Activation) and hasattr(layer.activation, '__name__'):
+                custom_act_name = layer.activation.__name__
+                # Check if it's a custom activation (not a standard keras activation)
+                if custom_act_name not in [
+                    "relu",
+                    "sigmoid",
+                    "tanh",
+                    "leakyrelu",
+                    "linear",
+                    "elu",
+                    "selu",
+                    "swish",
+                    "prelu",
+                    "silu",
+                    "gelu",
+                    "softmax",
+                    "mish",
+                    "softplus"]:
+                    act_name = custom_act_name
+            
+            # Get alpha value for activation
+            alpha_value = getAlphaForActivation(layer, activation)
 
             #########################
             ## PREPOCESSING LAYERS ##
@@ -156,32 +227,15 @@ def extractModel(model, file_type, base_file_name=None):
             if isinstance(layer, keras.layers.Dense) or "dense" in layer.name.lower():
                 try:
                     w, b = layer_weights
-                    # dense_activation = config.get("activation", "linear")
-                    # if not isinstance(dense_activation, str):
-                    #     dense_activation = dense_activation.get(
-                    #         "class_name", "linear"
-                    #     ).lower()
-
-                    ####################################################
-                    raw_act = config.get("activation", "linear")
-                    if isinstance(raw_act, dict):
-                        act_name   = raw_act["class_name"].lower()
-                        act_params = raw_act.get("config", {})
-                    else:
-                        act_name   = str(raw_act).lower()
-                        act_params = {}
-                    activation_functions.append(act_name)
-                    activation_configs.append(act_params)
-                    alphas.append(getAlphaForActivation(layer, act_name))
-                    #####################################################
 
                     weights_list.append(w)
                     biases_list.append(b)
                     norm_layer_params.append(None)
                     layer_shape.append(w.shape[1])
                     layer_type.append("Dense")
-                    # activation_functions.append(dense_activation)
-                    # alphas.append(getAlphaForActivation(layer, dense_activation))
+                    activation_functions.append(act_name)
+                    activation_configs.append(act_params)
+                    alphas.append(alpha_value)
                     dropout_rates.append(config.get("dropout_rate", 0.0))
                     continue
                 except ValueError as e:
@@ -219,41 +273,13 @@ def extractModel(model, file_type, base_file_name=None):
                 ]
             ):
                 try:
-                    # if hasattr(layer, "activation") and layer.activation is not None:
-                    #     act_str = layer.activation.__name__.lower()
-                    # else:
-                    #     act_str = layer.__class__.__name__.lower()
-                    # activation_functions.append(act_str)
-
-                    ###############################################################################
-                    cfg = layer.get_config()
-                    # When using a generic Activation layer, cfg["activation"] may itself be a dict
-                    raw_act = cfg.get("activation", None)
-                    if isinstance(raw_act, dict):
-                        act_name   = raw_act["class_name"].lower()
-                        act_params = raw_act.get("config", {})
-                    elif raw_act:
-                        act_name   = str(raw_act).lower()
-                        act_params = {}
-                    else:
-                        # e.g. a standalone LeakyReLU, PReLU, etc.
-                        act_name   = layer.__class__.__name__.lower()
-                        # pull any layer‐specific params
-                        layer_cfg  = cfg
-                        act_params = {
-                            k: layer_cfg[k]
-                            for k in ("alpha","negative_slope","shared_axes")
-                            if k in layer_cfg
-                        }
-
                     activation_functions.append(act_name)
                     activation_configs.append(act_params)
-                    ###############################################################################
 
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
-                    alphas.append(getAlphaForActivation(layer, act_name))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(0)
                     layer_type.append("Activation")
@@ -264,11 +290,6 @@ def extractModel(model, file_type, base_file_name=None):
                         e,
                     )
                     continue
-
-            # non-pure activation layers
-            activation = config.get("activation", "linear")
-            if not isinstance(activation, str):
-                activation = activation.get("class_name", "linear").lower()
 
             ###########################
             ## REGULARIZATION LAYERS ##
@@ -387,19 +408,11 @@ def extractModel(model, file_type, base_file_name=None):
                     else:
                         new_shape = layer_weights[0].shape
 
-                    # if len(current_shape) < 3:
-                    #     # if shape is 2d
-                    #     H, W = current_shape
-                    #     C = 1
-                    # else:
-                    #     # if shape is 3d
-                    #     H, W, C = current_shape
-
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("Reshape")
@@ -501,7 +514,7 @@ def extractModel(model, file_type, base_file_name=None):
                         activation_functions.append(None)
                         weights_list.append(None)
                         biases_list.append(None)
-                        alphas.append(getAlphaForActivation(layer, activation))
+                        alphas.append(alpha_value)
                         dropout_rates.append(0.0)
                         layer_type.append(norm_type)
                     else:
@@ -509,7 +522,7 @@ def extractModel(model, file_type, base_file_name=None):
                         activation_functions.append(None)
                         layer_shape.append(0)
                         layer_type.append(None)
-                        alphas.append(getAlphaForActivation(layer, activation))
+                        alphas.append(alpha_value)
                     continue
                 except ValueError as e:
                     print(
@@ -525,7 +538,6 @@ def extractModel(model, file_type, base_file_name=None):
             ):
                 try:
                     conv_layer_params.append(None)
-                    # eps = keras.backend.epsilon()
                     epsilon = config.get("epsilon", 1e-5)
                     norm_layer_params.append((None, None, None, None, epsilon))
                     layer_shape.append(None)
@@ -606,7 +618,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("MaxPooling1D")
@@ -690,7 +702,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("MaxPooling2D")
@@ -770,7 +782,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("MaxPooling3D")
@@ -842,7 +854,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("AvgPooling1D")
@@ -918,7 +930,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("AvgPooling2D")
@@ -998,11 +1010,12 @@ def extractModel(model, file_type, base_file_name=None):
                     }
                     conv_layer_params[-1] = pool_params
                     current_shape = new_shape
+
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("AvgPooling3D")
@@ -1030,7 +1043,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append((current_shape[0],))
                     layer_type.append("GlobalMaxPooling1D")
@@ -1058,7 +1071,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append((current_shape[0], current_shape[1]))
                     layer_type.append("GlobalMaxPooling2D")
@@ -1090,7 +1103,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(
                         (current_shape[0], current_shape[1], current_shape[2])
@@ -1120,7 +1133,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append((current_shape[0],))
                     layer_type.append("GlobalAvgPooling1D")
@@ -1148,7 +1161,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append((current_shape[2],))
                     layer_type.append("GlobalAvgPooling2D")
@@ -1176,7 +1189,7 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append((current_shape[3],))
                     layer_type.append("GlobalAvgPooling3D")
@@ -1249,7 +1262,7 @@ def extractModel(model, file_type, base_file_name=None):
                     conv_layer_params[-1] = conv_params
                     weights_list.append(None)
                     biases_list.append(None)
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     norm_layer_params.append(None)
                     activation_functions.append(
                         activation if activation != "linear" else "linear"
@@ -1324,7 +1337,7 @@ def extractModel(model, file_type, base_file_name=None):
                     activation_functions.append(
                         activation if activation != "linear" else "linear"
                     )
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("SeparableConv2D")
@@ -1388,11 +1401,9 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(
-                        config.get("activation", "linear")
-                        if config.get("activation") != "linear"
-                        else "linear"
+                        activation if activation != "linear" else "linear"
                     )
-                    alphas.append(config.get("alpha", 0.0))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("Conv1D")
@@ -1432,20 +1443,6 @@ def extractModel(model, file_type, base_file_name=None):
                         "use_bias": use_bias,
                     }
 
-                    # if len(current_shape) < 3:
-                    #     # if shape is 2d
-                    #     if isinstance(current_shape[0], tuple):
-                    #         H, W = current_shape[0]  # unpack the nested tuple
-                    #     else:
-                    #         H, W = current_shape
-                    #     C = 1
-                    # else:
-                    #     # if shape is 3d
-                    #     if isinstance(current_shape[0], tuple):
-                    #         H, W, C = current_shape[0]  # unpack the nested tuple
-                    #     else:
-                    #         H, W, C = current_shape
-
                     if isinstance(current_shape[0], tuple):
                         flat_shape = current_shape[0]
                         if len(flat_shape) >= 2:
@@ -1460,7 +1457,6 @@ def extractModel(model, file_type, base_file_name=None):
                         else:
                             H, W, C = current_shape
 
-                    # H, W, C    = current_shape
                     kH, kW = conv_params["kernel_size"]
                     sH, sW = conv_params["strides"]
                     pad = conv_params["padding"]
@@ -1487,11 +1483,9 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(
-                        config.get("activation", "linear")
-                        if config.get("activation") != "linear"
-                        else "linear"
+                        activation if activation != "linear" else "linear"
                     )
-                    alphas.append(config.get("alpha", 0.0))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("Conv2D")
@@ -1560,11 +1554,9 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(
-                        config.get("activation", "linear")
-                        if config.get("activation") != "linear"
-                        else "linear"
+                        activation if activation != "linear" else "linear"
                     )
-                    alphas.append(config.get("alpha", 0.0))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("Conv3D")
@@ -1692,7 +1684,7 @@ def extractModel(model, file_type, base_file_name=None):
                     activation_functions.append(
                         activation if activation != "linear" else "linear"
                     )
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("Conv1DTranspose")
@@ -1733,7 +1725,6 @@ def extractModel(model, file_type, base_file_name=None):
                     }
                     in_shape = current_shape
 
-                    # flatten nested shape if needed
                     if isinstance(in_shape[0], tuple):
                         flat_shape = in_shape[0]
                         if len(flat_shape) >= 2:
@@ -1774,11 +1765,9 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(
-                        config.get("activation", "linear")
-                        if config.get("activation") != "linear"
-                        else "linear"
+                        activation if activation != "linear" else "linear"
                     )
-                    alphas.append(config.get("alpha", 0.0))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("Conv2DTranspose")
@@ -1843,7 +1832,7 @@ def extractModel(model, file_type, base_file_name=None):
                     activation_functions.append(
                         activation if activation != "linear" else "linear"
                     )
-                    alphas.append(getAlphaForActivation(layer, activation))
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("Conv3DTranspose")
