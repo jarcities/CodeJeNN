@@ -1,5 +1,6 @@
 #!/bin/bash
 
+rm -rf .vscode
 rm bin/*.hpp
 rm dump_model/*.csv
 rm dump_model/*.keras

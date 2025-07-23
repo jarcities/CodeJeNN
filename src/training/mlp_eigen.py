@@ -13,27 +13,6 @@ from sklearn.model_selection import KFold
 import tensorflow.keras.backend as K
 K.set_floatx('float64')
 
-#################################################################################
-#custom activation function
-from tensorflow.keras.utils import get_custom_objects 
-def nonzero_diag_activation(x):
-    M = 97                   
-    epsilon = 1e-6           
-    FLAT_DIM = M * M
-    mask = tf.constant(
-        [1.0 if (i % (M+1) == 0) else 0.0 for i in range(FLAT_DIM)],
-        dtype=x.dtype
-    )
-    mask = tf.reshape(mask, (1, FLAT_DIM))
-    sign = tf.sign(x)
-    sign = tf.where(tf.equal(sign, 0), tf.ones_like(sign), sign)
-    return x + mask * sign * epsilon
-
-get_custom_objects().update({
-    'nonzero_diag_activation': nonzero_diag_activation
-})
-################################################################################# 
-
 #config
 DATA_DIR = "./training/BE_DATA"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
@@ -43,7 +22,7 @@ NUM_SAMPLES = 384
 M = 97
 FLAT_DIM = M * M
 BATCH_SIZE = 1
-EPOCHS = 5000
+EPOCHS = 700
 HIDDEN_UNITS = 1
 LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
@@ -59,7 +38,6 @@ data = np.fromstring(txt, sep=" ", dtype=int)
 pattern = data.reshape((M, M))
 mask = (pattern != 0).ravel()
 INPUT_DIM = int(mask.sum())
-# print(f"MLP input dim = {INPUT_DIM}")
 
 #load data
 skipped = 0
@@ -119,13 +97,41 @@ X_tr, X_val, y_tr, y_val = train_test_split(
     X_norm, y_norm, test_size=VALIDATION_SPLIT, random_state=RANDOM_SEED, shuffle=True
 )
 
+#custom activation function
+from tensorflow.keras.utils import get_custom_objects 
+def nonzero_diag_activation(x): 
+    # # EPS = 1e-4    
+    # mask = tf.constant(
+    #     [1.0 if (i % (M+1) == 0) else 0.0 for i in range(FLAT_DIM)],
+    #     dtype=x.dtype
+    # )
+    # mask = tf.reshape(mask, (1, FLAT_DIM))
+    # diag_x = x * (1.0 + tf.exp(-tf.abs(4.0 * x / EPS) + 2.0))
+    # return (x * (1.0 - mask)) + (diag_x * mask)
+    mask = tf.constant(
+        [1.0 if (i % (M+1) == 0) else 0.0 for i in range(FLAT_DIM)],
+        dtype=x.dtype
+    )
+    mask = tf.reshape(mask, (1, FLAT_DIM))
+    abs_x = tf.abs(x)
+    sign_x = tf.sign(x)
+    zero = tf.zeros_like(sign_x)
+    one = tf.ones_like(sign_x)
+    eps_tensor = tf.fill(tf.shape(abs_x), tf.cast(EPS, x.dtype))
+    sign_x = tf.where(tf.equal(sign_x, zero), one, sign_x)  
+    diag_x = sign_x * tf.maximum(abs_x, eps_tensor)
+    return (x * (one - mask)) + (diag_x * mask)
+get_custom_objects().update({
+    'nonzero_diag_activation': nonzero_diag_activation
+})
+
 ###########
 ## MODEL ##
 ###########
 inputs = layers.Input(shape=(INPUT_DIM,))
 
 x = layers.Dense(HIDDEN_UNITS, activation=None)(inputs)
-x = layers.BatchNormalization()(x)
+# x = layers.BatchNormalization()(x)
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
 
@@ -134,8 +140,8 @@ x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
 x = layers.Activation("gelu")(x)
 
 x = layers.Dense(FLAT_DIM, activation=None)(x)
-# x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
-# x = layers.Activation("relu")(x)
+# outputs = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
+# outputs = layers.Activation("softplus")(x)
 outputs = layers.Activation(nonzero_diag_activation, name='nonzero_diag_activation')(x)
 
 model = models.Model(inputs, outputs)
@@ -169,8 +175,8 @@ opt = optimizers.Adam(learning_rate=LEARNING_RATE,
                       clipnorm=CLIP_NORM
                       )
 model.compile(optimizer=opt, 
-            #   loss=tf.keras.losses.LogCosh()
-              loss=compare_to_A
+              loss=tf.keras.losses.LogCosh()
+            #   loss=compare_to_A
             #   loss=diag_penalty
             #   loss=tf.keras.losses.mse()
               )

@@ -2,7 +2,7 @@ import tensorflow as tf
 
 def nonzero_diag_activation(x):
     M = 97                   
-    epsilon = 1e-6           
+    epsilon = 1e-1    
     FLAT_DIM = M * M
     mask = tf.constant(
         [1.0 if (i % (M+1) == 0) else 0.0 for i in range(FLAT_DIM)],
@@ -29,16 +29,15 @@ get_custom_objects().update({
 
 
 """
-    auto nonzero_diag_activation = +[](Scalar& output, Scalar input, Scalar alpha) noexcept
+    auto nonzero_diag_activation = +[](Scalar& output, Scalar input, int index) noexcept
     {
         constexpr int M = 97;
-        constexpr Scalar epsilon = Scalar(1e-6);
-        int index = static_cast<int>(alpha);
+        constexpr Scalar epsilon = Scalar(1e-1);
         bool is_diagonal = (index % (M + 1)) == 0;
         if (is_diagonal) {
             output = input * (Scalar(1) + std::exp(-std::abs(Scalar(4) * input / epsilon) + Scalar(2)));
         } else {
-            output = input;
+            output = input; 
         }
     };
 """
