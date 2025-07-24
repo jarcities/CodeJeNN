@@ -99,7 +99,7 @@ X_tr, X_val, y_tr, y_val = train_test_split(
 
 #custom activation function
 from tensorflow.keras.utils import get_custom_objects 
-def nonzero_diag_activation(x): 
+def nonzero_diag(x): 
     # # EPS = 1e-4    
     # mask = tf.constant(
     #     [1.0 if (i % (M+1) == 0) else 0.0 for i in range(FLAT_DIM)],
@@ -108,6 +108,7 @@ def nonzero_diag_activation(x):
     # mask = tf.reshape(mask, (1, FLAT_DIM))
     # diag_x = x * (1.0 + tf.exp(-tf.abs(4.0 * x / EPS) + 2.0))
     # return (x * (1.0 - mask)) + (diag_x * mask)
+    eps = 1e-4 #1e-4 or 1e-8
     mask = tf.constant(
         [1.0 if (i % (M+1) == 0) else 0.0 for i in range(FLAT_DIM)],
         dtype=x.dtype
@@ -117,12 +118,12 @@ def nonzero_diag_activation(x):
     sign_x = tf.sign(x)
     zero = tf.zeros_like(sign_x)
     one = tf.ones_like(sign_x)
-    eps_tensor = tf.fill(tf.shape(abs_x), tf.cast(EPS, x.dtype))
+    eps_tensor = tf.fill(tf.shape(abs_x), tf.cast(eps, x.dtype))
     sign_x = tf.where(tf.equal(sign_x, zero), one, sign_x)  
     diag_x = sign_x * tf.maximum(abs_x, eps_tensor)
     return (x * (one - mask)) + (diag_x * mask)
 get_custom_objects().update({
-    'nonzero_diag_activation': nonzero_diag_activation
+    'nonzero_diag': nonzero_diag
 })
 
 ###########
@@ -131,18 +132,18 @@ get_custom_objects().update({
 inputs = layers.Input(shape=(INPUT_DIM,))
 
 x = layers.Dense(HIDDEN_UNITS, activation=None)(inputs)
-# x = layers.BatchNormalization()(x)
+x = layers.UnitNormalization()(x) #unit 
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
 
-x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
-# x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
-x = layers.Activation("gelu")(x)
+# x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
+# # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
+# x = layers.Activation("gelu")(x)
 
 x = layers.Dense(FLAT_DIM, activation=None)(x)
 # outputs = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 # outputs = layers.Activation("softplus")(x)
-outputs = layers.Activation(nonzero_diag_activation, name='nonzero_diag_activation')(x)
+outputs = layers.Activation(nonzero_diag, name='nonzero_diag')(x)
 
 model = models.Model(inputs, outputs)
 ###########
@@ -175,10 +176,10 @@ opt = optimizers.Adam(learning_rate=LEARNING_RATE,
                       clipnorm=CLIP_NORM
                       )
 model.compile(optimizer=opt, 
-              loss=tf.keras.losses.LogCosh()
+              loss=tf.keras.losses.logcosh
             #   loss=compare_to_A
             #   loss=diag_penalty
-            #   loss=tf.keras.losses.mse()
+            #   loss=tf.keras.losses.mae
               )
 
 #callbacks
@@ -201,7 +202,7 @@ history = model.fit(
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
     callbacks=[early_stop, checkpoint, reduce_lr],
-    verbose=0
+    verbose=1
 )
 
 #evaluate

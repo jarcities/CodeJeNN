@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras.utils import get_custom_objects 
-def nonzero_diag_activation(x):     
+def nonzero_diag(x):     
     # mask = tf.constant(
     #     [1.0 if (i % (M+1) == 0) else 0.0 for i in range(FLAT_DIM)],
     #     dtype=x.dtype
@@ -19,7 +19,7 @@ def nonzero_diag_activation(x):
     diag_x = sign_x * tf.maximum(abs_x, EPS)
     return (x * (1.0 - mask)) + (diag_x * mask)
 get_custom_objects().update({
-    'nonzero_diag_activation': nonzero_diag_activation
+    'nonzero_diag': nonzero_diag
 })
 
 
@@ -34,11 +34,11 @@ get_custom_objects().update({
 
 
 """
-    auto nonzero_diag_activation = +[](Scalar& output, Scalar input, int index) noexcept
+    auto nonzero_diag = +[](Scalar& output, Scalar input, int index) noexcept
     {
         constexpr int M = 97;
         constexpr int FLAT_DIM = M * M;
-        constexpr Scalar EPS = Scalar(1e-16);
+        constexpr Scalar EPS = Scalar(1e-4);
         
         bool is_diagonal = (index % (M + 1)) == 0;
         
@@ -67,7 +67,7 @@ get_custom_objects().update({
 
 
 """
-    auto nonzero_diag_activation = +[](Scalar& output, Scalar input, int index) noexcept
+    auto nonzero_diag = +[](Scalar& output, Scalar input, int index) noexcept
     {
         constexpr int M = 97;
         constexpr int FLAT_DIM = M * M;
