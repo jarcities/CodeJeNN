@@ -100,14 +100,6 @@ X_tr, X_val, y_tr, y_val = train_test_split(
 #custom activation function
 from tensorflow.keras.utils import get_custom_objects 
 def nonzero_diag(x): 
-    # # EPS = 1e-4    
-    # mask = tf.constant(
-    #     [1.0 if (i % (M+1) == 0) else 0.0 for i in range(FLAT_DIM)],
-    #     dtype=x.dtype
-    # )
-    # mask = tf.reshape(mask, (1, FLAT_DIM))
-    # diag_x = x * (1.0 + tf.exp(-tf.abs(4.0 * x / EPS) + 2.0))
-    # return (x * (1.0 - mask)) + (diag_x * mask)
     eps = 1e-4 #1e-4 or 1e-8
     mask = tf.constant(
         [1.0 if (i % (M+1) == 0) else 0.0 for i in range(FLAT_DIM)],
@@ -132,8 +124,8 @@ get_custom_objects().update({
 inputs = layers.Input(shape=(INPUT_DIM,))
 
 x = layers.Dense(HIDDEN_UNITS, activation=None)(inputs)
-# x = layers.UnitNormalization()(x) #unit 
-x = layers.GroupNormalization(groups=1, axis=-1)(x)
+x = layers.UnitNormalization()(x) #unit 
+# x = layers.GroupNormalization(groups=1, axis=-1)(x)
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
 
@@ -203,7 +195,7 @@ history = model.fit(
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
     callbacks=[early_stop, checkpoint, reduce_lr],
-    verbose=1
+    verbose=0
 )
 
 #evaluate
