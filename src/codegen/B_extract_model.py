@@ -573,6 +573,43 @@ def extractModel(model, file_type, base_file_name=None):
                     )
                     continue
 
+            # group normalization layers
+            if (
+                isinstance(layer, keras.layers.GroupNormalization)
+                or "groupnormalization" in layer.name.lower()
+            ):
+                try:
+                    if len([d for d in layer_input_shape if d is not None]) > 2:
+                        norm_type = "GroupNormalization2D"
+                    else:
+                        norm_type = "GroupNormalization"
+                    if len(layer_weights) == 2:
+                        gamma, beta = layer_weights
+                        epsilon = config.get("epsilon", 1e-3)
+                        groups = config.get("groups", 32)
+                        # Store groups as an additional parameter in the first position
+                        norm_layer_params.append((gamma, beta, None, None, epsilon, groups))
+                        layer_shape.append((gamma.shape, beta.shape, 1, groups))
+                        activation_functions.append(None)
+                        weights_list.append(None)
+                        biases_list.append(None)
+                        alphas.append(alpha_value)
+                        dropout_rates.append(0.0)
+                        layer_type.append(norm_type)
+                    else:
+                        norm_layer_params.append(None)
+                        activation_functions.append(None)
+                        layer_shape.append(0)
+                        layer_type.append(None)
+                        alphas.append(alpha_value)
+                    continue
+                except ValueError as e:
+                    print(
+                        f"\nError in extracting parameters: groupnormalization layer {layer_idx} --> ",
+                        e,
+                    )
+                    continue
+
             ####################
             ## POOLING LAYERS ##
             ####################

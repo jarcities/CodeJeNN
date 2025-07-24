@@ -132,7 +132,8 @@ get_custom_objects().update({
 inputs = layers.Input(shape=(INPUT_DIM,))
 
 x = layers.Dense(HIDDEN_UNITS, activation=None)(inputs)
-x = layers.UnitNormalization()(x) #unit 
+# x = layers.UnitNormalization()(x) #unit 
+x = layers.GroupNormalization(groups=1, axis=-1)(x)
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
 

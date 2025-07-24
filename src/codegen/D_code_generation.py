@@ -184,8 +184,14 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
         #     cpp_code += f"    constexpr Scalar epsilon_{layer_idx} = {eps:10.9e};\n\n"
 
         if norm_params is not None and ltype != "Rescale":
-            gamma, beta, mean, var, eps = norm_params
-            cpp_code += f"    // Layer {layer_idx}: Normalization\n"
+            # Handle GroupNormalization which has 6 parameters instead of 5
+            if len(norm_params) == 6:
+                gamma, beta, mean, var, eps, groups = norm_params
+                cpp_code += f"    // Layer {layer_idx}: GroupNormalization\n"
+                cpp_code += f"    constexpr int groups_{layer_idx} = {groups};\n"
+            else:
+                gamma, beta, mean, var, eps = norm_params
+                cpp_code += f"    // Layer {layer_idx}: Normalization\n"
 
             if gamma is not None:
                 gflat = gamma.flatten()
@@ -729,6 +735,50 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             cpp_code += f"        epsilon_{layer_idx});\n\n"
             last_layer = f"layer_{layer_idx}_output"
             last_shape = last_shape
+            continue
+
+        elif (
+            ltype is not None
+            and ltype.lower() in ["groupnormalization", "groupnormalization2d"]
+        ) and norm_params is not None:
+            # Handle GroupNormalization parameters
+            if len(norm_params) == 6:
+                gamma, beta, mean, var, eps, groups = norm_params
+            else:
+                gamma, beta, mean, var, eps = norm_params
+                groups = 32  # default groups
+
+            # 2d group normalization layers for 2d convolutional layers
+            if ltype == "GroupNormalization2D":
+                height, width, channels = last_shape
+                cpp_code += f"    // {ltype}, layer {layer_idx}\n"
+                cpp_code += f"    static std::array<Scalar, ({height} * {width} * {channels})> layer_{layer_idx}_output;\n"
+                cpp_code += f"    GroupNormalization2D_{base_file_name}<Scalar, {channels}, {height}, {width}, {groups}>(\n"
+                cpp_code += (
+                    f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+                )
+                cpp_code += (
+                    f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
+                )
+                cpp_code += f"        epsilon_{layer_idx});\n\n"
+                last_layer = f"layer_{layer_idx}_output"
+                last_shape = (height, width, channels)
+
+            # 1d group normalization layers
+            else:
+                out_size = len(gamma)
+                cpp_code += f"    // {ltype}, layer {layer_idx}\n"
+                cpp_code += f"    static std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    GroupNormalization_{base_file_name}<Scalar, {out_size}, {groups}>(\n"
+                cpp_code += (
+                    f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+                )
+                cpp_code += (
+                    f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
+                )
+                cpp_code += f"        epsilon_{layer_idx});\n\n"
+                last_layer = f"layer_{layer_idx}_output"
+                last_shape = (out_size,)
             continue
     
         #############################################

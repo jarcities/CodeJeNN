@@ -288,6 +288,85 @@ inline void UnitNormalization_{base_file_name}(Scalar * __restrict outputs,
     }}
 }}
 """,
+        "GroupNormalization": f"""
+template <typename Scalar, int size, int groups>
+inline void GroupNormalization_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict gamma, const Scalar * __restrict beta, Scalar epsilon) noexcept
+{{
+    constexpr int group_size = size / groups;
+    
+    for (int g = 0; g < groups; ++g)
+    {{
+        int group_start = g * group_size;
+        
+        Scalar mean = 0;
+        for (int i = 0; i < group_size; ++i)
+        {{
+            mean += inputs[group_start + i];
+        }}
+        mean /= group_size;
+        
+        Scalar variance = 0;
+        for (int i = 0; i < group_size; ++i)
+        {{
+            variance += (inputs[group_start + i] - mean) * (inputs[group_start + i] - mean);
+        }}
+        variance /= group_size;
+        
+        for (int i = 0; i < group_size; ++i)
+        {{
+            int idx = group_start + i;
+            outputs[idx] = gamma[idx] * ((inputs[idx] - mean) / std::sqrt(variance + epsilon)) + beta[idx];
+        }}
+    }}
+}}
+""",
+        "GroupNormalization2D": f"""
+template <typename Scalar, int channels, int height, int width, int groups>
+inline void GroupNormalization2D_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs,
+                          const Scalar * __restrict gamma, const Scalar * __restrict beta,
+                          Scalar epsilon) noexcept
+{{
+    constexpr int channels_per_group = channels / groups;
+    constexpr int group_size = channels_per_group * height * width;
+    
+    for (int g = 0; g < groups; ++g)
+    {{
+        int group_start_channel = g * channels_per_group;
+        
+        Scalar mean = 0;
+        for (int c = 0; c < channels_per_group; ++c)
+        {{
+            for (int i = 0; i < height * width; ++i)
+            {{
+                int idx = i * channels + (group_start_channel + c);
+                mean += inputs[idx];
+            }}
+        }}
+        mean /= group_size;
+        
+        Scalar variance = 0;
+        for (int c = 0; c < channels_per_group; ++c)
+        {{
+            for (int i = 0; i < height * width; ++i)
+            {{
+                int idx = i * channels + (group_start_channel + c);
+                variance += (inputs[idx] - mean) * (inputs[idx] - mean);
+            }}
+        }}
+        variance /= group_size;
+        
+        for (int c = 0; c < channels_per_group; ++c)
+        {{
+            for (int i = 0; i < height * width; ++i)
+            {{
+                int idx = i * channels + (group_start_channel + c);
+                int param_idx = group_start_channel + c;
+                outputs[idx] = gamma[param_idx] * ((inputs[idx] - mean) / std::sqrt(variance + epsilon)) + beta[param_idx];
+            }}
+        }}
+    }}
+}}
+""",
     }
 
     # convolution functions
