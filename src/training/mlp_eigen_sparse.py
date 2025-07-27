@@ -14,13 +14,13 @@ import tensorflow.keras.backend as K
 K.set_floatx('float64')
 
 #config
-DATA_DIR = "./training/BE_DATA"
+DATA_DIR = "./training/BE_DATA/jetA/"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
 CSV_FILE = "./dump_model/MLP_LU.csv"
-IN_SPARSITY = np.load('./training/sparsity_pattern.npy', allow_pickle=True)
-OUT_SPARSITY = np.load('./training/generated_permutation.npy', allow_pickle=True)
-NUM_SAMPLES = 384
-M = 97
+IN_SPARSITY = np.load('./training/BE_DATA/jetA/input_sparsity.npy', allow_pickle=True)
+OUT_SPARSITY = np.load('./training/BE_DATA/jetA/output_sparsity.npy', allow_pickle=True)
+NUM_SAMPLES = 1252
+M = 202
 BATCH_SIZE = 1
 EPOCHS = 700
 HIDDEN_UNITS = 1
