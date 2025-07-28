@@ -219,16 +219,3 @@ with open(CSV_FILE, "w") as f:
 
 #print model arch
 model.summary()
-
-#predict and check invertibility
-y_pred_norm = model.predict(X_norm, batch_size=BATCH_SIZE)  
-y_pred = y_pred_norm * y_std + y_mean                   
-LU_preds = y_pred.reshape(-1, M, M)    
-skip_iter = 0                    
-for i, LU in enumerate(LU_preds):
-    U = np.triu(LU)
-    if np.any(np.abs(np.diag(U)) < EPS):
-        print(f"data sample #{i} = singular.")
-        skip_iter += 1
-if skip_iter <= 0:
-    print("every data sample = non-singular.")
