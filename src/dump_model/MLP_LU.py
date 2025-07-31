@@ -31,15 +31,19 @@ get_custom_objects().update({'nonzero_diag': nonzero_diag})
     auto nonzero_diag = +[](Scalar& output, Scalar input, int index) noexcept
     {
         constexpr Scalar EPS = Scalar(1e-4);
-        static constexpr bool diag_mask[OUTPUT_DIM] = {
-            /* precomputed true/false values from your mask_out */
-        };
-        if (index < OUTPUT_DIM && diag_mask[index]) {
-            Scalar abs_x = std::abs(input);
-            Scalar sign_x = input >= Scalar(0) ? Scalar(1) : Scalar(-1);
+
+        // ask “which row/col does this output slot correspond to?”
+        int r = get_lu_perm_row_index(index);
+        int c = get_lu_perm_col_index(index);
+
+        if (r == c) {
+            // clamp to ±EPS
+            Scalar abs_x  = std::abs(input);
+            Scalar sign_x = (input >= Scalar(0) ? Scalar(1) : Scalar(-1));
             if (input == Scalar(0)) sign_x = Scalar(1);
             output = sign_x * std::max(abs_x, EPS);
-        } else {
+        }
+        else {
             output = input;
         }
     };
