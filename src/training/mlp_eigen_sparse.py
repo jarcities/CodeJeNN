@@ -29,29 +29,23 @@ NUM_SAMPLES = 997
 M = 202
 BATCH_SIZE = 1
 EPOCHS = 700
-HIDDEN_UNITS = 2
+HIDDEN_UNITS = 4
 LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
-RANDOM_SEED = 1
+RANDOM_SEED = 42
 EPS = 1e-16 #16-20
 NEGATIVE_SLOPE = 1e-1 #1-2
 
-#get and mask input sparsity pattern
-data = IN_SPARSITY
-pattern = data.reshape((M, M))
-# pattern  = pattern[PERM][:, PERM]
+#input sparse
+pattern = IN_SPARSITY.reshape((M, M))
 mask_in = (pattern != 0).ravel()
 INPUT_DIM = int(mask_in.sum())
-# print(data)
 
-#get and mask output sparsity pattern
-data = OUT_SPARSITY
-pattern = data.reshape((M, M))
-# pattern  = pattern[PERM][:, PERM]
+#output sparse
+pattern = OUT_SPARSITY.reshape((M, M))
 mask_out = (pattern != 0).ravel()
 OUTPUT_DIM = int(mask_out.sum())
-# print(data)
 
 #load data
 skipped = 0
@@ -62,6 +56,8 @@ for i in range(NUM_SAMPLES):
         delimiter=",", 
         dtype=np.float64
         )
+    A = A[:, PERM][PERM, :] 
+    
     #A_inv instead
     # iA = np.linalg.inv(A) #inverse of A
     # if i == NUM_SAMPLES-1:
@@ -76,14 +72,12 @@ for i in range(NUM_SAMPLES):
         continue
     
     #apply permutation
-    A = A[:, PERM][PERM, :] 
-    A = A.flatten(order='F')
-    mask = (IN_SPARSITY.reshape(M, M) != 0).flatten(order='F')
-    X_list.append(A[mask])
-    LU = LU[:, PERM][PERM, :] 
-    LU = LU.flatten(order='F')
-    mask = (OUT_SPARSITY.reshape(M, M) != 0).flatten(order='F')
-    y_list.append(LU[mask])
+    # A = A[:, PERM][PERM, :] 
+    A = A.ravel()
+    X_list.append(A[mask_in])
+    # LU = LU[:, PERM][PERM, :] 
+    LU = LU.ravel()
+    y_list.append(LU[mask_out])
 
     #add to data sample list
     # X_list.append(A.ravel()[mask_in]) #take nonzero entries
@@ -109,29 +103,22 @@ X_tr, X_val, y_tr, y_val = train_test_split(
 )
 
 #custom activation function
-from tensorflow.keras.utils import get_custom_objects 
+from tensorflow.keras.utils import get_custom_objects
+indices = np.where(mask_out)[0]
+diag_flat = np.arange(M) * (M + 1)
+diag_mask_np = np.where(np.in1d(indices, diag_flat), 1.0, 0.0)
+@tf.function
 def nonzero_diag(x):
     eps = 1e-4
-    indices = np.where(mask_out)[0] #create mapping
-    diag_mask = np.zeros(OUTPUT_DIM, dtype=np.float64) #identity diagonals
-    for i, idx in enumerate(indices):
-        orig_row = idx // M
-        orig_col = idx % M
-        if PERM[orig_row] == PERM[orig_col]: 
-            diag_mask[i] = 1.0
-    mask = tf.constant(diag_mask, dtype=x.dtype)
+    mask = tf.constant(diag_mask_np, dtype=x.dtype)
     mask = tf.reshape(mask, (1, OUTPUT_DIM))
-    abs_x = tf.abs(x)
     sign_x = tf.sign(x)
-    zero = tf.zeros_like(sign_x)
-    one = tf.ones_like(sign_x)
-    eps_tensor = tf.fill(tf.shape(abs_x), tf.cast(eps, x.dtype))
-    sign_x = tf.where(tf.equal(sign_x, zero), one, sign_x)  
-    diag_x = sign_x * tf.maximum(abs_x, eps_tensor)
-    return (x * (one - mask)) + (diag_x * mask)
-get_custom_objects().update({
-    'nonzero_diag': nonzero_diag
-})
+    sign_x = tf.where(tf.equal(sign_x, 0), tf.ones_like(sign_x), sign_x)
+    abs_x = tf.abs(x)
+    eps_t = tf.fill(tf.shape(abs_x), tf.cast(eps, x.dtype))
+    diag_x = sign_x * tf.maximum(abs_x, eps_t)
+    return x * (1.0 - mask) + diag_x * mask
+get_custom_objects().update({'nonzero_diag': nonzero_diag})
 
 ###########
 ## MODEL ##
@@ -144,7 +131,7 @@ x = layers.UnitNormalization()(x) #unit
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
 
-# x = layers.Dense(HIDDEN_UNITS, activation=None)(inputs)
+# x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
 # x = layers.Activation("gelu")(x)
 
 output = layers.Dense(OUTPUT_DIM, activation=None)(x)
