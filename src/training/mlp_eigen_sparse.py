@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from doctest import OutputChecker
 import os
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -14,16 +15,21 @@ import tensorflow.keras.backend as K
 K.set_floatx('float64')
 
 #config
+np.set_printoptions(threshold=np.inf)
 DATA_DIR = "./training/BE_DATA/jetA/"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
 CSV_FILE = "./dump_model/MLP_LU.csv"
-IN_SPARSITY = np.load('./training/BE_DATA/jetA/input_sparsity.npy', allow_pickle=True)
-OUT_SPARSITY = np.load('./training/BE_DATA/jetA/output_sparsity.npy', allow_pickle=True)
-NUM_SAMPLES = 1252
+PERM = np.load("./training/permutation.npy", allow_pickle=True)
+# print(PERM)
+IN_SPARSITY = np.load('./training/input_sparsity.npy', allow_pickle=True)
+# print(IN_SPARSITY)
+OUT_SPARSITY = np.load('./training/output_sparsity.npy', allow_pickle=True)
+# print(OUT_SPARSITY)
+NUM_SAMPLES = 997
 M = 202
 BATCH_SIZE = 1
 EPOCHS = 700
-HIDDEN_UNITS = 1
+HIDDEN_UNITS = 2
 LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
@@ -34,14 +40,18 @@ NEGATIVE_SLOPE = 1e-1 #1-2
 #get and mask input sparsity pattern
 data = IN_SPARSITY
 pattern = data.reshape((M, M))
+# pattern  = pattern[PERM][:, PERM]
 mask_in = (pattern != 0).ravel()
 INPUT_DIM = int(mask_in.sum())
+# print(data)
 
 #get and mask output sparsity pattern
 data = OUT_SPARSITY
 pattern = data.reshape((M, M))
+# pattern  = pattern[PERM][:, PERM]
 mask_out = (pattern != 0).ravel()
 OUTPUT_DIM = int(mask_out.sum())
+# print(data)
 
 #load data
 skipped = 0
@@ -51,36 +61,33 @@ for i in range(NUM_SAMPLES):
         os.path.join(DATA_DIR, f"jacobian_{i}.csv"), 
         delimiter=",", 
         dtype=np.float64
-    )
-
+        )
     #A_inv instead
     # iA = np.linalg.inv(A) #inverse of A
     # if i == NUM_SAMPLES-1:
     #     np.set_printoptions(threshold=np.inf)
     #     print(iA)
-
     #LU instead
     # L, U = sp.linalg.lu(A, permute_l=True) #with P in L
     P, L, U = sp.linalg.lu(A) #w/o P in L
     LU = np.tril(L, -1) + U
-    if i == NUM_SAMPLES-1:
-        np.set_printoptions(threshold=np.inf)
-        # print(LU)
-    if np.any(np.abs(np.diag(U)) <= 0.0): #enforce invertibility
+    if np.any(np.abs(np.diag(U)) <= 0.0): #check invertibility
         skipped += 1
         continue
-
-    # #save LU
-    # np.savetxt(
-    #     os.path.join(f"./training/LU_BE_DATA_ILU/LU_{i}.csv"),
-    #     LU,
-    #     delimiter=",",
-    #     fmt="%.6f"  # adjust precision if needed
-    # )
+    
+    #apply permutation
+    A = A[:, PERM][PERM, :] 
+    A = A.flatten(order='F')
+    mask = (IN_SPARSITY.reshape(M, M) != 0).flatten(order='F')
+    X_list.append(A[mask])
+    LU = LU[:, PERM][PERM, :] 
+    LU = LU.flatten(order='F')
+    mask = (OUT_SPARSITY.reshape(M, M) != 0).flatten(order='F')
+    y_list.append(LU[mask])
 
     #add to data sample list
-    X_list.append(A.ravel()[mask_in]) #take nonzero entries
-    y_list.append(LU.ravel()[mask_out]) #take nonzero entries
+    # X_list.append(A.ravel()[mask_in]) #take nonzero entries
+    # y_list.append(LU.ravel()[mask_out]) #take nonzero entries
 
 print(f"Skipped {skipped} singular matrices")
 X = np.stack(X_list, axis=0) 
@@ -110,7 +117,7 @@ def nonzero_diag(x):
     for i, idx in enumerate(indices):
         orig_row = idx // M
         orig_col = idx % M
-        if orig_row == orig_col: 
+        if PERM[orig_row] == PERM[orig_col]: 
             diag_mask[i] = 1.0
     mask = tf.constant(diag_mask, dtype=x.dtype)
     mask = tf.reshape(mask, (1, OUTPUT_DIM))
@@ -137,16 +144,15 @@ x = layers.UnitNormalization()(x) #unit
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
 
-# x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
-# # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
+# x = layers.Dense(HIDDEN_UNITS, activation=None)(inputs)
 # x = layers.Activation("gelu")(x)
 
-x = layers.Dense(OUTPUT_DIM, activation=None)(x)
-# outputs = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
-# outputs = layers.Activation("softplus")(x)
-outputs = layers.Activation(nonzero_diag, name='nonzero_diag')(x)
+output = layers.Dense(OUTPUT_DIM, activation=None)(x)
+# output = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(output)
+# output = layers.Activation("softplus")(output)
+# output = layers.Activation(nonzero_diag, name='nonzero_diag')(output)
 
-model = models.Model(inputs, outputs)
+model = models.Model(inputs, output)
 ###########
 
 #custom loss functions

@@ -52,5 +52,33 @@ get_custom_objects().update({
 
 
 
-
+"""
+    auto nonzero_diag = +[](Scalar& output, Scalar input, int index) noexcept
+    {
+        constexpr int M = 202;  // Based on your Python code
+        constexpr int OUTPUT_DIM = /* your actual output dimension */;
+        constexpr Scalar EPS = Scalar(1e-4);
+        
+        // Create the diagonal mask mapping based on mask_out sparsity pattern
+        // This would need to be precomputed and stored as a constant array
+        // For now, assuming you have a way to determine if index corresponds to diagonal
+        static constexpr bool diag_mask[OUTPUT_DIM] = {
+            // This array should be precomputed from your mask_out sparsity pattern
+            // where diag_mask[i] = true if the i-th non-zero element corresponds to a diagonal
+        };
+        
+        if (index < OUTPUT_DIM && diag_mask[index]) {
+            // This is a diagonal element - apply the nonzero constraint
+            Scalar abs_x = std::abs(input);
+            Scalar sign_x = (input >= Scalar(0)) ? Scalar(1) : Scalar(-1);
+            if (input == Scalar(0)) {
+                sign_x = Scalar(1);
+            }
+            output = sign_x * std::max(abs_x, EPS);
+        } else {
+            // Non-diagonal element - pass through unchanged
+            output = input;
+        }
+    };
+"""
 
