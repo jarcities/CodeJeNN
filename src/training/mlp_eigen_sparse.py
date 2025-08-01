@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-
-from doctest import OutputChecker
 import os
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -29,12 +27,12 @@ NUM_SAMPLES = 997
 M = 202
 BATCH_SIZE = 1
 EPOCHS = 700
-HIDDEN_UNITS = 4
+HIDDEN_UNITS = 8
 LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
 RANDOM_SEED = 42
-EPS = 1e-16 #16-20
+EPS = 1e-10 #16-20
 NEGATIVE_SLOPE = 1e-1 #1-2
 
 #input sparse
@@ -64,8 +62,8 @@ for i in range(NUM_SAMPLES):
     #     np.set_printoptions(threshold=np.inf)
     #     print(iA)
     #LU instead
-    # L, U = sp.linalg.lu(A, permute_l=True) #with P in L
-    P, L, U = sp.linalg.lu(A) #w/o P in L
+    L, U = sp.linalg.lu(A, permute_l=True) #with P in L
+    # P, L, U = sp.linalg.lu(A) #w/o P in L
     LU = np.tril(L, -1) + U
     if np.any(np.abs(np.diag(U)) <= 0.0): #check invertibility
         skipped += 1
@@ -106,8 +104,7 @@ X_tr, X_val, y_tr, y_val = train_test_split(
 from tensorflow.keras.utils import get_custom_objects
 indices = np.where(mask_out)[0]
 diag_flat = np.arange(M) * (M + 1)
-diag_mask_np = np.where(np.in1d(indices, diag_flat), 1.0, 0.0)
-@tf.function
+diag_mask_np = np.where(np.isin(indices, diag_flat), 1.0, 0.0)
 def nonzero_diag(x):
     eps = 1e-4
     mask = tf.constant(diag_mask_np, dtype=x.dtype)
@@ -137,7 +134,7 @@ x = layers.Activation("gelu")(x)
 output = layers.Dense(OUTPUT_DIM, activation=None)(x)
 # output = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(output)
 # output = layers.Activation("softplus")(output)
-# output = layers.Activation(nonzero_diag, name='nonzero_diag')(output)
+output = layers.Activation(nonzero_diag, name='nonzero_diag')(output)
 
 model = models.Model(inputs, output)
 ###########
@@ -196,7 +193,7 @@ history = model.fit(
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
     callbacks=[early_stop, checkpoint, reduce_lr],
-    verbose=0
+    verbose=1
 )
 
 #evaluate

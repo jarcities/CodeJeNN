@@ -1,10 +1,16 @@
 import tensorflow as tf
 from tensorflow.keras.utils import get_custom_objects
-indices = np.where(mask_out)[0]
-diag_flat = np.arange(M) * (M + 1)
-diag_mask_np = np.where(np.in1d(indices, diag_flat), 1.0, 0.0)
-@tf.function
+import numpy as np
+
+# Define your constants here
+OUTPUT_DIM = 7652  # Set this to your actual output dimension
+M = int(np.sqrt(OUTPUT_DIM))  # Assuming square matrix
+mask_out = np.ones(OUTPUT_DIM, dtype=bool)  # Set appropriate mask
+
 def nonzero_diag(x):
+    indices = np.where(mask_out)[0]
+    diag_flat = np.arange(M) * (M + 1)
+    diag_mask_np = np.where(np.in1d(indices, diag_flat), 1.0, 0.0)
     eps = 1e-4
     mask = tf.constant(diag_mask_np, dtype=x.dtype)
     mask = tf.reshape(mask, (1, OUTPUT_DIM))
