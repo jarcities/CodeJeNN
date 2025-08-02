@@ -18,16 +18,13 @@ DATA_DIR = "./training/BE_DATA/jetA/"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
 CSV_FILE = "./dump_model/MLP_LU.csv"
 PERM = np.load("./training/permutation.npy", allow_pickle=True)
-# print(PERM)
 IN_SPARSITY = np.load('./training/input_sparsity.npy', allow_pickle=True)
-# print(IN_SPARSITY)
 OUT_SPARSITY = np.load('./training/output_sparsity.npy', allow_pickle=True)
-# print(OUT_SPARSITY)
 NUM_SAMPLES = 997
 M = 202
 BATCH_SIZE = 1
 EPOCHS = 700
-HIDDEN_UNITS = 4
+HIDDEN_UNITS = 8
 LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
@@ -70,13 +67,10 @@ for i in range(NUM_SAMPLES):
         continue
     
     #apply permutation
-    # A = A[:, PERM][PERM, :] 
     A = A.ravel()
     X_list.append(A[mask_in])
-    # y_list.append(A[mask_out])
 
     #apply permutation
-    # LU = LU[:, PERM][PERM, :] 
     LU = LU.ravel()
     y_list.append(LU[mask_out])
 
