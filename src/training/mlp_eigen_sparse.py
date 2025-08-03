@@ -10,7 +10,7 @@ import scipy as sp
 from sklearn.model_selection import KFold
 #double precision
 import tensorflow.keras.backend as K
-K.set_floatx('float64')
+K.set_floatx('float32')
 
 #config
 np.set_printoptions(threshold=np.inf)
@@ -24,7 +24,7 @@ NUM_SAMPLES = 997
 M = 202
 BATCH_SIZE = 1
 EPOCHS = 700
-HIDDEN_UNITS = 8
+HIDDEN_UNITS = 4
 LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
@@ -49,7 +49,7 @@ for i in range(NUM_SAMPLES):
     A = np.loadtxt(
         os.path.join(DATA_DIR, f"jacobian_{i}.csv"), 
         delimiter=",", 
-        dtype=np.float64
+        dtype=np.float32
         )
     A = A[:, PERM][PERM, :] 
     
@@ -125,8 +125,9 @@ x = layers.UnitNormalization()(x) #unit
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
 
-# x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
-# x = layers.Activation("gelu")(x)
+x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
+x = layers.UnitNormalization()(x) 
+x = layers.Activation("gelu")(x)
 
 output = layers.Dense(OUTPUT_DIM, activation=None)(x)
 # output = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(output)
