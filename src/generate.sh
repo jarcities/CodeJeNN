@@ -11,4 +11,4 @@ python3 \
     --input="./dump_model" \
     --output="./bin" \
     --precision="double" \
-    # --custom_activation="nonzero_diag"
+    --custom_activation="nonzero_diag"
