@@ -10,21 +10,21 @@ import scipy as sp
 from sklearn.model_selection import KFold
 #double precision
 import tensorflow.keras.backend as K
-K.set_floatx('float32')
+K.set_floatx('float64')
 
 #config
 np.set_printoptions(threshold=np.inf)
-DATA_DIR = "./training/BE_DATA/jetA/"
+DATA_DIR = "./training/BE_DATA/but/"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
 CSV_FILE = "./dump_model/MLP_LU.csv"
-PERM = np.load("./training/permutation.npy", allow_pickle=True)
-IN_SPARSITY = np.load('./training/input_sparsity.npy', allow_pickle=True)
-OUT_SPARSITY = np.load('./training/output_sparsity.npy', allow_pickle=True)
-NUM_SAMPLES = 997
-M = 202
+PERM = np.load(DATA_DIR + "permutation.npy", allow_pickle=True)
+IN_SPARSITY = np.load(DATA_DIR + 'input_sparsity.npy', allow_pickle=True)
+OUT_SPARSITY = np.load(DATA_DIR + 'output_sparsity.npy', allow_pickle=True)
+NUM_SAMPLES = 826
+M = 231
 BATCH_SIZE = 1
 EPOCHS = 700
-HIDDEN_UNITS = 4
+HIDDEN_UNITS = 2
 LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
@@ -49,7 +49,7 @@ for i in range(NUM_SAMPLES):
     A = np.loadtxt(
         os.path.join(DATA_DIR, f"jacobian_{i}.csv"), 
         delimiter=",", 
-        dtype=np.float32
+        dtype=np.float64
         )
     A = A[:, PERM][PERM, :] 
     
@@ -60,11 +60,14 @@ for i in range(NUM_SAMPLES):
     #     print(iA)
     #LU instead
     # L, U = sp.linalg.lu(A, permute_l=True) #with P in L
-    P, L, U = sp.linalg.lu(A) #w/o P in L
-    LU = np.tril(L, -1) + U
+    P, L, U = sp.linalg.lu(A, permute_l=False) #w/o P in L
+    # if np.any(np.diag(P) != 1.0): #check permutation
+    #     skipped += 1
+    #     continue
     if np.any(np.abs(np.diag(U)) <= 0.0): #check invertibility
         skipped += 1
         continue
+    LU = np.tril(L, -1) + U
     
     #apply permutation
     A = A.ravel()
@@ -78,7 +81,7 @@ for i in range(NUM_SAMPLES):
     # X_list.append(A.ravel()[mask_in])
     # y_list.append(LU.ravel()[mask_out]) 
 
-print(f"Skipped {skipped} singular matrices")
+print(f"Skipped {skipped} bad matrices")
 X = np.stack(X_list, axis=0) 
 y = np.stack(y_list, axis=0) 
 
@@ -104,6 +107,7 @@ diag_flat = np.arange(M) * (M + 1)
 diag_mask_np = np.where(np.isin(indices, diag_flat), 1.0, 0.0)
 def nonzero_diag(x):
     eps = 1e-4
+    # eps = 1e-16
     mask = tf.constant(diag_mask_np, dtype=x.dtype)
     mask = tf.reshape(mask, (1, OUTPUT_DIM))
     sign_x = tf.sign(x)
@@ -125,9 +129,9 @@ x = layers.UnitNormalization()(x) #unit
 # x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
 
-x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
-x = layers.UnitNormalization()(x) 
-x = layers.Activation("gelu")(x)
+# x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
+# x = layers.UnitNormalization()(x) 
+# x = layers.Activation("gelu")(x)
 
 output = layers.Dense(OUTPUT_DIM, activation=None)(x)
 # output = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(output)
@@ -149,59 +153,44 @@ def diag_penalty(y_true, y_pred):
 @tf.function
 def compare_to_A(y_true, y_pred):
     batch_size = tf.shape(y_pred)[0]
-    
-    # Reconstruct full LU matrix from sparse prediction
     full_LU = tf.zeros([batch_size, M * M], dtype=y_pred.dtype)
     mask_out_tf = tf.constant(mask_out, dtype=tf.bool)
     lu_indices = tf.where(mask_out_tf)
     lu_indices = tf.reshape(lu_indices, [-1])
-    lu_indices = tf.cast(lu_indices, tf.int32)
-    
-    batch_indices = tf.range(batch_size, dtype=tf.int32)
+    lu_indices = tf.cast(lu_indices, tf.int64)
+    batch_indices = tf.range(batch_size, dtype=tf.int64)
     batch_indices = tf.repeat(batch_indices, OUTPUT_DIM)
     sparse_indices = tf.tile(lu_indices, [batch_size])
     scatter_indices = tf.stack([batch_indices, sparse_indices], axis=1)
     y_pred_flat = tf.reshape(y_pred, [-1])
-    
     full_LU = tf.scatter_nd(scatter_indices, y_pred_flat, [batch_size, M * M])
     LU = tf.reshape(full_LU, [-1, M, M])
-    
-    # Decompose LU into L and U
     U = tf.linalg.band_part(LU, 0, -1)
     lower_all = tf.linalg.band_part(LU, -1, 0)
     diag = tf.linalg.band_part(LU, 0, 0)
     strict_lower = lower_all - diag
     I = tf.eye(M, batch_shape=[batch_size], dtype=LU.dtype)
     L = I + strict_lower
-    
-    # Reconstruct A_pred = L * U
     A_pred = tf.matmul(L, U)
-    
-    # Reconstruct true LU matrix from y_true to get original A
     full_LU_true = tf.zeros([batch_size, M * M], dtype=y_true.dtype)
     y_true_flat = tf.reshape(y_true, [-1])
     full_LU_true = tf.scatter_nd(scatter_indices, y_true_flat, [batch_size, M * M])
     LU_true = tf.reshape(full_LU_true, [-1, M, M])
-    
-    # Decompose true LU into L and U to get original A
     U_true = tf.linalg.band_part(LU_true, 0, -1)
     lower_all_true = tf.linalg.band_part(LU_true, -1, 0)
     diag_true = tf.linalg.band_part(LU_true, 0, 0)
     strict_lower_true = lower_all_true - diag_true
     L_true = I + strict_lower_true
-    
-    # Get original A_true = L_true * U_true
     A_true = tf.matmul(L_true, U_true)
-    
-    return tf.reduce_mean(tf.keras.losses.mae(A_true, A_pred))
+    return tf.reduce_mean(tf.keras.losses.logcosh(A_true, A_pred))
 
 #compile
 opt = optimizers.Adam(learning_rate=LEARNING_RATE, 
                       clipnorm=CLIP_NORM
                       )
 model.compile(optimizer=opt, 
-            #   loss=tf.keras.losses.logcosh
-              loss=compare_to_A
+              loss=tf.keras.losses.logcosh
+            #   loss=compare_to_A
             #   loss=diag_penalty
             #   loss=tf.keras.losses.mae
               )
@@ -226,7 +215,7 @@ history = model.fit(
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
     callbacks=[early_stop, checkpoint, reduce_lr],
-    verbose=1
+    verbose=0
 )
 
 #evaluate
