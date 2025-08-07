@@ -1,164 +1,163 @@
 #!/usr/bin/env python3
 import os
+import ast
 import numpy as np
-import scipy as sp
-from sklearn.model_selection import train_test_split
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 from tensorflow.keras import layers, callbacks, models, optimizers
-from spektral.layers import GCNConv
+import tensorflow.keras.backend as K
+from scipy.linalg import lu
+from spektral.layers import GraphConv
 
-# ─── CONFIG ───────────────────────────────────────────────────────────────────
-DATA_DIR          = "./training/BE_DATA"
-MODEL_PATH        = "./dump_model/GNN_LU.keras"
-CSV_FILE          = "./dump_model/GNN_LU.csv"
-SPARSITY_PATTERN  = "./training/sparsity_pattern.txt"
-NUM_SAMPLES       = 383
-M                 = 97
-BATCH_SIZE        = 64
-EPOCHS            = 5000
+K.set_floatx("float64")
+
+# config
+DATA_DIR          = "./training/BE_DATA/H2/"
+MODEL_PATH        = "./dump_model/MLP_LU.keras"
+CSV_FILE          = "./dump_model/MLP_LU.csv"
+PERM              = np.load(os.path.join(DATA_DIR, "permutation.npy"), allow_pickle=True)
+IN_SPARSITY       = np.load(os.path.join(DATA_DIR, "input_sparsity.npy"), allow_pickle=True)
+OUT_SPARSITY      = np.load(os.path.join(DATA_DIR, "output_sparsity.npy"), allow_pickle=True)
+NUM_SAMPLES       = 913
+M                 = 11
+BATCH_SIZE        = 1
+EPOCHS            = 700
+HIDDEN_UNITS      = 12
 LEARNING_RATE     = 1e-3
 CLIP_NORM         = 1.0
 VALIDATION_SPLIT  = 0.3
-RANDOM_SEED       = 5
-EPS               = 1e-22
-HIDDEN_UNITS      = 8    # very small hidden size
+RANDOM_SEED       = 42
+EPS               = 1e-16
 
-# ─── LOAD SPARSITY PATTERN & BUILD SPARSE ADJ ────────────────────────────────
-# Read the M×M 0/1 pattern (same method as your original script)
-with open(SPARSITY_PATTERN, "r") as f:
-    txt = f.read().replace("[", " ").replace("]", " ")
-data = np.fromstring(txt, sep=" ", dtype=int)
-pattern = data.reshape((M, M))                   # binary mask of your graph’s edges
+# sparsity masks
+pattern_in  = IN_SPARSITY.reshape((M, M))
+mask_in     = (pattern_in != 0).ravel()
+INPUT_DIM   = int(mask_in.sum())
 
-# Build dense adjacency (pattern + self-loops) & symmetrically normalize
-A_dense = pattern.astype(np.float32) + np.eye(M, dtype=np.float32)
-D = np.sum(A_dense, axis=1)
-D_inv_sqrt = np.diag(1.0 / np.sqrt(D))
-A_norm = D_inv_sqrt @ A_dense @ D_inv_sqrt
+pattern_out = OUT_SPARSITY.reshape((M, M))
+mask_out    = (pattern_out != 0).ravel()
+OUTPUT_DIM  = int(mask_out.sum())
 
-# Convert to tf.sparse.SparseTensor for fast sparse mat-mul
-edge_idx  = np.vstack(np.nonzero(A_norm)).T      # shape (E_adj, 2)
-edge_vals = A_norm[A_norm.nonzero()]             # shape (E_adj,)
-A_sparse  = tf.sparse.SparseTensor(
-    indices=edge_idx,
-    values=edge_vals.astype(np.float32),
-    dense_shape=(M, M),
-)
-A_sparse = tf.sparse.reorder(A_sparse)
-
-# Precompute the *decoder* edge list from the original pattern (no self-loops)
-decode_idx = np.vstack(np.nonzero(pattern)).T    # shape (E_dec, 2)
-E_dec      = decode_idx.shape[0]
-
-# ─── LOAD & PREPROCESS DATA ─────────────────────────────────────────────────
-skipped = 0
-A_list, Y_list = [], []
+# load data
+X_list, A_list = [], []
 for i in range(NUM_SAMPLES):
-    A = np.loadtxt(
-        os.path.join(DATA_DIR, f"jacobian_{i}.csv"),
-        delimiter=",",
-        dtype=np.float32,
-    )
-    P, L, U = sp.linalg.lu(A)
-    if np.any(np.abs(np.diag(U)) <= 0.0):
-        skipped += 1
-        continue
-    LU = np.tril(L, -1) + U
-    A_list.append(A)
-    Y_list.append(LU.ravel())
-print(f"Skipped {skipped} singular matrices")
+    A = np.loadtxt(os.path.join(DATA_DIR, f"jacobian_{i}.csv"),
+                   delimiter=",", dtype=np.float64)
+    A = A[:, PERM][PERM, :]
+    X_list.append(A.ravel()[mask_in])
+    A_list.append(A.ravel()[mask_out])
+X_all = np.stack(X_list, axis=0)
+A_all = np.stack(A_list, axis=0)
 
-X = np.stack(A_list, axis=0)    # (N, M, M)
-y = np.stack(Y_list, axis=0)    # (N, M*M)
+# normalize
+X_mean = X_all.mean(axis=0)
+X_std  = X_all.std(axis=0) + EPS
+X_norm = (X_all - X_mean) / X_std
 
-# Normalize features & targets
-X_mean = X.mean(axis=(0,1), keepdims=True)
-X_std  = X.std(axis=(0,1), keepdims=True) + EPS
-X_norm = (X - X_mean) / X_std
+A_mean = A_all.mean(axis=0)
+A_std  = A_all.std(axis=0) + EPS
+A_norm = (A_all - A_mean) / A_std
 
-y_mean = y.mean(axis=0)
-y_std  = y.std(axis=0) + EPS
-y_norm = (y - y_mean) / y_std
-
-# Train/validation split
-X_tr, X_val, y_tr, y_val = train_test_split(
-    X_norm, y_norm,
+# split
+X_tr, X_val, A_tr, A_val = train_test_split(
+    X_norm, A_norm,
     test_size=VALIDATION_SPLIT,
     random_state=RANDOM_SEED,
-    shuffle=True,
+    shuffle=True
 )
 
-# ─── MODEL DEFINITION ─────────────────────────────────────────────────────────
-# Input: full M×M matrix of node‐features (each row is one node’s features)
-X_in = layers.Input(shape=(M, M), name="X_in")
+# — spectral adjacency for GNN —
+# binary adjacency given by input sparsity pattern
+A_graph    = pattern_in.astype(np.float64)
+D          = np.diag(A_graph.sum(axis=1))
+D_inv_sqrt = np.linalg.inv(np.sqrt(D + EPS * np.eye(M)))
+A_norm     = D_inv_sqrt @ A_graph @ D_inv_sqrt
+A_tf       = tf.constant(A_norm, dtype=tf.float64)
 
-# Two sparse GCN layers
-x = GCNConv(HIDDEN_UNITS, activation=None)([X_in, A_sparse])
-x = layers.BatchNormalization()(x)
-x = layers.Activation("gelu")(x)
+# helper: scatter vector (batch, INPUT_DIM) → full mat (batch, M, M)
+def scatter_to_mat(x):
+    batch = tf.shape(x)[0]
+    idx   = tf.constant(np.where(mask_in)[0], dtype=tf.int64)
+    bidx  = tf.repeat(tf.range(batch), INPUT_DIM)
+    fidx  = tf.tile(idx, [batch])
+    idx2  = tf.stack([bidx, fidx], axis=1)
+    flat  = tf.scatter_nd(idx2, tf.reshape(x, [-1]), [batch, M*M])
+    return tf.reshape(flat, [batch, M, M])
 
-x = GCNConv(HIDDEN_UNITS, activation=None)([x, A_sparse])
-x = layers.BatchNormalization()(x)
-x = layers.Activation("gelu")(x)
-# x: (batch, M, H)
+# ——— MODEL: two GraphConv layers, then Dense readout ———
+inputs = layers.Input(shape=(INPUT_DIM,), dtype=tf.float64)
 
-# Decoder: only predict on the E_dec edges from the original sparsity pattern
-row_idx = decode_idx[:, 0]
-col_idx = decode_idx[:, 1]
-h_i = layers.Lambda(lambda Z: tf.gather(Z, row_idx, axis=1))(x)  # (batch, E_dec, H)
-h_j = layers.Lambda(lambda Z: tf.gather(Z, col_idx, axis=1))(x)  # (batch, E_dec, H)
+# 1) to full matrix
+mat = layers.Lambda(scatter_to_mat)(inputs)         # (batch, M, M)
 
-e = layers.Concatenate(axis=-1)([h_i, h_j])      # (batch, E_dec, 2H)
-e = layers.Dense(1, activation=None)(e)          # (batch, E_dec, 1)
-e = layers.Reshape((E_dec,))(e)                  # (batch, E_dec)
+# 2) expand adjacency per batch
+A_batch = layers.Lambda(lambda _: tf.tile(A_tf[None], [tf.shape(inputs)[0], 1, 1]))(inputs)
 
-# Scatter those E_dec predictions back into an M×M matrix (zeros elsewhere)
-def scatter_edges(e_flat):
-    batch = tf.shape(e_flat)[0]
-    # Build (batch, E_dec, 3) indices: [b, i, j]
-    b_idx = tf.range(batch)[:, None]
-    b_idx = tf.tile(b_idx, [1, E_dec])
-    ij    = tf.constant(decode_idx, dtype=tf.int32)[None, ...]
-    ij    = tf.tile(ij, [batch, 1, 1])
-    idx3  = tf.concat([b_idx[..., None], ij], axis=-1)
-    out   = tf.scatter_nd(idx3, e_flat, [batch, M, M])
-    return out
+# 3) two GNN layers
+gc1 = GraphConv(HIDDEN_UNITS, activation="mish", kernel_regularizer=None)([mat, A_batch])
+gc2 = GraphConv(HIDDEN_UNITS, activation="mish", kernel_regularizer=None)([gc1, A_batch])
 
-full_mat = layers.Lambda(scatter_edges)(e)      # (batch, M, M)
-out      = layers.Reshape((M*M,))(full_mat)     # (batch, M*M)
+# 4) flatten and final Dense
+x = layers.Flatten()(gc2)
+output = layers.Dense(OUTPUT_DIM, activation=None)(x)
 
-model = models.Model(inputs=X_in, outputs=out)
+model = models.Model(inputs, output)
 
-# ─── COMPILATION & CALLBACKS ────────────────────────────────────────────────
+# custom loss (as before)
+mask_out_tf = tf.constant(mask_out, dtype=tf.bool)
+def custom_loss(y_true, y_pred):
+    batch = tf.shape(y_pred)[0]
+    flat_idx = tf.where(mask_out_tf)[:,0]
+    bidx     = tf.repeat(tf.range(batch, dtype=tf.int64), OUTPUT_DIM)
+    lidx     = tf.tile(flat_idx, [batch])
+    idx      = tf.stack([bidx, lidx], axis=1)
+    flat_LU  = tf.scatter_nd(idx, tf.reshape(y_pred, [-1]), [batch, M*M])
+    LU_mat   = tf.reshape(flat_LU, [batch, M, M])
+    lo = tf.linalg.band_part(LU_mat, -1, 0)
+    dg = tf.linalg.band_part(lo,      0, 0)
+    sl = lo - dg
+    I  = tf.eye(M, dtype=tf.float64)[None,:,:]
+    L  = sl + I
+    U  = tf.linalg.band_part(LU_mat, 0, -1)
+    A_pred   = tf.matmul(L, U)
+    perm     = tf.constant(PERM, dtype=tf.int64)
+    A_perm   = tf.gather(tf.gather(A_pred, perm, axis=1),
+                         perm, axis=2)
+    A_flat   = tf.reshape(A_perm, [batch, M*M])
+    A_sp     = tf.boolean_mask(A_flat, mask_out_tf, axis=1)
+    err      = A_sp - y_true
+    return tf.reduce_mean(tf.math.log(tf.math.cosh(err)), axis=-1)
+
+# compile & callbacks
 opt = optimizers.Adam(learning_rate=LEARNING_RATE, clipnorm=CLIP_NORM)
-model.compile(optimizer=opt, loss=tf.keras.losses.LogCosh())
+model.compile(optimizer=opt, loss=custom_loss)
 
 early_stop = callbacks.EarlyStopping(
-    monitor="val_loss", patience=200, restore_best_weights=True
+    monitor="val_loss", patience=50, restore_best_weights=True
 )
 checkpoint = callbacks.ModelCheckpoint(MODEL_PATH, save_best_only=True)
 reduce_lr = callbacks.ReduceLROnPlateau(
-    monitor="val_loss", factor=0.025, patience=50, min_lr=1e-10
+    monitor="val_loss", factor=0.2, patience=25, min_lr=1e-7
 )
 
-# ─── TRAIN ───────────────────────────────────────────────────────────────────
+# train
 history = model.fit(
-    X_tr,
-    y_tr,
-    validation_data=(X_val, y_val),
+    X_tr, A_tr,
+    validation_data=(X_val, A_val),
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
     callbacks=[early_stop, checkpoint, reduce_lr],
-    verbose=0,
+    verbose=1
 )
 
-# ─── EVALUATE ────────────────────────────────────────────────────────────────
-val_loss = model.evaluate(X_val, y_val, verbose=0)
-print(f"final normalized-val loss: {val_loss:.6f}")
+# evaluate & save norms
+val_loss = model.evaluate(X_val, A_val, verbose=0)
+print(f"\nfinal validation error: {val_loss:.6f}\n")
 
-# ─── SAVE NORMALIZATION STATS ────────────────────────────────────────────────
 with open(CSV_FILE, "w") as f:
-    f.write("X_mean: [" + ",".join(map(str, X_mean.ravel())) + "]\n")
-    f.write("X_std:  [" + ",".join(map(str, X_std.ravel())) + "]\n")
-    f.write("y_mean: [" + ",".join(map(str, y_mean)) + "]\n")
-    f.write("y_std:  [" + ",".join(map(str, y_std)) + "]\n")
+    f.write("input_mean: [" + ",".join(map(str, X_mean)) + "]\n")
+    f.write("input_std:  [" + ",".join(map(str, X_std)) + "]\n")
+    f.write("output_mean: [" + ",".join(map(str, A_mean)) + "]\n")
+    f.write("output_std:  [" + ",".join(map(str, A_std)) + "]\n")
+
+model.summary()

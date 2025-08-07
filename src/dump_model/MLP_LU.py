@@ -1,26 +1,25 @@
 import tensorflow as tf
 from tensorflow.keras.utils import get_custom_objects
 import numpy as np
+import tensorflow.keras.backend as K
 
 # Define your constants here
 OUTPUT_DIM = 7652  # Set this to your actual output dimension
 M = int(np.sqrt(OUTPUT_DIM))  # Assuming square matrix
-mask_out = np.ones(OUTPUT_DIM, dtype=bool)  # Set appropriate mask
-
+mask_out = np.ones(OUTPUT_DIM, dtype=int)  # Set appropriate mask
+full_size       = M * M
+all_flat_idx    = np.arange(full_size)
+output_flat_idx = all_flat_idx[mask_out]
+diag_flat_idx   = np.arange(M) * (M + 1)
+diag_mask_np    = np.isin(output_flat_idx, diag_flat_idx).astype(np.float64)
+diag_mask       = tf.constant(diag_mask_np, dtype=tf.float64)
 def nonzero_diag(x):
-    indices = np.where(mask_out)[0]
-    diag_flat = np.arange(M) * (M + 1)
-    diag_mask_np = np.where(np.in1d(indices, diag_flat), 1.0, 0.0)
-    eps = 1e-4
-    mask = tf.constant(diag_mask_np, dtype=x.dtype)
-    mask = tf.reshape(mask, (1, OUTPUT_DIM))
-    sign_x = tf.sign(x)
-    sign_x = tf.where(tf.equal(sign_x, 0), tf.ones_like(sign_x), sign_x)
-    abs_x = tf.abs(x)
-    eps_t = tf.fill(tf.shape(abs_x), tf.cast(eps, x.dtype))
-    diag_x = sign_x * tf.maximum(abs_x, eps_t)
-    return x * (1.0 - mask) + diag_x * mask
-get_custom_objects().update({'nonzero_diag': nonzero_diag})
+    eps  = K.epsilon() #1e-7
+    print("epsilon =", K.epsilon())
+    sign = tf.sign(x)
+    sign = tf.where(tf.equal(sign, 0), tf.ones_like(sign), sign)
+    return x + eps * sign * diag_mask
+get_custom_objects().update({"nonzero_diag": nonzero_diag})
 
 
 
@@ -38,12 +37,10 @@ get_custom_objects().update({'nonzero_diag': nonzero_diag})
     {
         constexpr Scalar EPS = Scalar(1e-4);
 
-        // ask “which row/col does this output slot correspond to?”
         int r = get_lu_perm_row_index(index);
         int c = get_lu_perm_col_index(index);
 
         if (r == c) {
-            // clamp to ±EPS
             Scalar abs_x  = std::abs(input);
             Scalar sign_x = (input >= Scalar(0) ? Scalar(1) : Scalar(-1));
             if (input == Scalar(0)) sign_x = Scalar(1);
