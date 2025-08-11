@@ -10,7 +10,7 @@ tf.keras.backend.set_floatx("float64")
 #load
 MODEL_PATH = "dump_model/MLP_LU.keras"
 CSV_FILE = "dump_model/MLP_LU.csv"
-DATA_DIR = "training/BE_DATA/H2"
+DATA_DIR = "training/BE_DATA/h2_10"
 PERM = np.load(os.path.join(DATA_DIR, "permutation.npy"), allow_pickle=True)
 IN_SPARSITY = np.load(os.path.join(DATA_DIR, "input_sparsity.npy"), allow_pickle=True)
 OUT_SPARSITY = np.load(os.path.join(DATA_DIR, "output_sparsity.npy"), allow_pickle=True)

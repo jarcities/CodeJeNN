@@ -9,30 +9,33 @@ import tensorflow.keras.backend as K
 K.set_floatx("float64")
 
 #config
-DATA_DIR = "./training/BE_DATA/H2/"
+np.set_printoptions(threshold=np.inf)
+DATA_DIR = "./training/BE_DATA/jetA_203/"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
 CSV_FILE = "./dump_model/MLP_LU.csv"
-PERM = np.load(os.path.join(DATA_DIR, "permutation.npy"), allow_pickle=True)
-IN_SPARSITY = np.load(os.path.join(DATA_DIR, "input_sparsity.npy"), allow_pickle=True)
-OUT_SPARSITY = np.load(os.path.join(DATA_DIR, "output_sparsity.npy"), allow_pickle=True)
-NUM_SAMPLES = 913
-M = 11
-BATCH_SIZE = 128
+PERM = np.load(DATA_DIR + "permutation.npy", allow_pickle=True)
+IN_SPARSITY = np.load(DATA_DIR + 'input_sparsity.npy', allow_pickle=True)
+OUT_SPARSITY = np.load(DATA_DIR + 'output_sparsity.npy', allow_pickle=True)
+NUM_SAMPLES = 809
+M = 202
+BATCH_SIZE = 1
 EPOCHS = 700
-HIDDEN_UNITS = 64
+NEURONS = 16
 LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
-VALIDATION_SPLIT = 0.3
+VALIDATION_SPLIT = 0.2
 RANDOM_SEED = 42
-EPS = 1e-20
+DROP = 0.1
+EPS = 1e-16 #16-20
 
-#sparsity stuff
-pattern_in = IN_SPARSITY.reshape((M, M))
-mask_in = (pattern_in != 0).ravel()
+#input sparse
+pattern = IN_SPARSITY.reshape((M, M))
+mask_in = (pattern != 0).ravel(order='F')
 INPUT_DIM = int(mask_in.sum())
 
-pattern_out = OUT_SPARSITY.reshape((M, M))
-mask_out = (pattern_out != 0).ravel()
+#output sparse
+pattern = OUT_SPARSITY.reshape((M, M))
+mask_out = (pattern != 0).ravel(order='F')
 OUTPUT_DIM = int(mask_out.sum())
 
 #load data
@@ -42,8 +45,8 @@ for i in range(NUM_SAMPLES):
         os.path.join(DATA_DIR, f"jacobian_{i}.csv"), delimiter=",", dtype=np.float64
     )
     A = A[:, PERM][PERM, :]
-    X_list.append(A.ravel()[mask_in])
-    A_list.append(A.ravel()[mask_out])
+    X_list.append(A.ravel(order='F')[mask_in])
+    A_list.append(A.ravel(order='F')[mask_out])
 X = np.stack(X_list, axis=0)
 A = np.stack(A_list, axis=0)
 
@@ -61,33 +64,21 @@ X_tr, X_val, A_tr, A_val = train_test_split(
     X, A, test_size=VALIDATION_SPLIT, random_state=RANDOM_SEED, shuffle=True
 )
 
-# #custom activation
-# from tensorflow.keras.utils import get_custom_objects
-# full_size         = M * M
-# all_flat_idx      = np.arange(full_size)
-# output_flat_idx   = all_flat_idx[mask_out]       
-# perm_diag_flat_idx = PERM * M + PERM            
-# diag_mask_np      = np.isin(output_flat_idx, perm_diag_flat_idx).astype(np.float64)
-# diag_mask         = tf.constant(diag_mask_np, dtype=tf.float64)
-# def nonzero_diag(x):
-#     eps  = 1e-4
-#     sign = tf.sign(x)
-#     sign = tf.where(sign == 0, tf.ones_like(sign), sign)
-#     return x + eps * sign * diag_mask
-# get_custom_objects().update({"nonzero_diag": nonzero_diag})
+#custom activation
+from tensorflow.keras.utils import get_custom_objects
+diag_mask_np = np.where(np.isin(np.arange(M * M), PERM * M + PERM), 1.0, 0.0)
+diag_mask = tf.constant(diag_mask_np, dtype=tf.float64)
+def nonzero_diag(x):
+    eps  = 1e-4
+    sign = tf.sign(x)
+    sign = tf.where(sign == 0, tf.ones_like(sign), sign)
+    return x + eps * sign * diag_mask
+get_custom_objects().update({"nonzero_diag": nonzero_diag})
 
 ## MODEL ##
 inputs = layers.Input(shape=(INPUT_DIM,), dtype=tf.float64)
 
-x = layers.Dense(HIDDEN_UNITS, activation=None)(inputs)
-x = layers.UnitNormalization()(x)
-x = layers.Activation("gelu")(x)
-
-x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
-x = layers.UnitNormalization()(x)
-x = layers.Activation("gelu")(x)
-
-x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
+x = layers.Dense(NEURONS, activation=None)(inputs)
 x = layers.UnitNormalization()(x)
 x = layers.Activation("gelu")(x)
 
@@ -121,8 +112,8 @@ def custom_loss(y_true, y_pred):
     A_flat = tf.reshape(A_perm, [batch, M*M])
     A_sp   = tf.boolean_mask(A_flat, mask_out_tf, axis=1)
     err = A_sp - y_true
-    # return tf.reduce_mean(tf.math.log(tf.math.cosh(err)), axis=-1)
-    return tf.reduce_mean(tf.square(err), axis=-1)
+    return tf.reduce_mean(tf.math.log(tf.math.cosh(err)), axis=-1)
+    # return tf.reduce_mean(tf.square(err), axis=-1)
 
 #compile model
 opt = optimizers.Adam(learning_rate=LEARNING_RATE, clipnorm=CLIP_NORM)

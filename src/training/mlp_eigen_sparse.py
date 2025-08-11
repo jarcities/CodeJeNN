@@ -14,32 +14,33 @@ K.set_floatx('float64')
 
 #config
 np.set_printoptions(threshold=np.inf)
-DATA_DIR = "./training/BE_DATA/but/"
+DATA_DIR = "./training/BE_DATA/h2_10/"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
 CSV_FILE = "./dump_model/MLP_LU.csv"
 PERM = np.load(DATA_DIR + "permutation.npy", allow_pickle=True)
 IN_SPARSITY = np.load(DATA_DIR + 'input_sparsity.npy', allow_pickle=True)
 OUT_SPARSITY = np.load(DATA_DIR + 'output_sparsity.npy', allow_pickle=True)
-NUM_SAMPLES = 826
-M = 231
-BATCH_SIZE = 1
-EPOCHS = 700
-HIDDEN_UNITS = 2
-LEARNING_RATE = 1e-3
+NUM_SAMPLES = 898
+M = 11
+BATCH_SIZE = 4
+EPOCHS = 500
+NEURONS = 4
+# NEURONS = [4, 4, 4]
+LEARNING_RATE = 1e-3 #1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
 RANDOM_SEED = 42
+DROP = 0.1
 EPS = 1e-16 #16-20
-NEGATIVE_SLOPE = 1e-1 #1-2
 
 #input sparse
-pattern = IN_SPARSITY.reshape((M, M))
-mask_in = (pattern != 0).ravel()
+pattern = IN_SPARSITY.reshape((M, M), order='C')
+mask_in = (pattern != 0).ravel(order='C')
 INPUT_DIM = int(mask_in.sum())
 
 #output sparse
-pattern = OUT_SPARSITY.reshape((M, M))
-mask_out = (pattern != 0).ravel()
+pattern = OUT_SPARSITY.reshape((M, M), order='C')
+mask_out = (pattern != 0).ravel(order='C')
 OUTPUT_DIM = int(mask_out.sum())
 
 #load data
@@ -52,6 +53,7 @@ for i in range(NUM_SAMPLES):
         dtype=np.float64
         )
     A = A[:, PERM][PERM, :] 
+    # A = A[PERM, :][:, PERM]
     
     #A_inv instead
     # iA = np.linalg.inv(A) #inverse of A
@@ -60,7 +62,7 @@ for i in range(NUM_SAMPLES):
     #     print(iA)
     #LU instead
     # L, U = sp.linalg.lu(A, permute_l=True) #with P in L
-    P, L, U = sp.linalg.lu(A, permute_l=False) #w/o P in L
+    P, L, U = sp.linalg.lu(A) #w/o P in L
     # if np.any(np.diag(P) != 1.0): #check permutation
     #     skipped += 1
     #     continue
@@ -70,16 +72,16 @@ for i in range(NUM_SAMPLES):
     LU = np.tril(L, -1) + U
     
     #apply permutation
-    A = A.ravel()
+    A = A.ravel(order='C')
     X_list.append(A[mask_in])
 
     #apply permutation
-    LU = LU.ravel()
+    LU = LU.ravel(order='C')
     y_list.append(LU[mask_out])
 
     #add to data sample list
-    # X_list.append(A.ravel()[mask_in])
-    # y_list.append(LU.ravel()[mask_out]) 
+    # X_list.append(A.ravel(order='C')[mask_in])
+    # y_list.append(LU.ravel(order='C')[mask_out]) 
 
 print(f"Skipped {skipped} bad matrices")
 X = np.stack(X_list, axis=0) 
@@ -105,33 +107,93 @@ from tensorflow.keras.utils import get_custom_objects
 indices = np.where(mask_out)[0]
 diag_flat = np.arange(M) * (M + 1)
 diag_mask_np = np.where(np.isin(indices, diag_flat), 1.0, 0.0)
+# def nonzero_diag(x):
+#     eps = 1e-4
+#     # eps = 1e-16
+#     mask = tf.constant(diag_mask_np, dtype=x.dtype)
+#     mask = tf.reshape(mask, (1, OUTPUT_DIM))
+#     sign_x = tf.sign(x)
+#     sign_x = tf.where(tf.equal(sign_x, 0), tf.ones_like(sign_x), sign_x)
+#     abs_x = tf.abs(x)
+#     eps_t = tf.fill(tf.shape(abs_x), tf.cast(eps, x.dtype))
+#     diag_x = sign_x * tf.maximum(abs_x, eps_t)
+#     return x * (1.0 - mask) + diag_x * mask
 def nonzero_diag(x):
-    eps = 1e-4
-    # eps = 1e-16
+    eps = 1e-8
     mask = tf.constant(diag_mask_np, dtype=x.dtype)
     mask = tf.reshape(mask, (1, OUTPUT_DIM))
-    sign_x = tf.sign(x)
-    sign_x = tf.where(tf.equal(sign_x, 0), tf.ones_like(sign_x), sign_x)
-    abs_x = tf.abs(x)
-    eps_t = tf.fill(tf.shape(abs_x), tf.cast(eps, x.dtype))
-    diag_x = sign_x * tf.maximum(abs_x, eps_t)
-    return x * (1.0 - mask) + diag_x * mask
+    diag_elements = x * mask
+    non_diag_elements = x * (1.0 - mask)
+    tanh_scaled = tf.tanh(diag_elements)
+    sign_tanh = tf.sign(tanh_scaled)
+    sign_tanh = tf.where(tf.equal(sign_tanh, 0), tf.ones_like(sign_tanh), sign_tanh)
+    abs_tanh = tf.abs(tanh_scaled)
+    eps_tensor = tf.fill(tf.shape(abs_tanh), tf.cast(eps, x.dtype))
+    one_tensor = tf.fill(tf.shape(abs_tanh), tf.cast(1.0, x.dtype))
+    scaled_diag = sign_tanh * (abs_tanh * (one_tensor - eps_tensor) + eps_tensor)
+    return non_diag_elements + scaled_diag * mask
 get_custom_objects().update({'nonzero_diag': nonzero_diag})
+"""
+    auto nonzero_diag = +[](Scalar& output, Scalar input, int index) noexcept
+    {
+        constexpr Scalar EPS = Scalar(1e-4);
+
+        int r = get_lu_perm_row_index(index);
+        int c = get_lu_perm_col_index(index);
+
+        if (r == c) {
+            Scalar abs_x  = std::abs(input);
+            Scalar sign_x = (input >= Scalar(0) ? Scalar(1) : Scalar(-1));
+            if (input == Scalar(0)) sign_x = Scalar(1);
+            output = sign_x * std::max(abs_x, EPS);
+        }
+        else {
+            output = input;
+        }
+    };
+"""
+"""
+    auto nonzero_diag = [](Scalar& output, Scalar input, int index) noexcept
+    {
+        constexpr Scalar EPS = Scalar(1e-8);
+        constexpr Scalar ONE = Scalar(1.0);
+        int r = get_lu_perm_row_index(index);
+        int c = get_lu_perm_col_index(index);
+        
+        if (r == c) {
+            Scalar tanh_val = std::tanh(input);
+            Scalar sign_val = (tanh_val >= Scalar(0)) ? ONE : Scalar(-1);
+            if (tanh_val == Scalar(0)) sign_val = ONE;
+            Scalar abs_tanh = std::abs(tanh_val);
+            
+            // Formula: sign * (|tanh| * (1 - eps) + eps)
+            output = sign_val * (abs_tanh * (ONE - EPS) + EPS);
+        }
+        else {
+            output = input;
+        }
+    };
+"""
 
 ###########
 ## MODEL ##
 ###########
-inputs = layers.Input(shape=(INPUT_DIM,))
+inputs = layers.Input(shape=(INPUT_DIM,), dtype=tf.float64)
 
-x = layers.Dense(HIDDEN_UNITS, activation=None)(inputs)
+x = layers.Dense(NEURONS, activation=None)(inputs)
 x = layers.UnitNormalization()(x) #unit 
-# x = layers.GroupNormalization(groups=1, axis=-1)(x)
-# x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
+# x = layers.Dropout(DROP)(x)
 
-# x = layers.Dense(HIDDEN_UNITS, activation=None)(x)
-# x = layers.UnitNormalization()(x) 
+x = layers.Dense(NEURONS, activation=None)(x)
+# x = layers.UnitNormalization()(x) #unit 
+x = layers.Activation("gelu")(x)
+# x = layers.Dropout(DROP)(x)
+
+# x = layers.Dense(NEURONS, activation=None)(x)
+# x = layers.UnitNormalization()(x) #unit 
 # x = layers.Activation("gelu")(x)
+# # x = layers.Dropout(DROP)(x)
 
 output = layers.Dense(OUTPUT_DIM, activation=None)(x)
 # output = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(output)
@@ -215,7 +277,7 @@ history = model.fit(
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
     callbacks=[early_stop, checkpoint, reduce_lr],
-    verbose=0
+    verbose=1
 )
 
 #evaluate
