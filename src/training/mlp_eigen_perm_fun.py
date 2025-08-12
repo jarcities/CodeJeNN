@@ -12,19 +12,49 @@ from sklearn.model_selection import KFold
 import tensorflow.keras.backend as K
 K.set_floatx('float64')
 
+
+def sparse_lu_no_perm(A_dense, sparsity_pattern):
+    from scipy import sparse
+    from scipy.sparse.linalg import splu
+    
+    #create sparse matrix
+    row, col = np.nonzero(sparsity_pattern)
+    data = A_dense[row, col]
+    A_sparse = sparse.csc_array((data, (row, col)), shape=A_dense.shape, dtype=np.float64)
+    
+    #no permutation config
+    options = {}
+    options["Equil"] = False 
+    options["RowPerm"] = "NOROWPERM"
+    options["SymmetricMode"] = False
+
+    try:
+        lu = splu(A_sparse, permc_spec="NATURAL", diag_pivot_thresh=0., options=options)
+        #verify unity
+        if not (np.all(lu.perm_c == lu.perm_r) and np.all(lu.perm_c == np.arange(A_dense.shape[0]))):
+            return None, None  # Non-unity permutation occurred
+        # convert to dense
+        L_dense = lu.L.toarray()
+        U_dense = lu.U.toarray()
+        return L_dense, U_dense
+    
+    except:
+        return None, None
+
+
 #config
 np.set_printoptions(threshold=np.inf)
-DATA_DIR = "./training/BE_DATA/h2_10/"
+DATA_DIR = "./training/BE_DATA/jetA_203/"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
 CSV_FILE = "./dump_model/MLP_LU.csv"
 PERM = np.load(DATA_DIR + "permutation.npy", allow_pickle=True)
 IN_SPARSITY = np.load(DATA_DIR + 'input_sparsity.npy', allow_pickle=True)
 OUT_SPARSITY = np.load(DATA_DIR + 'output_sparsity.npy', allow_pickle=True)
-NUM_SAMPLES = 898
-M = 11
-BATCH_SIZE = 4
+NUM_SAMPLES = 809
+M = 202
+BATCH_SIZE = 1
 EPOCHS = 500
-NEURONS = 4
+NEURONS = 1
 # NEURONS = [4, 4, 4]
 LEARNING_RATE = 1e-3 #1e-3
 CLIP_NORM = 1.0
@@ -53,7 +83,6 @@ for i in range(NUM_SAMPLES):
         dtype=np.float64
         )
     A = A[:, PERM][PERM, :] 
-    # A = A[PERM, :][:, PERM]
     
     #A_inv instead
     # iA = np.linalg.inv(A) #inverse of A
@@ -62,7 +91,11 @@ for i in range(NUM_SAMPLES):
     #     print(iA)
     #LU instead
     # L, U = sp.linalg.lu(A, permute_l=True) #with P in L
-    P, L, U = sp.linalg.lu(A) #w/o P in L
+    # P, L, U = sp.linalg.lu(A) #w/o P in L
+    L, U = sparse_lu_no_perm(A, IN_SPARSITY)
+    if L is None or U is None:
+        skipped += 1
+        continue
     # if np.any(np.diag(P) != 1.0): #check permutation
     #     skipped += 1
     #     continue
@@ -86,6 +119,8 @@ for i in range(NUM_SAMPLES):
 print(f"Skipped {skipped} bad matrices")
 X = np.stack(X_list, axis=0) 
 y = np.stack(y_list, axis=0) 
+
+# breakpoint()
 
 #compute mean/std on the reduced inputs
 X_mean = X.mean(axis=0)
@@ -185,15 +220,10 @@ x = layers.UnitNormalization()(x) #unit
 x = layers.Activation("gelu")(x)
 # x = layers.Dropout(DROP)(x)
 
-x = layers.Dense(NEURONS, activation=None)(x)
-# x = layers.UnitNormalization()(x) #unit 
-x = layers.Activation("gelu")(x)
-# x = layers.Dropout(DROP)(x)
-
 # x = layers.Dense(NEURONS, activation=None)(x)
 # x = layers.UnitNormalization()(x) #unit 
 # x = layers.Activation("gelu")(x)
-# # x = layers.Dropout(DROP)(x)
+# x = layers.Dropout(DROP)(x)
 
 output = layers.Dense(OUTPUT_DIM, activation=None)(x)
 # output = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(output)

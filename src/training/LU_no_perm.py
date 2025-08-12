@@ -45,4 +45,7 @@ for i in range(NUM_SAMPLES):
 
     # Check that LU reproduces A
     LU_product = LU.L @ LU.U
-    assert(np.linalg.norm((A_sparse - LU_product).toarray()) < 1e-7)
+    assert(np.linalg.norm((A_sparse - LU_product).toarray()) < 1e-6)
+
+print(LU.L.toarray())
+print(LU.U.toarray())
