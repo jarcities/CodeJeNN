@@ -12,56 +12,26 @@ from sklearn.model_selection import KFold
 import tensorflow.keras.backend as K
 K.set_floatx('float64')
 
-
-def sparse_lu_no_perm(A_dense, sparsity_pattern):
-    from scipy import sparse
-    from scipy.sparse.linalg import splu
-    
-    #create sparse matrix
-    row, col = np.nonzero(sparsity_pattern)
-    data = A_dense[row, col]
-    A_sparse = sparse.csc_array((data, (row, col)), shape=A_dense.shape, dtype=np.float64)
-    
-    #no permutation config
-    options = {}
-    options["Equil"] = False 
-    options["RowPerm"] = "NOROWPERM"
-    options["SymmetricMode"] = False
-
-    try:
-        lu = splu(A_sparse, permc_spec="NATURAL", diag_pivot_thresh=0., options=options)
-        #verify unity
-        if not (np.all(lu.perm_c == lu.perm_r) and np.all(lu.perm_c == np.arange(A_dense.shape[0]))):
-            return None, None  # Non-unity permutation occurred
-        # convert to dense
-        L_dense = lu.L.toarray()
-        U_dense = lu.U.toarray()
-        return L_dense, U_dense
-    
-    except:
-        return None, None
-
-
 #config
 np.set_printoptions(threshold=np.inf)
-DATA_DIR = "./training/BE_DATA/jetA_203/"
+DATA_DIR = "./training/BE_DATA/isoO_874_direct/"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
 CSV_FILE = "./dump_model/MLP_LU.csv"
 PERM = np.load(DATA_DIR + "permutation.npy", allow_pickle=True)
 IN_SPARSITY = np.load(DATA_DIR + 'input_sparsity.npy', allow_pickle=True)
 OUT_SPARSITY = np.load(DATA_DIR + 'output_sparsity.npy', allow_pickle=True)
-NUM_SAMPLES = 809
-M = 202
-BATCH_SIZE = 1
+NUM_SAMPLES = 870
+M = 875
+BATCH_SIZE = 8
 EPOCHS = 500
 NEURONS = 1
 # NEURONS = [4, 4, 4]
 LEARNING_RATE = 1e-3 #1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
-RANDOM_SEED = 42
+RANDOM_SEED = 1
 DROP = 0.1
-EPS = 1e-16 #16-20
+EPS = 1e-4 #16-20
 
 #input sparse
 pattern = IN_SPARSITY.reshape((M, M), order='C')
@@ -92,10 +62,34 @@ for i in range(NUM_SAMPLES):
     #LU instead
     # L, U = sp.linalg.lu(A, permute_l=True) #with P in L
     # P, L, U = sp.linalg.lu(A) #w/o P in L
-    L, U = sparse_lu_no_perm(A, IN_SPARSITY)
-    if L is None or U is None:
+    
+    #####
+    #splu logic
+    from scipy import sparse
+    from scipy.sparse.linalg import splu
+    #create sparse matrix
+    row, col = np.nonzero(IN_SPARSITY)
+    data = A[row, col]
+    A_sparse = sparse.csc_array((data, (row, col)), shape=A.shape, dtype=np.float64)
+    #do not use permutation
+    options = {}
+    options["Equil"] = False 
+    options["RowPerm"] = "NOROWPERM"
+    options["SymmetricMode"] = False
+    try:
+        lu = splu(A_sparse, permc_spec="NATURAL", diag_pivot_thresh=0., options=options)
+        #verify permutation
+        if not (np.all(lu.perm_c == lu.perm_r) and np.all(lu.perm_c == np.arange(A.shape[0]))):
+            skipped += 1
+            continue
+        #convert to dense
+        L = lu.L.toarray()
+        U = lu.U.toarray()
+    except:
         skipped += 1
         continue
+    #####
+
     # if np.any(np.diag(P) != 1.0): #check permutation
     #     skipped += 1
     #     continue
@@ -142,32 +136,17 @@ from tensorflow.keras.utils import get_custom_objects
 indices = np.where(mask_out)[0]
 diag_flat = np.arange(M) * (M + 1)
 diag_mask_np = np.where(np.isin(indices, diag_flat), 1.0, 0.0)
-def nonzero_diag(x):
-    eps = 1e-4
-    # eps = 1e-16
-    mask = tf.constant(diag_mask_np, dtype=x.dtype)
-    mask = tf.reshape(mask, (1, OUTPUT_DIM))
-    sign_x = tf.sign(x)
-    sign_x = tf.where(tf.equal(sign_x, 0), tf.ones_like(sign_x), sign_x)
-    abs_x = tf.abs(x)
-    eps_t = tf.fill(tf.shape(abs_x), tf.cast(eps, x.dtype))
-    diag_x = sign_x * tf.maximum(abs_x, eps_t)
-    return x * (1.0 - mask) + diag_x * mask
 # def nonzero_diag(x):
-#     eps = 1e-8
+#     eps = 1e-4
+#     # eps = 1e-16
 #     mask = tf.constant(diag_mask_np, dtype=x.dtype)
 #     mask = tf.reshape(mask, (1, OUTPUT_DIM))
-#     diag_elements = x * mask
-#     non_diag_elements = x * (1.0 - mask)
-#     tanh_scaled = tf.tanh(diag_elements)
-#     sign_tanh = tf.sign(tanh_scaled)
-#     sign_tanh = tf.where(tf.equal(sign_tanh, 0), tf.ones_like(sign_tanh), sign_tanh)
-#     abs_tanh = tf.abs(tanh_scaled)
-#     eps_tensor = tf.fill(tf.shape(abs_tanh), tf.cast(eps, x.dtype))
-#     one_tensor = tf.fill(tf.shape(abs_tanh), tf.cast(1.0, x.dtype))
-#     scaled_diag = sign_tanh * (abs_tanh * (one_tensor - eps_tensor) + eps_tensor)
-#     return non_diag_elements + scaled_diag * mask
-get_custom_objects().update({'nonzero_diag': nonzero_diag})
+#     sign_x = tf.sign(x)
+#     sign_x = tf.where(tf.equal(sign_x, 0), tf.ones_like(sign_x), sign_x)
+#     abs_x = tf.abs(x)
+#     eps_t = tf.fill(tf.shape(abs_x), tf.cast(eps, x.dtype))
+#     diag_x = sign_x * tf.maximum(abs_x, eps_t)
+#     return x * (1.0 - mask) + diag_x * mask
 """
     auto nonzero_diag = +[](Scalar& output, Scalar input, int index) noexcept
     {
@@ -187,10 +166,24 @@ get_custom_objects().update({'nonzero_diag': nonzero_diag})
         }
     };
 """
+def nonzero_diag(x):
+    eps = 1e-4
+    mask = tf.constant(diag_mask_np, dtype=x.dtype)
+    mask = tf.reshape(mask, (1, OUTPUT_DIM))
+    diag_elements = x * mask
+    non_diag_elements = x * (1.0 - mask)
+    tanh_scaled = tf.tanh(diag_elements)
+    sign_tanh = tf.sign(tanh_scaled)
+    sign_tanh = tf.where(tf.equal(sign_tanh, 0), tf.ones_like(sign_tanh), sign_tanh)
+    abs_tanh = tf.abs(tanh_scaled)
+    eps_tensor = tf.fill(tf.shape(abs_tanh), tf.cast(eps, x.dtype))
+    one_tensor = tf.fill(tf.shape(abs_tanh), tf.cast(1.0, x.dtype))
+    scaled_diag = sign_tanh * (abs_tanh * (one_tensor - eps_tensor) + eps_tensor)
+    return non_diag_elements + scaled_diag * mask
 """
     auto nonzero_diag = [](Scalar& output, Scalar input, int index) noexcept
     {
-        constexpr Scalar EPS = Scalar(1e-8);
+        constexpr Scalar EPS = Scalar(1e-4);
         constexpr Scalar ONE = Scalar(1.0);
         int r = get_lu_perm_row_index(index);
         int c = get_lu_perm_col_index(index);
@@ -209,6 +202,36 @@ get_custom_objects().update({'nonzero_diag': nonzero_diag})
         }
     };
 """
+# def nonzero_diag(x): #FROM PAPER
+#     eps = 1e-4
+#     mask = tf.constant(diag_mask_np, dtype=x.dtype)
+#     mask = tf.reshape(mask, (1, OUTPUT_DIM))
+#     abs_term = tf.abs(4.0 * x)
+#     exp_term = abs_term / eps + 2.0
+#     exp_term = tf.exp(-exp_term)
+#     one_plus_exp = 1.0 + exp_term
+#     transformed_x = x * one_plus_exp
+#     return x * (1.0 - mask) + transformed_x * mask
+"""
+    auto nonzero_diag = [](Scalar& output, Scalar input, int index) noexcept
+    {
+        constexpr Scalar EPS = Scalar(1e-4);
+        int r = get_lu_perm_row_index(index);
+        int c = get_lu_perm_col_index(index);
+        
+        if (r == c) {
+            Scalar abs_4x = std::abs(Scalar(4.0) * input);
+            Scalar term = abs_4x / EPS + Scalar(2.0);
+            Scalar exp_term = std::exp(-term);
+            Scalar one_plus_exp = Scalar(1.0) + exp_term;
+            output = input * one_plus_exp;
+        }
+        else {
+            output = input;
+        }
+    };
+"""
+get_custom_objects().update({'nonzero_diag': nonzero_diag})
 
 ###########
 ## MODEL ##
@@ -220,9 +243,9 @@ x = layers.UnitNormalization()(x) #unit
 x = layers.Activation("gelu")(x)
 # x = layers.Dropout(DROP)(x)
 
-# x = layers.Dense(NEURONS, activation=None)(x)
+x = layers.Dense(NEURONS, activation=None)(x)
 # x = layers.UnitNormalization()(x) #unit 
-# x = layers.Activation("gelu")(x)
+x = layers.Activation("gelu")(x)
 # x = layers.Dropout(DROP)(x)
 
 output = layers.Dense(OUTPUT_DIM, activation=None)(x)
