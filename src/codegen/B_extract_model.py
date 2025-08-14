@@ -48,13 +48,42 @@ def getAlphaForActivation(layer, activation):
     return 0.0
 
 
+# def getActivation(layer, config):
+#     # ===================================================================================
+#     # extracts the name of the activation function from a Keras layer.
+#     # ===================================================================================
+#     act_name = config.get("activation", None)
+
+#     # If config just returns 'linear' or None, try layer.activation directly
+#     if act_name in (None, "linear"):
+#         activation_attr = getattr(layer, "activation", None)
+#         if activation_attr is None:
+#             return "linear"
+#         elif hasattr(activation_attr, "__name__"):
+#             return activation_attr.__name__
+#         else:
+#             return str(activation_attr)
+#     return act_name
+
+
 def getActivation(layer, config):
     # ===================================================================================
     # extracts the name of the activation function from a Keras layer.
     # ===================================================================================
+
+    # standalone activation layers
+    if isinstance(layer, keras.layers.LeakyReLU):
+        return "leakyrelu"
+    elif isinstance(layer, keras.layers.ReLU):
+        return "relu"
+    elif isinstance(layer, keras.layers.ELU):
+        return "elu"
+    elif isinstance(layer, keras.layers.PReLU):
+        return "prelu"
+
     act_name = config.get("activation", None)
 
-    # If config just returns 'linear' or None, try layer.activation directly
+    # get activation directly
     if act_name in (None, "linear"):
         activation_attr = getattr(layer, "activation", None)
         if activation_attr is None:
@@ -205,6 +234,52 @@ def extractModel(model, file_type, base_file_name=None):
             # Get alpha value for activation
             alpha_value = getAlphaForActivation(layer, activation)
 
+            # #######################
+            # ## ACTIVATION LAYERS ##
+            # #######################
+            # # pure activation layers
+            # if (
+            #     "activation" in layer.name.lower()
+            #     or isinstance(layer, keras.layers.Activation)
+            # ) or (
+            #     not layer.get_weights()
+            #     and layer.__class__.__name__.lower()
+            #     in [
+            #         "relu",
+            #         "sigmoid",
+            #         "tanh",
+            #         "leakyrelu",
+            #         "linear",
+            #         "elu",
+            #         "selu",
+            #         "swish",
+            #         "prelu",
+            #         "silu",
+            #         "gelu",
+            #         "softmax",
+            #         "mish",
+            #         "softplus",
+            #     ]
+            # ):
+            #     try:
+            #         activation_functions.append(act_name)
+            #         activation_configs.append(act_params)
+
+            #         weights_list.append(None)
+            #         biases_list.append(None)
+            #         norm_layer_params.append(None)
+            #         alphas.append(alpha_value)
+            #         dropout_rates.append(0.0)
+            #         layer_shape.append(0)
+            #         layer_type.append("Activation")
+            #         continue
+            #     except ValueError as e:
+            #         print(
+            #             f"\nError in extracting parameters: activation layer {layer_idx} --> ",
+            #             e,
+            #         )
+            #         continue
+
             #######################
             ## ACTIVATION LAYERS ##
             #######################
@@ -212,6 +287,10 @@ def extractModel(model, file_type, base_file_name=None):
             if (
                 "activation" in layer.name.lower()
                 or isinstance(layer, keras.layers.Activation)
+                or isinstance(layer, keras.layers.LeakyReLU)
+                or isinstance(layer, keras.layers.ReLU)
+                or isinstance(layer, keras.layers.ELU)
+                or isinstance(layer, keras.layers.PReLU)
             ) or (
                 not layer.get_weights()
                 and layer.__class__.__name__.lower()
@@ -233,6 +312,18 @@ def extractModel(model, file_type, base_file_name=None):
                 ]
             ):
                 try:
+                    # Handle standalone activation layers first
+                    if isinstance(layer, keras.layers.LeakyReLU):
+                        act_name = "leakyrelu"
+                    elif isinstance(layer, keras.layers.ReLU):
+                        act_name = "relu"
+                    elif isinstance(layer, keras.layers.ELU):
+                        act_name = "elu"
+                    elif isinstance(layer, keras.layers.PReLU):
+                        act_name = "prelu"
+
+                    alpha_value = getAlphaForActivation(layer, act_name)
+
                     activation_functions.append(act_name)
                     activation_configs.append(act_params)
 
@@ -588,7 +679,9 @@ def extractModel(model, file_type, base_file_name=None):
                         epsilon = config.get("epsilon", 1e-3)
                         groups = config.get("groups", 32)
                         # Store groups as an additional parameter in the first position
-                        norm_layer_params.append((gamma, beta, None, None, epsilon, groups))
+                        norm_layer_params.append(
+                            (gamma, beta, None, None, epsilon, groups)
+                        )
                         layer_shape.append((gamma.shape, beta.shape, 1, groups))
                         activation_functions.append(None)
                         weights_list.append(None)

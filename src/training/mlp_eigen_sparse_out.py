@@ -22,16 +22,17 @@ IN_SPARSITY = np.load(DATA_DIR + 'input_sparsity.npy', allow_pickle=True)
 OUT_SPARSITY = np.load(DATA_DIR + 'output_sparsity.npy', allow_pickle=True)
 NUM_SAMPLES = 870
 M = 875
-BATCH_SIZE = 8
+BATCH_SIZE = 1
 EPOCHS = 500
 NEURONS = 1
 # NEURONS = [4, 4, 4]
-LEARNING_RATE = 1e-3 #1e-3
+LEARNING_RATE = 1e-2 #1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
 RANDOM_SEED = 1
 DROP = 0.1
 EPS = 1e-4 #16-20
+NEGATIVE_SLOPE  = 0.001 #0.001
 
 #input sparse
 pattern = IN_SPARSITY.reshape((M, M), order='C')
@@ -123,12 +124,12 @@ X_std = X.std(axis=0) + EPS
 y_mean = y.mean(axis=0)
 y_std = y.std(axis=0) + EPS
 # y_std = np.maximum(y.std(axis=0), EPS)
-X_norm = (X - X_mean) / X_std
-y_norm = (y - y_mean) / y_std
+X = (X - X_mean) / X_std
+y = (y - y_mean) / y_std
 
 #training split
 X_tr, X_val, y_tr, y_val = train_test_split(
-    X_norm, y_norm, test_size=VALIDATION_SPLIT, random_state=RANDOM_SEED, shuffle=True
+    X, y, test_size=VALIDATION_SPLIT, random_state=RANDOM_SEED, shuffle=True
 )
 
 #custom activation function
@@ -240,12 +241,14 @@ inputs = layers.Input(shape=(INPUT_DIM,), dtype=tf.float64)
 
 x = layers.Dense(NEURONS, activation=None)(inputs)
 x = layers.UnitNormalization()(x) #unit 
-x = layers.Activation("gelu")(x)
+x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
+# x = layers.Activation("elu")(x)
 # x = layers.Dropout(DROP)(x)
 
 x = layers.Dense(NEURONS, activation=None)(x)
 # x = layers.UnitNormalization()(x) #unit 
-x = layers.Activation("gelu")(x)
+x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
+# x = layers.Activation("elu")(x)
 # x = layers.Dropout(DROP)(x)
 
 output = layers.Dense(OUTPUT_DIM, activation=None)(x)
