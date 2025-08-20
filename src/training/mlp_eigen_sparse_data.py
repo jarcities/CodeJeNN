@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from math import perm
 import os
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -29,11 +28,12 @@ PERM = np.load(DATA_DIR + "permutation.npy", allow_pickle=True)
 IN_SPARSITY = np.load(DATA_DIR + 'input_sparsity.npy', allow_pickle=True)
 OUT_SPARSITY = np.load(DATA_DIR + 'output_sparsity.npy', allow_pickle=True)
 NUM_SAMPLES = 871
-M = len(PERM)
+M = 7171
 BATCH_SIZE = 1
 EPOCHS = 30
 NEURONS = 1
-LEARNING_RATE = 1e-3
+# NEURONS = [4, 4, 4]
+LEARNING_RATE = 1e-3 #1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
 DROP = 0.1
@@ -41,25 +41,18 @@ EPS = 1e-4 #16-20
 NEGATIVE_SLOPE  = 1e-4 #0.001
 
 #input sparse
-# pattern = IN_SPARSITY.reshape((M, M))
 mask_in = (IN_SPARSITY != 0).ravel(order='C')
 INPUT_DIM = int(mask_in.sum())
 
 #output sparse
-# pattern = OUT_SPARSITY.reshape((M, M))
 mask_out = (OUT_SPARSITY != 0).ravel(order='C')
 OUTPUT_DIM = int(mask_out.sum())
 
 #load data
-X_list, A_list = [], []
+skipped = 0
+iter = 0
+X_list, y_list = [], []
 for i in range(NUM_SAMPLES):
-    # A = np.loadtxt(
-    #     os.path.join(DATA_DIR, f"jacobian_{i}.csv"), delimiter=",", dtype=BIT
-    # )
-    # A = A[:, PERM][PERM, :]
-    # X_list.append(A.ravel(order='C')[mask_in])
-    # A_list.append(A.ravel(order='C')[mask_out])
-    ##################################################################################
     file = os.path.join(DATA_DIR, f"jacobian_sparse_{i}.csv")
     #check if sparse format
     with open(file, 'r') as f:
@@ -72,26 +65,76 @@ for i in range(NUM_SAMPLES):
     else:  #dense format
         A = np.loadtxt(file, delimiter=",", dtype=BIT)
     A = A[:, PERM-1][PERM-1, :] 
+    
+    #A_inv instead
+    # iA = np.linalg.inv(A) #inverse of A
+    # if i == NUM_SAMPLES-1:
+    #     np.set_printoptions(threshold=np.inf)
+    #     print(iA)
+    #LU instead
+    # L, U = sp.linalg.lu(A, permute_l=True) #with P in L
+    # P, L, U = sp.linalg.lu(A) #w/o P in L
+    
+    #splu logic
+    if iter == 0:
+        print("calculating LU right now...")
+    iter = 1
+    from scipy import sparse
+    from scipy.sparse.linalg import splu
+    #create sparse matrix
+    row, col = np.nonzero(A)
+    data = A[row, col]
+    A_sparse = sparse.csc_array((data, (row, col)), shape=A.shape, dtype=BIT)
+    #do not use permutation
+    options = {}
+    options["Equil"] = False 
+    options["RowPerm"] = "NOROWPERM"
+    options["SymmetricMode"] = False
+    try:
+        lu = splu(A_sparse, permc_spec="NATURAL", diag_pivot_thresh=0., options=options)
+        #verify permutation
+        if not (np.all(lu.perm_c == lu.perm_r) and np.all(lu.perm_c == np.arange(A.shape[0]))):
+            skipped += 1
+            continue
+        #convert to dense
+        L = lu.L.toarray()
+        U = lu.U.toarray()
+    except:
+        skipped += 1
+        continue
+
+    if np.any(np.abs(np.diag(U)) <= 0.0): #check invertibility
+        skipped += 1
+        continue
+    LU = np.tril(L, -1) + U
+
     #apply permutation
     A = A.ravel(order='C')
     X_list.append(A[mask_in])
-    A_list.append(A[mask_out])
 
-X = np.stack(X_list, axis=0)
-A = np.stack(A_list, axis=0)
+    #apply permutation
+    LU = LU.ravel(order='C')
+    y_list.append(LU[mask_out])
 
-#normalize
+print(f"Skipped {skipped} bad matrices")
+X = np.stack(X_list, axis=0) 
+y = np.stack(y_list, axis=0) 
+
+# breakpoint()
+
+#compute mean/std on the reduced inputs
 X_mean = X.mean(axis=0)
 X_std = X.std(axis=0) + EPS
+# X_std = np.maximum(X.std(axis=0), EPS)
+y_mean = y.mean(axis=0)
+y_std = y.std(axis=0) + EPS
+# y_std = np.maximum(y.std(axis=0), EPS)
 X = (X - X_mean) / X_std
+y = (y - y_mean) / y_std
 
-A_mean = A.mean(axis=0)
-A_std = A.std(axis=0) + EPS
-A = (A - A_mean) / A_std
-
-#split data
-X_tr, X_val, A_tr, A_val = train_test_split(
-    X, A, 
+#training split
+X_tr, X_val, y_tr, y_val = train_test_split(
+    X, y, 
     test_size=VALIDATION_SPLIT, 
     random_state=RANDOM_SEED, 
     # shuffle=True
@@ -199,12 +242,16 @@ def nonzero_diag(x):
 """
 get_custom_objects().update({'nonzero_diag': nonzero_diag})
 
+###########
 ## MODEL ##
+###########
 inputs = layers.Input(shape=(INPUT_DIM,), dtype=tf.float64)
 
 x = layers.Dense(NEURONS, activation=None)(inputs)
-x = layers.UnitNormalization()(x)
+x = layers.UnitNormalization()(x) #unit 
+# x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
 x = layers.Activation("gelu")(x)
+# x = layers.Dropout(DROP)(x)
 
 x = layers.Dense(NEURONS, activation=None)(x)
 # x = layers.UnitNormalization()(x) #unit 
@@ -213,81 +260,102 @@ x = layers.Activation("gelu")(x)
 # x = layers.Dropout(DROP)(x)
 
 output = layers.Dense(OUTPUT_DIM, activation=None)(x)
+# output = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(output)
 # output = layers.Activation("softplus")(output)
-output = layers.Activation(nonzero_diag, name="nonzero_diag")(output)
+output = layers.Activation(nonzero_diag, name='nonzero_diag')(output)
 
 model = models.Model(inputs, output)
 ###########
 
-#custom loss function
-mask_out_tf = tf.constant(mask_out, dtype=tf.int64)
-flat_idx = tf.where(mask_out_tf)[:, 0]
-def custom_loss(y_true, y_pred):
-    batch = tf.shape(y_pred)[0]
-    flat_idx = tf.where(mask_out_tf)[:,0]
-    bidx     = tf.repeat(tf.range(batch, dtype=tf.int64), OUTPUT_DIM)
-    lidx     = tf.tile(flat_idx, [batch])
-    idx      = tf.stack([bidx, lidx], axis=1)
-    flat_LU  = tf.scatter_nd(idx, tf.reshape(y_pred, [-1]), [batch, M*M])
-    LU_mat   = tf.reshape(flat_LU, [batch, M, M])   
-    lo = tf.linalg.band_part(LU_mat, -1, 0)         
-    dg = tf.linalg.band_part(lo,      0, 0)         
-    sl = lo - dg                                  
-    I  = tf.eye(M, dtype=tf.float64)[None,:,:]
-    L  = sl + I                                   
-    U  = tf.linalg.band_part(LU_mat, 0, -1)       
+#custom loss functions
+@tf.function  #optimize
+def diag_penalty(y_true, y_pred):
+    base = tf.keras.losses.logcosh(y_true, y_pred)
+    LU = tf.reshape(y_pred, (-1, M, M))
+    U  = tf.linalg.band_part(LU, 0, -1)
+    diag = tf.abs(tf.linalg.diag_part(U))
+    penalty = tf.reduce_sum(tf.square(tf.maximum(EPS - diag, 0.0)))
+    return base + NEGATIVE_SLOPE * penalty  #tune
+@tf.function
+def compare_to_A(y_true, y_pred):
+    batch_size = tf.shape(y_pred)[0]
+    full_LU = tf.zeros([batch_size, M * M], dtype=y_pred.dtype)
+    mask_out_tf = tf.constant(mask_out, dtype=tf.bool)
+    lu_indices = tf.where(mask_out_tf)
+    lu_indices = tf.reshape(lu_indices, [-1])
+    lu_indices = tf.cast(lu_indices, tf.int64)
+    batch_indices = tf.range(batch_size, dtype=tf.int64)
+    batch_indices = tf.repeat(batch_indices, OUTPUT_DIM)
+    sparse_indices = tf.tile(lu_indices, [batch_size])
+    scatter_indices = tf.stack([batch_indices, sparse_indices], axis=1)
+    y_pred_flat = tf.reshape(y_pred, [-1])
+    full_LU = tf.scatter_nd(scatter_indices, y_pred_flat, [batch_size, M * M])
+    LU = tf.reshape(full_LU, [-1, M, M])
+    U = tf.linalg.band_part(LU, 0, -1)
+    lower_all = tf.linalg.band_part(LU, -1, 0)
+    diag = tf.linalg.band_part(LU, 0, 0)
+    strict_lower = lower_all - diag
+    I = tf.eye(M, batch_shape=[batch_size], dtype=LU.dtype)
+    L = I + strict_lower
     A_pred = tf.matmul(L, U)
-    perm = tf.constant(PERM, dtype=tf.int32)
-    ###
-    # print(f"PERM shape: {PERM.shape}, min: {PERM.min()}, max: {PERM.max()}")
-    # print(f"perm shape: {perm.shape}, min: {tf.reduce_min(perm)}, max: {tf.reduce_max(perm)}")
-    ###
-    A_perm = tf.gather(tf.gather(A_pred, perm, axis=1), perm, axis=2)
-    A_flat = tf.reshape(A_perm, [batch, M*M])
-    A_sp   = tf.boolean_mask(A_flat, mask_out_tf, axis=1)
-    err = A_sp - y_true
-    return tf.reduce_mean(tf.math.log(tf.math.cosh(err)), axis=-1)
-    # return tf.reduce_mean(tf.square(err), axis=-1)
+    full_LU_true = tf.zeros([batch_size, M * M], dtype=y_true.dtype)
+    y_true_flat = tf.reshape(y_true, [-1])
+    full_LU_true = tf.scatter_nd(scatter_indices, y_true_flat, [batch_size, M * M])
+    LU_true = tf.reshape(full_LU_true, [-1, M, M])
+    U_true = tf.linalg.band_part(LU_true, 0, -1)
+    lower_all_true = tf.linalg.band_part(LU_true, -1, 0)
+    diag_true = tf.linalg.band_part(LU_true, 0, 0)
+    strict_lower_true = lower_all_true - diag_true
+    L_true = I + strict_lower_true
+    A_true = tf.matmul(L_true, U_true)
+    return tf.reduce_mean(tf.keras.losses.logcosh(A_true, A_pred))
 
-#compile model
+#compile
 opt = optimizers.Adam(learning_rate=LEARNING_RATE, 
                       clipnorm=CLIP_NORM
                       )
 model.compile(optimizer=opt, 
-              loss=custom_loss
+              loss=tf.keras.losses.logcosh
+            #   loss=compare_to_A
+            #   loss=diag_penalty
+            #   loss=tf.keras.losses.mae
               )
 
-#training attr
+#callbacks
 early_stop = callbacks.EarlyStopping(
     monitor="val_loss", patience=50, restore_best_weights=True
 )
 checkpoint = callbacks.ModelCheckpoint(MODEL_PATH, save_best_only=True)
 reduce_lr = callbacks.ReduceLROnPlateau(
     monitor="val_loss", 
-    factor=0.2, 
+    factor=0.2, #factor=0.025
     patience=25, 
-    min_lr=1e-7
+    min_lr=1e-7 #min_lr=1e-10
 )
 
-#train model
+#train
+print("training model...")
 history = model.fit(
     X_tr,
-    A_tr,
-    validation_data=(X_val, A_val),
+    y_tr,
+    validation_data=(X_val, y_val),
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
     callbacks=[early_stop, checkpoint, reduce_lr],
     verbose=1
 )
+print("finished training model.")
 
-val_loss = model.evaluate(X_val, A_val, verbose=0)
+#evaluate
+val_loss = model.evaluate(X_val, y_val, verbose=1)
 print(f"\nfinal validation error: {val_loss:.6f}\n")
 
-#save norms
+#save normalization stats
 with open(CSV_FILE, "w") as f:
     f.write("input_mean: [" + ",".join(map(str, X_mean)) + "]\n")
     f.write("input_std:  [" + ",".join(map(str, X_std)) + "]\n")
-    f.write("output_mean: [" + ",".join(map(str, A_mean)) + "]\n")
-    f.write("output_std:  [" + ",".join(map(str, A_std)) + "]\n")
+    f.write("output_mean: [" + ",".join(map(str, y_mean)) + "]\n")
+    f.write("output_std:  [" + ",".join(map(str, y_std)) + "]\n")
 
+#print model arch
 model.summary()

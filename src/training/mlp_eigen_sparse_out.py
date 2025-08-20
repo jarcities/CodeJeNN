@@ -8,13 +8,21 @@ from tensorflow.keras.utils import get_custom_objects
 import ast
 import scipy as sp
 from sklearn.model_selection import KFold
+import pandas as pd
 #double precision
 import tensorflow.keras.backend as K
 K.set_floatx('float64')
 
+# set seeds
+RANDOM_SEED = 1
+np.random.seed(RANDOM_SEED)
+tf.random.set_seed(RANDOM_SEED)
+BIT = np.float64
+
 #config
 np.set_printoptions(threshold=np.inf)
 DATA_DIR = "./training/BE_DATA/isoO_874_direct/"
+INV_DATA_DIR = "./training/INV_BE_DATA/isoO_874_direct/"
 MODEL_PATH = "./dump_model/MLP_LU.keras"
 CSV_FILE = "./dump_model/MLP_LU.csv"
 PERM = np.load(DATA_DIR + "permutation.npy", allow_pickle=True)
@@ -23,16 +31,15 @@ OUT_SPARSITY = np.load(DATA_DIR + 'output_sparsity.npy', allow_pickle=True)
 NUM_SAMPLES = 870
 M = 875
 BATCH_SIZE = 1
-EPOCHS = 500
+EPOCHS = 30
 NEURONS = 1
 # NEURONS = [4, 4, 4]
-LEARNING_RATE = 1e-2 #1e-3
+LEARNING_RATE = 1e-3 #1e-3
 CLIP_NORM = 1.0
-VALIDATION_SPLIT = 0.3
-RANDOM_SEED = 1
+VALIDATION_SPLIT = 0.1
 DROP = 0.1
 EPS = 1e-4 #16-20
-NEGATIVE_SLOPE  = 0.001 #0.001
+NEGATIVE_SLOPE  = 1e-4 #0.001
 
 #input sparse
 pattern = IN_SPARSITY.reshape((M, M), order='C')
@@ -47,69 +54,86 @@ OUTPUT_DIM = int(mask_out.sum())
 #load data
 skipped = 0
 X_list, y_list = [], []
-for i in range(NUM_SAMPLES):
-    A = np.loadtxt(
-        os.path.join(DATA_DIR, f"jacobian_{i}.csv"), 
-        delimiter=",", 
-        dtype=np.float64
-        )
-    A = A[:, PERM][PERM, :] 
-    
-    #A_inv instead
-    # iA = np.linalg.inv(A) #inverse of A
-    # if i == NUM_SAMPLES-1:
-    #     np.set_printoptions(threshold=np.inf)
-    #     print(iA)
-    #LU instead
-    # L, U = sp.linalg.lu(A, permute_l=True) #with P in L
-    # P, L, U = sp.linalg.lu(A) #w/o P in L
-    
-    #####
-    #splu logic
-    from scipy import sparse
-    from scipy.sparse.linalg import splu
-    #create sparse matrix
-    row, col = np.nonzero(IN_SPARSITY)
-    data = A[row, col]
-    A_sparse = sparse.csc_array((data, (row, col)), shape=A.shape, dtype=np.float64)
-    #do not use permutation
-    options = {}
-    options["Equil"] = False 
-    options["RowPerm"] = "NOROWPERM"
-    options["SymmetricMode"] = False
-    try:
-        lu = splu(A_sparse, permc_spec="NATURAL", diag_pivot_thresh=0., options=options)
-        #verify permutation
-        if not (np.all(lu.perm_c == lu.perm_r) and np.all(lu.perm_c == np.arange(A.shape[0]))):
+if len(os.listdir(INV_DATA_DIR)) != 0:
+    print("pulling LU data from precomputed directory")
+    for i in range(NUM_SAMPLES):
+        A = np.loadtxt(
+            os.path.join(DATA_DIR, f"jacobian_{i}.csv"), 
+            delimiter=",", 
+            dtype=BIT
+            )
+        LU = np.loadtxt(
+            os.path.join(INV_DATA_DIR, f"lu_jacobian_{i}.csv"), 
+            delimiter=",", 
+            dtype=BIT
+            )
+        A = A[:, PERM][PERM, :] 
+
+        #apply permutation
+        A = A.ravel(order='C')
+        X_list.append(A[mask_in])
+
+        #apply permutation
+        LU = LU.ravel(order='C')
+        y_list.append(LU[mask_out])
+else:
+    print("no precomputed LU, calculating right now...")
+    for i in range(NUM_SAMPLES):
+        A = np.loadtxt(
+            os.path.join(DATA_DIR, f"jacobian_{i}.csv"), 
+            delimiter=",", 
+            dtype=BIT
+            )
+        A = A[:, PERM][PERM, :] 
+        
+        #A_inv instead
+        # iA = np.linalg.inv(A) #inverse of A
+        # if i == NUM_SAMPLES-1:
+        #     np.set_printoptions(threshold=np.inf)
+        #     print(iA)
+        #LU instead
+        # L, U = sp.linalg.lu(A, permute_l=True) #with P in L
+        # P, L, U = sp.linalg.lu(A) #w/o P in L
+        
+        #splu logic
+        from scipy import sparse
+        from scipy.sparse.linalg import splu
+        #create sparse matrix
+        row, col = np.nonzero(IN_SPARSITY)
+        data = A[row, col]
+        A_sparse = sparse.csc_array((data, (row, col)), shape=A.shape, dtype=BIT)
+        #do not use permutation
+        options = {}
+        options["Equil"] = False 
+        options["RowPerm"] = "NOROWPERM"
+        options["SymmetricMode"] = False
+        try:
+            lu = splu(A_sparse, permc_spec="NATURAL", diag_pivot_thresh=0., options=options)
+            #verify permutation
+            if not (np.all(lu.perm_c == lu.perm_r) and np.all(lu.perm_c == np.arange(A.shape[0]))):
+                skipped += 1
+                continue
+            #convert to dense
+            L = lu.L.toarray()
+            U = lu.U.toarray()
+        except:
             skipped += 1
             continue
-        #convert to dense
-        L = lu.L.toarray()
-        U = lu.U.toarray()
-    except:
-        skipped += 1
-        continue
-    #####
 
-    # if np.any(np.diag(P) != 1.0): #check permutation
-    #     skipped += 1
-    #     continue
-    if np.any(np.abs(np.diag(U)) <= 0.0): #check invertibility
-        skipped += 1
-        continue
-    LU = np.tril(L, -1) + U
-    
-    #apply permutation
-    A = A.ravel(order='C')
-    X_list.append(A[mask_in])
+        if np.any(np.abs(np.diag(U)) <= 0.0): #check invertibility
+            skipped += 1
+            continue
+        LU = np.tril(L, -1) + U
+        #save lu factor
+        np.savetxt(os.path.join(INV_DATA_DIR, f"lu_jacobian_{i}.csv"), LU, delimiter=',', fmt='%d')
 
-    #apply permutation
-    LU = LU.ravel(order='C')
-    y_list.append(LU[mask_out])
+        #apply permutation
+        A = A.ravel(order='C')
+        X_list.append(A[mask_in])
 
-    #add to data sample list
-    # X_list.append(A.ravel(order='C')[mask_in])
-    # y_list.append(LU.ravel(order='C')[mask_out]) 
+        #apply permutation
+        LU = LU.ravel(order='C')
+        y_list.append(LU[mask_out])
 
 print(f"Skipped {skipped} bad matrices")
 X = np.stack(X_list, axis=0) 
@@ -129,7 +153,10 @@ y = (y - y_mean) / y_std
 
 #training split
 X_tr, X_val, y_tr, y_val = train_test_split(
-    X, y, test_size=VALIDATION_SPLIT, random_state=RANDOM_SEED, shuffle=True
+    X, y, 
+    test_size=VALIDATION_SPLIT, 
+    random_state=RANDOM_SEED, 
+    # shuffle=True
 )
 
 #custom activation function
@@ -241,14 +268,14 @@ inputs = layers.Input(shape=(INPUT_DIM,), dtype=tf.float64)
 
 x = layers.Dense(NEURONS, activation=None)(inputs)
 x = layers.UnitNormalization()(x) #unit 
-x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
-# x = layers.Activation("elu")(x)
+# x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
+x = layers.Activation("gelu")(x)
 # x = layers.Dropout(DROP)(x)
 
 x = layers.Dense(NEURONS, activation=None)(x)
 # x = layers.UnitNormalization()(x) #unit 
-x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
-# x = layers.Activation("elu")(x)
+# x = layers.LeakyReLU(negative_slope=NEGATIVE_SLOPE)(x)
+x = layers.Activation("gelu")(x)
 # x = layers.Dropout(DROP)(x)
 
 output = layers.Dense(OUTPUT_DIM, activation=None)(x)
@@ -326,6 +353,7 @@ reduce_lr = callbacks.ReduceLROnPlateau(
 )
 
 #train
+print("training model...")
 history = model.fit(
     X_tr,
     y_tr,
@@ -333,8 +361,9 @@ history = model.fit(
     epochs=EPOCHS,
     batch_size=BATCH_SIZE,
     callbacks=[early_stop, checkpoint, reduce_lr],
-    verbose=1
+    verbose=0
 )
+print("finished training model.")
 
 #evaluate
 val_loss = model.evaluate(X_val, y_val, verbose=0)
