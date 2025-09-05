@@ -2,12 +2,12 @@ from calendar import c
 import os
 import argparse
 import numpy as np
-from A_load_model import loadModel
-from B_extract_model import extractModel
-from C_layer_propagation import layer_propagation
-from D_code_generation import preambleHeader, codeGen
-from Z_test_script import testSource
-from Z_normalization_parameters import normParam
+from codegen.load_model import loadModel
+from codegen.extract_model import extractModel
+from codegen.rebuild_layers import layer_propagation
+from codegen.code_generation import preambleHeader, codeGen
+from codegen.test_script import testSource
+from codegen.normalization import normParam
 
 ## ARG PARSING ##
 parser = argparse.ArgumentParser(
