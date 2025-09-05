@@ -14,10 +14,11 @@ MODEL_PATH = "bin/MLP_LU_1.keras"
 CSV_FILE = "bin/MLP_LU_1.csv"
 NUM_SAMPLES = 825
 M = 96
-FLAT_DIM = M * M
+INPUT_DIM = M * M
+OUTPUT_DIM = M * M
 BATCH_SIZE = 4
 EPOCHS = 1000
-HIDDEN_UNITS = 4
+NEURONS = 4
 LEARNING_RATE = 1e-3
 CLIP_NORM = 1.0
 VALIDATION_SPLIT = 0.3
@@ -63,15 +64,19 @@ X_tr, X_val, y_tr, y_val = train_test_split(
 ###########
 ## MODEL ##
 ###########
-inputs = layers.Input(shape=(FLAT_DIM,))
-x = layers.Dense(HIDDEN_UNITS, activation=None)(inputs)
+inputs = layers.Input(shape=(INPUT_DIM,), dtype=tf.float64)
+# Layer 1
+x = layers.Dense(NEURONS, activation=None)(inputs)
 x = layers.LayerNormalization()(x)
 x = layers.LeakyReLU(negative_slope=0.01)(x)
-x = layers.Dense(HIDDEN_UNITS*4, activation=None)(x)
-x = layers.LeakyReLU(negative_slope=0.01)(x)
-x = layers.Dense(HIDDEN_UNITS*8, activation=None)(x)
-x = layers.LeakyReLU(negative_slope=0.01)(x)
-outputs = layers.Dense(FLAT_DIM*2, activation=None)(x)
+# Layer 2
+x = layers.Dense(NEURONS, activation=None)(x)
+x = layers.Activation('relu')(x)
+# Layer 3
+x = layers.Dense(NEURONS, activation=None)(x)
+x = layers.Activation('mish')(x)
+# Output
+outputs = layers.Dense(OUTPUT_DIM, activation=None)(x)
 model = models.Model(inputs, outputs)
 ###########
 # model = tf.keras.Sequential(
@@ -79,22 +84,22 @@ model = models.Model(inputs, outputs)
 #         layers.Input(shape=(FLAT_DIM,)),
 #         # layers.Rescaling(1.0 / (X_std + EPS), offset=-X_mean / (X_std + EPS)),
 
-#         # layers.Dense(HIDDEN_UNITS),
+#         # layers.Dense(NEURONS),
 #         # # layers.UnitNormalization(axis=-1),
 #         # layers.BatchNormalization(),
 #         # layers.Activation("gelu"),
 
-#         layers.Dense(HIDDEN_UNITS * 2),
+#         layers.Dense(NEURONS * 2),
 #         # layers.UnitNormalization(axis=-1),
 #         layers.BatchNormalization(),
 #         layers.Activation("gelu"),
 
-#         layers.Dense(HIDDEN_UNITS * 4),
+#         layers.Dense(NEURONS * 4),
 #         # layers.UnitNormalization(axis=-1),
 #         # layers.LayerNormalization(),
 #         layers.Activation("gelu"),
 
-#         layers.Dense(HIDDEN_UNITS * 8),
+#         layers.Dense(NEURONS * 8),
 #         # layers.UnitNormalization(axis=-1),
 #         # layers.LayerNormalization(),
 #         layers.Activation("gelu"),
