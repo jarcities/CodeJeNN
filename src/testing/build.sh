@@ -1,1 +1,0 @@
-g++ -O3 -mcpu=native -std=c++17 -I$CONDA_PREFIX/include/eigen3 -DUSE_EIGEN -DNDEBUG -Wno-unused-parameter updated_benchmark.cpp -o updated_benchmark
