@@ -1,3 +1,12 @@
+"""
+Distribution Statement A. Approved for public release, distribution is unlimited.
+---
+THIS SOURCE CODE IS UNDER THE CUSTODY AND ADMINISTRATION OF THE GOVERNMENT OF THE UNITED STATES OF AMERICA.
+BY USING, MODIFYING, OR DISSEMINATING THIS SOURCE CODE, YOU ACCEPT THE TERMS AND CONDITIONS IN THE NRL OPEN LICENSE AGREEMENT.
+USE, MODIFICATION, AND DISSEMINATION ARE PERMITTED ONLY IN ACCORDANCE WITH THE TERMS AND CONDITIONS OF THE NRL OPEN LICENSE AGREEMENT.
+NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DISPOSITION, OR MODIFICATION OF THIS SOURCE CODE
+MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
+"""
 from multiprocessing import pool
 import tensorflow as tf
 import onnx
@@ -46,24 +55,6 @@ def getAlphaForActivation(layer, activation):
     elif activation == "elu":
         return layer.get_config().get("alpha", 1.0)
     return 0.0
-
-
-# def getActivation(layer, config):
-#     # ===================================================================================
-#     # extracts the name of the activation function from a Keras layer.
-#     # ===================================================================================
-#     act_name = config.get("activation", None)
-
-#     # If config just returns 'linear' or None, try layer.activation directly
-#     if act_name in (None, "linear"):
-#         activation_attr = getattr(layer, "activation", None)
-#         if activation_attr is None:
-#             return "linear"
-#         elif hasattr(activation_attr, "__name__"):
-#             return activation_attr.__name__
-#         else:
-#             return str(activation_attr)
-#     return act_name
 
 
 def getActivation(layer, config):
@@ -231,54 +222,8 @@ def extractModel(model, file_type, base_file_name=None):
                     if class_name not in builtin_activations:
                         act_name = class_name.lower()
 
-            # Get alpha value for activation
+            # get alpha value for activation
             alpha_value = getAlphaForActivation(layer, activation)
-
-            # #######################
-            # ## ACTIVATION LAYERS ##
-            # #######################
-            # # pure activation layers
-            # if (
-            #     "activation" in layer.name.lower()
-            #     or isinstance(layer, keras.layers.Activation)
-            # ) or (
-            #     not layer.get_weights()
-            #     and layer.__class__.__name__.lower()
-            #     in [
-            #         "relu",
-            #         "sigmoid",
-            #         "tanh",
-            #         "leakyrelu",
-            #         "linear",
-            #         "elu",
-            #         "selu",
-            #         "swish",
-            #         "prelu",
-            #         "silu",
-            #         "gelu",
-            #         "softmax",
-            #         "mish",
-            #         "softplus",
-            #     ]
-            # ):
-            #     try:
-            #         activation_functions.append(act_name)
-            #         activation_configs.append(act_params)
-
-            #         weights_list.append(None)
-            #         biases_list.append(None)
-            #         norm_layer_params.append(None)
-            #         alphas.append(alpha_value)
-            #         dropout_rates.append(0.0)
-            #         layer_shape.append(0)
-            #         layer_type.append("Activation")
-            #         continue
-            #     except ValueError as e:
-            #         print(
-            #             f"\nError in extracting parameters: activation layer {layer_idx} --> ",
-            #             e,
-            #         )
-            #         continue
 
             #######################
             ## ACTIVATION LAYERS ##
@@ -312,7 +257,7 @@ def extractModel(model, file_type, base_file_name=None):
                 ]
             ):
                 try:
-                    # Handle standalone activation layers first
+                    # handle standalone activation layers first
                     if isinstance(layer, keras.layers.LeakyReLU):
                         act_name = "leakyrelu"
                     elif isinstance(layer, keras.layers.ReLU):
@@ -817,14 +762,11 @@ def extractModel(model, file_type, base_file_name=None):
                     current_shape = raw_shape
 
                     if len(current_shape) < 3:
-                        # if shape is 2d
                         H, W = current_shape
                         C = 1
                     else:
-                        # if shape is 3d
                         H, W, C = current_shape
 
-                    # H, W, C = current_shape
                     if padding.lower() == "same":
                         out_H = math.ceil(H / strides[0])
                         out_W = math.ceil(W / strides[1])
@@ -1378,15 +1320,6 @@ def extractModel(model, file_type, base_file_name=None):
                         "dilation_rate": config.get("dilation_rate", (1, 1)),
                         "use_bias": use_bias,
                     }
-                    # new_shape = compute_output_shape_2d(
-                    #     current_shape,
-                    #     conv_params["kernel_size"],
-                    #     conv_params["strides"],
-                    #     conv_params["padding"],
-                    #     filters=conv_params.get("filters"),
-                    #     depthwise=True,
-                    # )
-                    # inline compute_output_shape_2d (depthwise=True)
                     H, W, C = current_shape
                     kH, kW = conv_params["kernel_size"]
                     sH, sW = conv_params["strides"]

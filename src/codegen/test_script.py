@@ -1,4 +1,12 @@
-
+"""
+Distribution Statement A. Approved for public release, distribution is unlimited.
+---
+THIS SOURCE CODE IS UNDER THE CUSTODY AND ADMINISTRATION OF THE GOVERNMENT OF THE UNITED STATES OF AMERICA.
+BY USING, MODIFYING, OR DISSEMINATING THIS SOURCE CODE, YOU ACCEPT THE TERMS AND CONDITIONS IN THE NRL OPEN LICENSE AGREEMENT.
+USE, MODIFICATION, AND DISSEMINATION ARE PERMITTED ONLY IN ACCORDANCE WITH THE TERMS AND CONDITIONS OF THE NRL OPEN LICENSE AGREEMENT.
+NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DISPOSITION, OR MODIFICATION OF THIS SOURCE CODE
+MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
+"""
 import os
 import absl.logging
 import warnings
@@ -23,8 +31,7 @@ int main() {{
 
     auto output = _function_name_<Scalar>(input); // change input to desired features
     
-    // Print the results with high precision
-    std::cout << std::scientific << std::setprecision(15);  // Set precision and scientific notation
+    std::cout << std::scientific << std::setprecision(15);  // scientific notation precision
     std::cout << "Output:\n";  // Print each value on a new line
     for(const auto& val : output) {{
         std::cout << val << '\n';

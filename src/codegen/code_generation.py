@@ -1,3 +1,12 @@
+"""
+Distribution Statement A. Approved for public release, distribution is unlimited.
+---
+THIS SOURCE CODE IS UNDER THE CUSTODY AND ADMINISTRATION OF THE GOVERNMENT OF THE UNITED STATES OF AMERICA.
+BY USING, MODIFYING, OR DISSEMINATING THIS SOURCE CODE, YOU ACCEPT THE TERMS AND CONDITIONS IN THE NRL OPEN LICENSE AGREEMENT.
+USE, MODIFICATION, AND DISSEMINATION ARE PERMITTED ONLY IN ACCORDANCE WITH THE TERMS AND CONDITIONS OF THE NRL OPEN LICENSE AGREEMENT.
+NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DISPOSITION, OR MODIFICATION OF THIS SOURCE CODE
+MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
+"""
 import os
 import absl.logging
 import warnings
@@ -184,7 +193,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
         #     cpp_code += f"    constexpr Scalar epsilon_{layer_idx} = {eps:10.9e};\n\n"
 
         if norm_params is not None and ltype != "Rescale":
-            # Handle GroupNormalization which has 6 parameters instead of 5
             if len(norm_params) == 6:
                 gamma, beta, mean, var, eps, groups = norm_params
                 cpp_code += f"    // Layer {layer_idx}: GroupNormalization\n"

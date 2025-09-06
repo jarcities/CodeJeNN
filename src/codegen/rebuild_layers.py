@@ -1,3 +1,12 @@
+"""
+Distribution Statement A. Approved for public release, distribution is unlimited.
+---
+THIS SOURCE CODE IS UNDER THE CUSTODY AND ADMINISTRATION OF THE GOVERNMENT OF THE UNITED STATES OF AMERICA.
+BY USING, MODIFYING, OR DISSEMINATING THIS SOURCE CODE, YOU ACCEPT THE TERMS AND CONDITIONS IN THE NRL OPEN LICENSE AGREEMENT.
+USE, MODIFICATION, AND DISSEMINATION ARE PERMITTED ONLY IN ACCORDANCE WITH THE TERMS AND CONDITIONS OF THE NRL OPEN LICENSE AGREEMENT.
+NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DISPOSITION, OR MODIFICATION OF THIS SOURCE CODE
+MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
+"""
 import os
 import re
 import absl.logging
@@ -177,7 +186,7 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
         //TODO: implement custom activation '{act_name}'
         output = input; //default fallback
     }};
-"""
+""",
     }
 
     # normalization functions
@@ -1339,12 +1348,10 @@ inline void GlobalAvgPooling3D_{base_file_name}(Scalar * __restrict outputs, con
         for act in current_activations:
             if act in lambda_functions:
                 cpp_lambda += lambda_functions[act]
-        # print(cpp_lambda)
-        #####################################################################
+            ## CUSTOM ACTIVATION FUNCTION ##
             else:
                 custom_lambda = lambda_functions["custom_act"].format(act_name=act)
                 cpp_lambda += custom_lambda
-        #####################################################################
 
         # deduplicate layer_type list
         unique_layer_types = {lt for lt in layer_type if lt is not None}
