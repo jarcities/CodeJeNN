@@ -46,14 +46,15 @@ model = Sequential([
 
 #compile model
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-                        loss='logcosh')
-# early_stopping = EarlyStopping(monitor='val_loss', 
-#                                patience=500, 
-#                                restore_best_weights=True)
-# reduce_lr = ReduceLROnPlateau(monitor='val_loss', 
-#                               factor=0.5, 
-#                               patience=5, 
-#                               min_lr=1e-6)
+              loss=tf.keras.losses.LogCosh()
+              )
+early_stopping = EarlyStopping(monitor='val_loss', 
+                               patience=50, 
+                               restore_best_weights=True)
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', 
+                              factor=0.25, 
+                              patience=25, 
+                              min_lr=1e-7)
 
 #train model
 history = model.fit(input, 
@@ -61,8 +62,8 @@ history = model.fit(input,
                     batch_size=BATCH,
                     epochs=EPOCHS,
                     verbose=1,
-                    # validation_split=0.15,
-                    # callbacks=[early_stopping, reduce_lr]
+                    validation_split=0.15,
+                    callbacks=[early_stopping, reduce_lr]
                     )
 
 #save model
