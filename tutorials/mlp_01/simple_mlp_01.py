@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Input, BatchNormalization, Dropout, Conv2D, Flatten, LeakyReLU, ELU, Activation, LayerNormalization
+from tensorflow.keras import layers, callbacks, models, optimizers
 from tensorflow.keras.models import load_model
 from tensorflow.keras.activations import sigmoid
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -10,7 +10,6 @@ import pandas as pd
 from tensorflow.keras.regularizers import l2
 from sklearn.preprocessing import MinMaxScaler
 import os
-import csv          
 
 #parameters
 FILE = 'simple_mlp_01'
@@ -20,7 +19,7 @@ INPUT_DIM = 10
 OUTPUT_DIM = 10
 input = np.random.rand(NUM_SAMPLES, INPUT_DIM)
 output = np.random.rand(NUM_SAMPLES, OUTPUT_DIM)
-BATCH = 32
+BATCH = 64
 LEARNING_RATE = 0.001
 EPOCHS = 1000
 
@@ -35,19 +34,23 @@ output = (output - y_mean) / y_std
 
 #define model
 model = Sequential([
-    Input(shape=(input.shape[1],)),
-    Dense(16, activation='relu'),
-    Dropout(0.2),
-    Dense(8, activation='swish'),
-    UnitNormalization(),
-    Dense(8, activation='tanh'),
-    BatchNormalization(),
-    Dense(8, activation='elu'),
-    Dropout(0.2),
-    Dense(8),
-    LayerNormalization(),
-    Dense(output.shape[1], activation='linear')
+    layers.Input(shape=(INPUT_DIM,)),
+    layers.Dense(16, activation='relu'),
+    layers.Dropout(0.1),
+    layers.Dense(32, activation='swish'),
+    layers.UnitNormalization(),
+    layers.Dense(64, activation='tanh'),
+    layers.BatchNormalization(),
+    layers.Dense(32, activation='elu'),
+    layers.Dropout(0.1),
+    layers.Dense(16),
+    layers.LayerNormalization(),
+    layers.Dense(OUTPUT_DIM, activation='linear')
 ])
+"""
+IT IS CONVENTION TO TYPICALLY USE THE SAME ACTIVATION FUNCTION
+FOR THE ENTIRE MODEL, BUT THIS IS JUST AN EXAMPLE.
+"""
 
 #compile model
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
@@ -76,12 +79,10 @@ model_filename = f"{FILE}.h5"
 model.save(model_filename)
 
 #save normalization
-csv_file = f"{FILE}.csv"
-with open(csv_file, "w") as f:
-    f.write("input_mean: [" + ",".join(map(str, X_mean)) + "]\n")
-    f.write("input_std:  [" + ",".join(map(str, X_std)) + "]\n")
-    f.write("output_mean: [" + ",".join(map(str, y_mean)) + "]\n")
-    f.write("output_std:  [" + ",".join(map(str, y_std)) + "]\n")
+np.save(f"input_mean.npy", X_mean)
+np.save(f"input_std.npy", X_std)
+np.save(f"output_mean.npy", y_mean)
+np.save(f"output_std.npy", y_std)
 
 #predict model
 trained_model = load_model(model_filename)

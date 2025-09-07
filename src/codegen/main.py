@@ -11,12 +11,12 @@ from calendar import c
 import os
 import argparse
 import numpy as np
-from codegen.load_model import loadModel
-from codegen.extract_model import extractModel
-from codegen.rebuild_layers import layer_propagation
-from codegen.code_generation import preambleHeader, codeGen
-from codegen.test_script import testSource
-from codegen.normalization import normParam
+from load_model import loadModel
+from extract_model import extractModel
+from rebuild_model import rebuildModel
+from code_generation import preambleHeader, codeGen
+from test_script import testSource
+from normalization import normParam
 
 ## ARG PARSING ##
 parser = argparse.ArgumentParser(
@@ -79,9 +79,7 @@ else:
         if file_name == ".gitkeep" or file_name.startswith("."):
             continue
         if (
-            file_name.endswith(".dat")
-            or file_name.endswith(".csv")
-            or file_name.endswith(".txt")
+            file_name.endswith(".npy")
         ):
             continue
 
@@ -93,29 +91,10 @@ else:
                 #########################################
                 ## 1. PROCESS NORMALIZATION PARAMETERS ##
                 #########################################
-                dat_file = os.path.join(model_dir, f"{base_file_name}.dat")
-                csv_file = os.path.join(model_dir, f"{base_file_name}.csv")
-                txt_file = os.path.join(model_dir, f"{base_file_name}.txt")
-
-                if os.path.exists(dat_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(
-                        dat_file
-                    )
-                elif os.path.exists(csv_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(
-                        csv_file
-                    )
-                elif os.path.exists(txt_file):
-                    input_norms, input_mins, output_norms, output_mins = normParam(
-                        txt_file
-                    )
-                else:
-                    input_norms, input_mins, output_norms, output_mins = (
-                        None,
-                        None,
-                        None,
-                        None,
-                    )
+                # Check for individual normalization .npy files in the model directory
+                input_scale, input_shift, output_scale, output_shift = normParam(
+                    model_dir
+                )
 
                 ###################
                 ## 2. LOAD MODEL ##
@@ -163,7 +142,7 @@ else:
                 ## 5. PROCESS LAYER PROPAGATION FUNCTIONS ##
                 ############################################
                 try:
-                    cpp_code, cpp_lambda = layer_propagation(
+                    cpp_code, cpp_lambda = rebuildModel(
                         cpp_code, activation_functions, layer_type, base_file_name
                     )
                 except ValueError as e:
@@ -188,10 +167,10 @@ else:
                         input_flat_size,
                         output_flat_size,
                         save_path,
-                        input_norms,
-                        input_mins,
-                        output_norms,
-                        output_mins,
+                        input_scale,
+                        input_shift,
+                        output_scale,
+                        output_shift,
                         layer_shape,
                         layer_type,
                         base_file_name,

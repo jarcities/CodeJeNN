@@ -54,10 +54,10 @@ def codeGen(
     input_size,
     output_size,
     user_file,
-    input_norms,
-    input_mins,
-    output_norms,
-    output_mins,
+    input_scale,
+    input_shift,
+    output_scale,
+    output_shift,
     layer_shape,
     layer_type,
     base_file_name,
@@ -81,10 +81,10 @@ def codeGen(
     #   conv_layer_params: the list of convolutional layer parameters for each layer
     #   input_size: the size of the input layer
     #   user_file: the name of the user file
-    #   input_norms: the input normalization parameters
-    #   input_mins: the input minimum values
-    #   output_norms: the output normalization parameters
-    #   output_mins: the output minimum values
+    #   input_scale: the input normalization parameters
+    #   input_shift: the input minimum values
+    #   output_scale: the output normalization parameters
+    #   output_shift: the output minimum values
     #   layer_shape: the shape of the layers
     #   layer_type: the type of the layers
 
@@ -394,36 +394,36 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
     ## NORMALIZE INPUT AND OUTPUTS ##
     # print input normalization/standardization parameters
-    if input_norms is not None:
+    if input_scale is not None and input_shift is not None:
         cpp_code += (
-            f"    constexpr std::array<Scalar, {len(input_norms)}> input_norm_std = {{"
+            f"    constexpr std::array<Scalar, {len(input_scale)}> input_scale = {{"
         )
-        cpp_code += ", ".join(f"{x:10.9e}" for x in input_norms)
+        cpp_code += ", ".join(f"{x:10.9e}" for x in input_scale)
         cpp_code += "};\n\n"
 
         cpp_code += (
-            f"    constexpr std::array<Scalar, {len(input_mins)}> input_min_mean = {{"
+            f"    constexpr std::array<Scalar, {len(input_shift)}> input_shift = {{"
         )
-        cpp_code += ", ".join(f"{x:10.9e}" for x in input_mins)
+        cpp_code += ", ".join(f"{x:10.9e}" for x in input_shift)
         cpp_code += "};\n\n"
 
     # print output normalization/standardization parameters
     out_norm_size = output_size
     out_size = layer_shape[len(layer_shape) - 1]
-    cpp_code += f"    // Final output\n"
-    cpp_code += (
-        f"    constexpr static std::array<Scalar, {len(output_norms) if output_norms is not None else 0}> output_norm_std = {{{', '.join(f'{x:10.9e}' for x in output_norms)}}};\n"
-        if output_norms is not None
-        else ""
-    )
-    cpp_code += (
-        f"    constexpr static std::array<Scalar, {len(output_mins) if output_norms is not None else 0}> output_min_mean = {{{', '.join(f'{x:10.9e}' for x in output_mins)}}};\n\n"
-        if output_norms is not None
-        else ""
-    )
+    if output_scale is not None and output_shift is not None:
+        cpp_code += (
+            f"    constexpr std::array<Scalar, {len(output_scale)}> output_scale = {{"
+        )
+        cpp_code += ", ".join(f"{x:10.9e}" for x in output_scale)
+        cpp_code += "};\n\n"
 
+        cpp_code += (
+            f"    constexpr std::array<Scalar, {len(output_shift)}> output_shift = {{"
+        )
+        cpp_code += ", ".join(f"{x:10.9e}" for x in output_shift)
+        cpp_code += "};\n\n"
+        cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
 
-    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
 
 
     #################################
@@ -444,7 +444,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     ###################
     ## FLATTEN INPUT ##
     ###################
-    # build normalization arrays if input_norms and input_mins are provided
+    # build normalization arrays if input_scale and input_shift are provided
     cpp_code += f"""    
     // model input and flattened
     constexpr int flat_size = {input_size}; 
@@ -456,7 +456,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     indent = ""
 
     # check if input shape is flat or not (i.e. 1D or higher, then flatten it)
-    if isinstance(dims, tuple) and len(dims) > 1 and input_norms is None:
+    if isinstance(dims, tuple) and len(dims) > 1 and input_scale is None:
 
         # get rid of dimensions with 1
         dims = [d for d in raw_shape if d != 1]
@@ -488,17 +488,17 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
         cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
 
-    elif input_norms is None:
+    elif input_scale is None:
 
         # fallback 1D
         cpp_code += f"""// pass input 
     for (int i=0; i<flat_size; i++) {{ model_input[i] = initial_input[i]; }}\n\n"""
         cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
 
-    elif input_norms is not None:
+    elif input_scale is not None:
 
         cpp_code += f"""// normalize input
-    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_min_mean[i]) / (input_norm_std[i]); }} \n\n"""
+    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_shift[i]) / (input_scale[i]); }} \n\n"""
         cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
 
     else:
@@ -1168,9 +1168,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     out_size = output_size
 
     # if we have to normalize outputs
-    if output_norms is not None:
+    if output_scale is not None:
         cpp_code += f"""    static std::array<Scalar, {out_norm_size}> model_output;\n
-    for (int i = 0; i < {out_norm_size}; i++) {{ model_output[i] = ({last_layer}[i] * output_norm_std[i]) + output_min_mean[i]; }}\n
+    for (int i = 0; i < {out_norm_size}; i++) {{ model_output[i] = ({last_layer}[i] * output_scale[i]) + output_shift[i]; }}\n
     """
 
     # if no output normalization is applied, just reshape output layer
