@@ -9,7 +9,6 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 import pandas as pd
 from tensorflow.keras.regularizers import l2
 from sklearn.preprocessing import MinMaxScaler
-import joblib
 import os
 import csv          
 
@@ -25,20 +24,26 @@ BATCH = 32
 LEARNING_RATE = 0.001
 EPOCHS = 1000
 
+#normalize data
+X_mean = input.mean(axis=0)
+X_std = input.std(axis=0)
+y_mean = output.mean(axis=0)
+y_std = output.std(axis=0)
+input = (input - X_mean) / X_std
+output = (output - y_mean) / y_std
+
+
 #define model
 model = Sequential([
     Input(shape=(input.shape[1],)),
-    Activation('relu'),
+    Dense(16, activation='relu'),
     Dropout(0.2),
-    Dense(8),
     Dense(8, activation='swish'),
-    LayerNormalization(),
+    UnitNormalization(),
     Dense(8, activation='tanh'),
     BatchNormalization(),
-    Dense(8),
-    Activation('sigmoid'),
+    Dense(8, activation='elu'),
     Dropout(0.2),
-    Activation('elu'),
     Dense(8),
     LayerNormalization(),
     Dense(output.shape[1], activation='linear')
@@ -69,6 +74,14 @@ history = model.fit(input,
 #save model
 model_filename = f"{FILE}.h5"
 model.save(model_filename)
+
+#save normalization
+csv_file = f"{FILE}.csv"
+with open(csv_file, "w") as f:
+    f.write("input_mean: [" + ",".join(map(str, X_mean)) + "]\n")
+    f.write("input_std:  [" + ",".join(map(str, X_std)) + "]\n")
+    f.write("output_mean: [" + ",".join(map(str, y_mean)) + "]\n")
+    f.write("output_std:  [" + ",".join(map(str, y_std)) + "]\n")
 
 #predict model
 trained_model = load_model(model_filename)
