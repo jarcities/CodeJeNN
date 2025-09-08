@@ -323,7 +323,7 @@ def extractModel(model, file_type, base_file_name=None):
             #################
             ## CORE LAYERS ##
             #################
-            # dense layer (for multi-layer perceptrons models)
+            # dense layers
             if isinstance(layer, keras.layers.Dense) or "dense" in layer.name.lower():
                 try:
                     w, b = layer_weights

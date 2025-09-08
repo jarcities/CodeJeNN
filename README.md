@@ -42,9 +42,10 @@ CodeJeNN/
 ```
 
 ## Starting Point
-* **You ONLY need the `src` directory, all other files are just auxillary but still very useful.**
 
 * **Python 3.11 is required becuase the latest version of tensorflow requires it.**
+
+* **You ONLY need the `src` directory, all other files are just auxillary but still very useful.**
 
 1. You do not need to create a virtual environment, but it is best to use one. You can install python 3.11 in your home directory and `cd` to your home directory and use. 
     ```bash
