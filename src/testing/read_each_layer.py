@@ -32,9 +32,9 @@ extractor = keras.Model(inputs=model.inputs, outputs=[layer.output for layer in 
 # manually specified input data (shape: [1, 5, 6, 6, 3])
 data = np.array([[
 
-    ########################
-    ## USER DATA ADD HERE ##
-    ########################
+########################
+## USER DATA ADD HERE ##
+########################
 
 ]], dtype='float32')
 

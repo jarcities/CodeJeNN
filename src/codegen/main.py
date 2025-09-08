@@ -7,14 +7,15 @@ USE, MODIFICATION, AND DISSEMINATION ARE PERMITTED ONLY IN ACCORDANCE WITH THE T
 NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DISPOSITION, OR MODIFICATION OF THIS SOURCE CODE
 MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 """
+
 from calendar import c
 import os
 import argparse
 import numpy as np
 from load_model import loadModel
 from extract_model import extractModel
-from rebuild_model import rebuildModel
-from code_generation import preambleHeader, codeGen
+from build_model import buildModel
+from code_generate import preambleHeader, codeGen
 from test_script import testSource
 from normalization import normParam
 
@@ -78,9 +79,7 @@ else:
 
         if file_name == ".gitkeep" or file_name.startswith("."):
             continue
-        if (
-            file_name.endswith(".npy")
-        ):
+        if file_name.endswith(".npy"):
             continue
 
         ## CHECK FILE AND PROCESS MODEL ##
@@ -91,7 +90,6 @@ else:
                 #########################################
                 ## 1. PROCESS NORMALIZATION PARAMETERS ##
                 #########################################
-                # Check for individual normalization .npy files in the model directory
                 input_scale, input_shift, output_scale, output_shift = normParam(
                     model_dir
                 )
@@ -142,7 +140,7 @@ else:
                 ## 5. PROCESS LAYER PROPAGATION FUNCTIONS ##
                 ############################################
                 try:
-                    cpp_code, cpp_lambda = rebuildModel(
+                    cpp_code, cpp_lambda = buildModel(
                         cpp_code, activation_functions, layer_type, base_file_name
                     )
                 except ValueError as e:

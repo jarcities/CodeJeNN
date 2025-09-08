@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="keras")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 
-def rebuildModel(cpp_code, activation_functions, layer_type, base_file_name):
+def buildModel(cpp_code, activation_functions, layer_type, base_file_name):
     """
     Generate C++ lambda-based activation functions (with no indentation for the lambdas)
     and normalization functions. ForwardPass also remains as Code 2 style.

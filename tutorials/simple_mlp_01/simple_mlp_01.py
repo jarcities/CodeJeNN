@@ -31,7 +31,6 @@ y_std = output.std(axis=0)
 input = (input - X_mean) / X_std
 output = (output - y_mean) / y_std
 
-
 #define model
 model = Sequential([
     layers.Input(shape=(INPUT_DIM,)),
