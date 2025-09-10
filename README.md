@@ -1,4 +1,14 @@
-![CodeJeNN](others/logo.png)
+<!-- 
+Distribution Statement A. Approved for public release, distribution is unlimited.
+---
+THIS SOURCE CODE IS UNDER THE CUSTODY AND ADMINISTRATION OF THE GOVERNMENT OF THE UNITED STATES OF AMERICA.
+BY USING, MODIFYING, OR DISSEMINATING THIS SOURCE CODE, YOU ACCEPT THE TERMS AND CONDITIONS IN THE NRL OPEN LICENSE AGREEMENT.
+USE, MODIFICATION, AND DISSEMINATION ARE PERMITTED ONLY IN ACCORDANCE WITH THE TERMS AND CONDITIONS OF THE NRL OPEN LICENSE AGREEMENT.
+NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DISPOSITION, OR MODIFICATION OF THIS SOURCE CODE
+MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
+-->
+
+![CodeJeNN](logo.png)
 
 <div align="center">
 
@@ -18,26 +28,22 @@ CodeJeNN is a simple neural network generator for c++ that can robustly ingest a
 CodeJeNN/
     ├── README.md
     └── tutorials/
-            └── neural_net_builder/
-            └── cnn_test_case_1
-            └── cnn_test_case_2
-            └── cnn_test_case_3
-            └── mlp_test_case_1
-            └── mlp_test_case_2
-    └── others/
-            └── archive/      
-                └── src_v1
-                └── src_v2
-                └── src_v3
-                └── src_v4
-            └── h5_file_breakdown.md
-            └── layers.md
+            └── simple_mlp_01
+            └── 1d_cnn_02
+            └── model_file_breakdown.md
+            └── supported_layers.md
     └── src/
+            └── bin/
             └── codegen/
             └── dump_model/
+            └── testing/
+            └── clean.sh
             └── generate.sh
-            └── README.md
+            └── readme.md
+    └── citation.cff
     └── license.txt
+    └── logo.png
+    └── readme.md
     └── requirements.txt
 ```
 

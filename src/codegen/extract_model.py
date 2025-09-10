@@ -686,7 +686,8 @@ def extractModel(model, file_type, base_file_name=None):
                                 raw_shape[0],
                             )
                     current_shape = raw_shape
-
+                    pool_size = pool_size[0] if isinstance(pool_size, (tuple, list)) else pool_size
+                    strides = strides[0] if isinstance(strides, (tuple, list)) else strides
                     if padding == "valid":
                         length = math.floor((in_shape[0] - pool_size) / strides) + 1
                     else:  # same
@@ -705,7 +706,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": in_shape,
                         "output_shape": new_shape,
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     current_shape = new_shape
                     weights_list.append(None)
                     biases_list.append(None)
@@ -786,7 +787,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": in_shape,
                         "output_shape": new_shape,
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     current_shape = new_shape
                     weights_list.append(None)
                     biases_list.append(None)
@@ -1464,6 +1465,12 @@ def extractModel(model, file_type, base_file_name=None):
                     padding = conv_params["padding"]
                     filters = conv_params["filters"]
 
+                    kernel_size = kernel_size[0] if isinstance(kernel_size, (tuple, list)) else kernel_size
+                    strides = strides[0] if isinstance(strides, (tuple, list)) else strides
+
+                    conv_params["kernel_size"] = kernel_size
+                    conv_params["strides"] = strides
+
                     if padding == "same":
                         out_length = math.ceil(in_length / strides)
                     elif padding == "valid":
@@ -1476,7 +1483,7 @@ def extractModel(model, file_type, base_file_name=None):
                     conv_params["in_shape"] = current_shape
                     conv_params["out_shape"] = new_shape
                     current_shape = new_shape
-                    conv_layer_params[-1] = conv_params
+                    conv_layer_params.append(conv_params)
 
                     weights_list.append(None)
                     biases_list.append(None)

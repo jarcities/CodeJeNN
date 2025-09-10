@@ -25,46 +25,35 @@ EPOCHS = 1000
 EPS = 1e-8
 
 #normalize data
-X_min = input.min(axis=(0, 1), keepdims=True)
-X_max = input.max(axis=(0, 1), keepdims=True)
+X_min = input.min(axis=0, keepdims=True)  
+X_max = input.max(axis=0, keepdims=True)  
 y_min = output.min(axis=0) + EPS
 y_max = output.max(axis=0) + EPS
 input = (input - X_min) / (X_max - X_min)
 output = (output - y_min) / (y_max - y_min)
 
 #define model
-#input
 inputs = layers.Input(shape=(INPUT_DIM, 1))
 #layer 1
-x = layers.Conv1D(filters=16, kernel_size=3, activation=None, padding='same')(inputs)
-x = layers.LeakyReLU(negative_slope=0.1)(x)
+x = layers.Conv1D(filters=32, kernel_size=5, activation='relu', padding='same')(inputs)
 x = layers.BatchNormalization()(x)
-x = layers.Dropout(0.1)(x)
+x = layers.MaxPooling1D(pool_size=2)(x)
 #layer 2
-x = layers.Conv1D(filters=32, kernel_size=3, activation='swish', padding='same')(x)
+x = layers.Conv1D(filters=64, kernel_size=5, activation='relu', padding='same')(x)
 x = layers.BatchNormalization()(x)
 x = layers.MaxPooling1D(pool_size=2)(x)
 #layer 3
-x = layers.Conv1D(filters=64, kernel_size=3, activation='mish', padding='same')(x)
+x = layers.Conv1D(filters=128, kernel_size=3, activation='relu', padding='same')(x)
 x = layers.BatchNormalization()(x)
 x = layers.MaxPooling1D(pool_size=2)(x)
-#layer 3.5 - global average pooling branch
-x_gap = layers.GlobalAveragePooling1D()(x)
-x_gap = layers.Dense(32, activation='relu')(x_gap)
-x_gap = layers.Dropout(0.2)(x_gap)
-# Continue with regular path
 #layer 4
-x = layers.Conv1D(filters=32, kernel_size=3, activation='gelu', padding='same')(x)
-x = layers.AvgPool1D(pool_size=2)(x)
+x = layers.GlobalAveragePooling1D()(x)
 #layer 5
-x_gmp = layers.GlobalMaxPooling1D()(x)
-#output layer - combine both paths
-x_combined = layers.Concatenate()([x_gap, x_gmp])
-x_combined = layers.Dense(16, activation=None)(x_combined)
-x_combined = layers.Activation('softmax')(x_combined)
-x_combined = layers.LayerNormalization()(x_combined)
-x_combined = layers.Dropout(0.1)(x_combined)
-outputs = layers.Dense(OUTPUT_DIM, activation='linear')(x_combined)
+x = layers.Dense(256, activation='relu')(x)
+x = layers.Dropout(0.3)(x)
+x = layers.Dense(128, activation='relu')(x)
+x = layers.Dropout(0.2)(x)
+outputs = layers.Dense(OUTPUT_DIM, activation='linear')(x)
 #create the model
 model = Model(inputs=inputs, outputs=outputs)
 """

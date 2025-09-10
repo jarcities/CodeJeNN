@@ -395,32 +395,38 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     ## NORMALIZE INPUT AND OUTPUTS ##
     # print input normalization/standardization parameters
     if input_scale is not None and input_shift is not None:
+        input_scale = input_scale.flatten() if hasattr(input_scale, 'flatten') else input_scale
+        input_shift = input_shift.flatten() if hasattr(input_shift, 'flatten') else input_shift
+        
         cpp_code += (
             f"    constexpr std::array<Scalar, {len(input_scale)}> input_scale = {{"
         )
-        cpp_code += ", ".join(f"{x:10.9e}" for x in input_scale)
+        cpp_code += ", ".join(f"{float(x):10.9e}" for x in input_scale)
         cpp_code += "};\n\n"
 
         cpp_code += (
             f"    constexpr std::array<Scalar, {len(input_shift)}> input_shift = {{"
         )
-        cpp_code += ", ".join(f"{x:10.9e}" for x in input_shift)
+        cpp_code += ", ".join(f"{float(x):10.9e}" for x in input_shift)
         cpp_code += "};\n\n"
 
     # print output normalization/standardization parameters
     out_norm_size = output_size
     out_size = layer_shape[len(layer_shape) - 1]
     if output_scale is not None and output_shift is not None:
+        output_scale = output_scale.flatten() if hasattr(output_scale, 'flatten') else output_scale
+        output_shift = output_shift.flatten() if hasattr(output_shift, 'flatten') else output_shift
+        
         cpp_code += (
             f"    constexpr std::array<Scalar, {len(output_scale)}> output_scale = {{"
         )
-        cpp_code += ", ".join(f"{x:10.9e}" for x in output_scale)
+        cpp_code += ", ".join(f"{float(x):10.9e}" for x in output_scale)
         cpp_code += "};\n\n"
 
         cpp_code += (
             f"    constexpr std::array<Scalar, {len(output_shift)}> output_shift = {{"
         )
-        cpp_code += ", ".join(f"{x:10.9e}" for x in output_shift)
+        cpp_code += ", ".join(f"{float(x):10.9e}" for x in output_shift)
         cpp_code += "};\n\n"
         cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
 
@@ -794,30 +800,33 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
         #############################################
         elif ltype is not None and conv_dict is not None:
 
-            # get layer input shape and output shape
-            in_shape = conv_dict.get(
-                "in_shape",
-                ("/* in_height */", "/* in_width */", "/* in_channels */"),
-            )
-            out_shape = conv_dict.get(
-                "out_shape",
-                conv_dict.get(
-                    "output_shape",
-                    ("/* out_height */", "/* out_width */", "/* out_channels */"),
-                ),
-            )
+            # get layer input shape and output shape with safe handling
+            in_shape = conv_dict.get("in_shape", None)
+            out_shape = conv_dict.get("out_shape", conv_dict.get("output_shape", None))
+            
+            # Use last_shape as fallback for input shape if needed
+            if in_shape is None:
+                in_shape = last_shape if isinstance(last_shape, tuple) else (last_shape,)
 
             # 1d convolutional layers
             if ltype == "Conv1D":
+                # Safe dimension extraction for 1D convolutions
+                input_channels = in_shape[-1] if len(in_shape) > 1 else 1
+                output_size = out_shape[-1] if out_shape and len(out_shape) > 1 else conv_dict.get('filters', 1)
+                
+                # Get normalized kernel_size and strides (should be scalars from extract_model.py)
+                kernel_size_val = conv_dict.get('kernel_size', 3)
+                strides_val = conv_dict.get('strides', 1)
+                
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, {out_shape[2]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    Conv1D_{base_file_name}<Scalar, {out_shape[2]}>(\n"
+                cpp_code += f"    static std::array<Scalar, {output_size}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    Conv1D_{base_file_name}<Scalar, {output_size}>(\n"
                 cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                 cpp_code += f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
-                cpp_code += f"        {in_shape[2]}, {conv_dict.get('kernel_size', (3,))[0]}, {conv_dict.get('strides', (1,))[0]}, 0,\n"
+                cpp_code += f"        {input_channels}, {kernel_size_val}, {strides_val}, 0,\n"
                 cpp_code += f"        {mapped_act}, {alpha});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-                last_shape = (out_shape[2],)
+                last_shape = (output_size,) if out_shape is None else out_shape
                 continue
 
             # 2d convolutional layers
@@ -938,24 +947,31 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
             # 1d transposed convolutional layers
             elif ltype == "Conv1DTranspose":
-                out_shape = conv_dict["out_shape"]
-                in_shape = conv_dict["in_shape"]
-                kernel = conv_dict.get("kernel_size", (3,))[0]
-                strides = conv_dict.get("strides", (1,))[0]
+                # Safe dimension extraction for 1D transposed convolutions
+                input_length = in_shape[0] if len(in_shape) > 0 else 1
+                input_channels = in_shape[-1] if len(in_shape) > 1 else 1
+                output_length = out_shape[0] if out_shape and len(out_shape) > 0 else 1
+                output_channels = out_shape[-1] if out_shape and len(out_shape) > 1 else 1
+                output_size = output_length * output_channels
+                
+                # Get normalized kernel_size and strides (should be scalars from extract_model.py)
+                kernel = conv_dict.get("kernel_size", 3)
+                strides = conv_dict.get("strides", 1)
                 pad = 0
                 if conv_dict.get("padding", "valid").lower() == "same":
                     pad = kernel // 2
+                    
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]})> layer_{layer_idx}_output;\n"
+                cpp_code += f"    static std::array<Scalar, {output_size}> layer_{layer_idx}_output;\n"
                 cpp_code += (
-                    f"    Conv1DTranspose_{base_file_name}<Scalar, {out_shape[1]}, {out_shape[0]}>"
+                    f"    Conv1DTranspose_{base_file_name}<Scalar, {output_channels}, {output_length}>"
                 )
                 cpp_code += "(layer_{0}_output.data(), {1}.data(), convKernel_{0}.data(), convBias_{0}.data(),".format(
                     layer_idx, last_layer
                 )
-                cpp_code += f"{in_shape[1]}, {in_shape[0]}, {kernel}, {strides}, {pad}, {mapped_act}, {alpha});\n\n"
+                cpp_code += f"{input_channels}, {input_length}, {kernel}, {strides}, {pad}, {mapped_act}, {alpha});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-                last_shape = (out_shape[0], out_shape[1])
+                last_shape = (output_length, output_channels) if out_shape else (output_length, output_channels)
                 continue
 
             # 2d transposed convolutional layers
@@ -1040,14 +1056,19 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
             # 1d max pooling layers
             elif ltype == "MaxPooling1D":
+                # Safe dimension extraction for 1D pooling
+                input_length = in_shape[0] if len(in_shape) > 0 else 1
+                input_channels = in_shape[-1] if len(in_shape) > 1 else 1
+                output_size = out_shape[0] * out_shape[-1] if out_shape and len(out_shape) > 1 else input_channels
+                
                 pool_size = conv_dict.get("pool_size", 2)
                 strides = conv_dict.get("strides", pool_size)
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]})> layer_{layer_idx}_output;\n"
+                cpp_code += f"    static std::array<Scalar, {output_size}> layer_{layer_idx}_output;\n"
                 cpp_code += f"    MaxPooling1D_{base_file_name}<Scalar, {pool_size}, {strides}>(\n"
-                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]});\n\n"
+                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_length}, {input_channels});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-                last_shape = out_shape
+                last_shape = out_shape if out_shape else (output_size // input_channels, input_channels)
                 continue
 
             # 2d max pooling layers
@@ -1076,14 +1097,19 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
             # 1d average pooling layers
             elif ltype == "AvgPooling1D":
+                # Safe dimension extraction for 1D average pooling
+                input_length = in_shape[0] if len(in_shape) > 0 else 1
+                input_channels = in_shape[-1] if len(in_shape) > 1 else 1
+                output_size = out_shape[0] * out_shape[-1] if out_shape and len(out_shape) > 1 else input_channels
+                
                 pool_size = conv_dict.get("pool_size", 2)
                 strides = conv_dict.get("strides", pool_size)
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]})> layer_{layer_idx}_output;\n"
+                cpp_code += f"    static std::array<Scalar, {output_size}> layer_{layer_idx}_output;\n"
                 cpp_code += f"    AvgPooling1D_{base_file_name}<Scalar, {pool_size}, {strides}>(\n"
-                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]});\n\n"
+                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_length}, {input_channels});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-                last_shape = out_shape
+                last_shape = out_shape if out_shape else (output_size // input_channels, input_channels)
                 continue
 
             # 2d average pooling layers
@@ -1112,52 +1138,76 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
             # 1d global max pooling layers
             elif ltype == "GlobalMaxPooling1D":
+                # Safe dimension extraction for 1D global max pooling
+                input_length = in_shape[0] if len(in_shape) > 0 else 1
+                input_channels = in_shape[-1] if len(in_shape) > 1 else 1
+                
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, {in_shape[1]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GlobalMaxPooling1D_{base_file_name}(\n"
-                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]});\n\n"
+                cpp_code += f"    static std::array<Scalar, {input_channels}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    GlobalMaxPooling1D_{base_file_name}<Scalar, {input_length}, {input_channels}>(\n"
+                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_length}, {input_channels});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-                last_shape = (in_shape[1],)
+                last_shape = (input_channels,)
                 continue
 
             # 2d global max pooling layers
             elif ltype == "GlobalMaxPooling2D":
+                # Safe dimension extraction for 2D global max pooling
+                input_height = in_shape[0] if len(in_shape) > 0 else 1
+                input_width = in_shape[1] if len(in_shape) > 1 else 1
+                input_channels = in_shape[2] if len(in_shape) > 2 else 1
+                
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, {in_shape[2]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GlobalMaxPooling2D_{base_file_name}(\n"
-                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
+                cpp_code += f"    static std::array<Scalar, {input_channels}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    GlobalMaxPooling2D_{base_file_name}<Scalar, {input_height}, {input_width}, {input_channels}>(\n"
+                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_height}, {input_width}, {input_channels});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-                last_shape = (in_shape[2],)
+                last_shape = (input_channels,)
                 continue
 
             # 1d global average pooling layers
             elif ltype == "GlobalAvgPooling1D":
+                # Safe dimension extraction for 1D global average pooling
+                input_length = in_shape[0] if len(in_shape) > 0 else 1
+                input_channels = in_shape[-1] if len(in_shape) > 1 else 1
+                
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, {in_shape[1]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GlobalAvgPooling1D_{base_file_name}(\n"
-                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]});\n\n"
+                cpp_code += f"    static std::array<Scalar, {input_channels}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    GlobalAvgPooling1D_{base_file_name}<Scalar, {input_length}, {input_channels}>(\n"
+                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_length}, {input_channels});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-                last_shape = (in_shape[1],)
+                last_shape = (input_channels,)
                 continue
 
             # 2d global average pooling layers
             elif ltype == "GlobalAveragePooling2D":
+                # Safe dimension extraction for 2D global average pooling
+                input_height = in_shape[0] if len(in_shape) > 0 else 1
+                input_width = in_shape[1] if len(in_shape) > 1 else 1
+                input_channels = in_shape[2] if len(in_shape) > 2 else 1
+                
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, {in_shape[2]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GlobalAvgPooling2D_{base_file_name}(\n"
-                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
+                cpp_code += f"    static std::array<Scalar, {input_channels}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    GlobalAvgPooling2D_{base_file_name}<Scalar, {input_height}, {input_width}, {input_channels}>(\n"
+                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_height}, {input_width}, {input_channels});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-                last_shape = (in_shape[2],)
+                last_shape = (input_channels,)
                 continue
 
             # 3d global average pooling layers
             elif ltype == "GlobalAvgPooling3D":
+                # Safe dimension extraction for 3D global average pooling
+                input_depth = in_shape[0] if len(in_shape) > 0 else 1
+                input_height = in_shape[1] if len(in_shape) > 1 else 1
+                input_width = in_shape[2] if len(in_shape) > 2 else 1
+                input_channels = in_shape[3] if len(in_shape) > 3 else 1
+                
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, {in_shape[3]}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GlobalAvgPooling3D_{base_file_name}(\n"
-                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {in_shape[3]});\n\n"
+                cpp_code += f"    static std::array<Scalar, {input_channels}> layer_{layer_idx}_output;\n"
+                cpp_code += f"    GlobalAvgPooling3D_{base_file_name}<Scalar, {input_depth}, {input_height}, {input_width}, {input_channels}>(\n"
+                cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_depth}, {input_height}, {input_width}, {input_channels});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-                last_shape = (in_shape[3],)
+                last_shape = (input_channels,)
                 continue
 
 

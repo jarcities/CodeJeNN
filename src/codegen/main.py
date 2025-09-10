@@ -103,7 +103,7 @@ else:
                     )
                     # model.summary()
                 except ValueError as e:
-                    print("\nError in loading model:", e)
+                    print(f"\n-> {file_name} is not a .keras, .h5, or a .npy file (skipping).")
                     continue
 
                 #################################
@@ -181,8 +181,10 @@ else:
                 print()
                 with open(f"{save_path}.hpp", "w") as f:
                     f.write(cpp_code)
-                print("Saved model in ", save_path)
+                print(f"Saved {file_name} model in {save_path}")
 
             except ValueError as e:
                 print(f"\nERROR: '{file_name}' is not readable (skipping): {e}  - -\n")
                 continue
+
+print("\nAll done!\n")
