@@ -152,7 +152,6 @@ def extractModel(model, file_type, base_file_name=None):
                 layer_input_shape = layer.input_shape
             except AttributeError:
                 layer_input_shape = current_shape
-            conv_layer_params.append(None)
             config = layer.get_config()
             layer_weights = layer.get_weights()
             activation = getActivation(layer, config)
@@ -271,7 +270,7 @@ def extractModel(model, file_type, base_file_name=None):
 
                     activation_functions.append(act_name)
                     activation_configs.append(act_params)
-
+                    conv_layer_params.append(None)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -305,6 +304,7 @@ def extractModel(model, file_type, base_file_name=None):
                     offset = np.array(raw_offset, dtype=float).flatten().tolist()
 
                     norm_layer_params.append((scale, offset))
+                    conv_layer_params.append(None)
                     weights_list.append(None)
                     biases_list.append(None)
                     activation_functions.append(None)
@@ -328,6 +328,7 @@ def extractModel(model, file_type, base_file_name=None):
                 try:
                     w, b = layer_weights
 
+                    conv_layer_params.append(None)
                     weights_list.append(w)
                     biases_list.append(b)
                     norm_layer_params.append(None)
@@ -356,6 +357,7 @@ def extractModel(model, file_type, base_file_name=None):
                 try:
                     dropout_rate = config.get("rate", 0.0)
                     activation_functions.append(None)
+                    conv_layer_params.append(None)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -379,6 +381,7 @@ def extractModel(model, file_type, base_file_name=None):
                 try:
                     dropout_rate = config.get("rate", 0.0)
                     activation_functions.append(None)
+                    conv_layer_params.append(None)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -402,6 +405,7 @@ def extractModel(model, file_type, base_file_name=None):
                 try:
                     dropout_rate = config.get("rate", 0.0)
                     activation_functions.append(None)
+                    conv_layer_params.append(None)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -425,6 +429,7 @@ def extractModel(model, file_type, base_file_name=None):
                 try:
                     dropout_rate = config.get("rate", 0.0)
                     activation_functions.append(None)
+                    conv_layer_params.append(None)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -462,6 +467,7 @@ def extractModel(model, file_type, base_file_name=None):
                     else:
                         new_shape = layer_weights[0].shape
 
+                    conv_layer_params.append(None)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -487,6 +493,7 @@ def extractModel(model, file_type, base_file_name=None):
             ):
                 try:
                     activation_functions.append("flatten")
+                    conv_layer_params.append(None)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -530,6 +537,7 @@ def extractModel(model, file_type, base_file_name=None):
                                 1,
                             )
                         )
+                        conv_layer_params.append(None)
                         weights_list.append(None)
                         biases_list.append(None)
                         activation_functions.append(None)
@@ -537,6 +545,7 @@ def extractModel(model, file_type, base_file_name=None):
                         dropout_rates.append(0.0)
                         layer_type.append(norm_type)
                     else:
+                        conv_layer_params.append(None)
                         norm_layer_params.append(None)
                         activation_functions.append(None)
                         layer_shape.append(0)
@@ -566,6 +575,7 @@ def extractModel(model, file_type, base_file_name=None):
                         norm_layer_params.append((gamma, beta, None, None, epsilon))
                         layer_shape.append((gamma.shape, beta.shape, 1))
                         activation_functions.append(None)
+                        conv_layer_params.append(None)
                         weights_list.append(None)
                         biases_list.append(None)
                         alphas.append(alpha_value)
@@ -573,6 +583,7 @@ def extractModel(model, file_type, base_file_name=None):
                         layer_type.append(norm_type)
                     else:
                         norm_layer_params.append(None)
+                        conv_layer_params.append(None)
                         activation_functions.append(None)
                         layer_shape.append(0)
                         layer_type.append(None)
@@ -591,11 +602,11 @@ def extractModel(model, file_type, base_file_name=None):
                 or "unitnormalization" in layer.name.lower()
             ):
                 try:
-                    conv_layer_params.append(None)
                     epsilon = config.get("epsilon", 1e-5)
                     norm_layer_params.append((None, None, None, None, epsilon))
                     layer_shape.append(None)
                     activation_functions.append(None)
+                    conv_layer_params.append(None)
                     weights_list.append(None)
                     biases_list.append(None)
                     alphas.append(0.0)
@@ -629,6 +640,7 @@ def extractModel(model, file_type, base_file_name=None):
                         )
                         layer_shape.append((gamma.shape, beta.shape, 1, groups))
                         activation_functions.append(None)
+                        conv_layer_params.append(None)
                         weights_list.append(None)
                         biases_list.append(None)
                         alphas.append(alpha_value)
@@ -637,6 +649,7 @@ def extractModel(model, file_type, base_file_name=None):
                     else:
                         norm_layer_params.append(None)
                         activation_functions.append(None)
+                        conv_layer_params.append(None)
                         layer_shape.append(0)
                         layer_type.append(None)
                         alphas.append(alpha_value)
@@ -866,7 +879,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": in_shape,
                         "output_shape": new_shape,
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     current_shape = new_shape
 
                     weights_list.append(None)
@@ -939,7 +952,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": in_shape,
                         "output_shape": new_shape,
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     current_shape = new_shape
                     weights_list.append(None)
                     biases_list.append(None)
@@ -1015,7 +1028,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": in_shape,
                         "output_shape": new_shape,
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     current_shape = new_shape
                     weights_list.append(None)
                     biases_list.append(None)
@@ -1099,7 +1112,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": in_shape,
                         "output_shape": new_shape,
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     current_shape = new_shape
 
                     weights_list.append(None)
@@ -1129,7 +1142,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": current_shape,
                         "out_shape": (current_shape[0],),
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -1157,7 +1170,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": current_shape,
                         "out_shape": (current_shape[0], current_shape[1]),
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -1189,7 +1202,7 @@ def extractModel(model, file_type, base_file_name=None):
                             current_shape[2],
                         ),
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -1219,7 +1232,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": current_shape,
                         "out_shape": (current_shape[0],),
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -1247,7 +1260,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": current_shape,
                         "out_shape": (current_shape[2],),
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -1275,7 +1288,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "in_shape": current_shape,
                         "out_shape": (current_shape[3],),
                     }
-                    conv_layer_params[-1] = pool_params
+                    conv_layer_params.append(pool_params)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -1341,7 +1354,7 @@ def extractModel(model, file_type, base_file_name=None):
                     conv_params["in_shape"] = current_shape
                     conv_params["out_shape"] = new_shape
                     current_shape = new_shape
-                    conv_layer_params[-1] = conv_params
+                    conv_layer_params.append(conv_params)
                     weights_list.append(None)
                     biases_list.append(None)
                     alphas.append(alpha_value)
@@ -1412,7 +1425,7 @@ def extractModel(model, file_type, base_file_name=None):
                     conv_params["in_shape"] = current_shape
                     conv_params["out_shape"] = new_shape
                     current_shape = new_shape
-                    conv_layer_params[-1] = conv_params
+                    conv_layer_params.append(conv_params)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -1457,6 +1470,8 @@ def extractModel(model, file_type, base_file_name=None):
                         "padding": config.get("padding", None),
                         "dilation_rate": config.get("dilation_rate", None),
                         "use_bias": use_bias,
+                        "in_shape": None,
+                        "out_shape": None
                     }
 
                     in_length = current_shape[0]
@@ -1484,7 +1499,6 @@ def extractModel(model, file_type, base_file_name=None):
                     conv_params["out_shape"] = new_shape
                     current_shape = new_shape
                     conv_layer_params.append(conv_params)
-
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -1565,7 +1579,7 @@ def extractModel(model, file_type, base_file_name=None):
                     conv_params["in_shape"] = current_shape
                     conv_params["out_shape"] = new_shape
                     current_shape = new_shape
-                    conv_layer_params[-1] = conv_params
+                    conv_layer_params.append(conv_params)
 
                     weights_list.append(None)
                     biases_list.append(None)
@@ -1636,7 +1650,7 @@ def extractModel(model, file_type, base_file_name=None):
                     conv_params["in_shape"] = current_shape
                     conv_params["out_shape"] = new_shape
                     current_shape = new_shape
-                    conv_layer_params[-1] = conv_params
+                    conv_layer_params.append(conv_params)
 
                     weights_list.append(None)
                     biases_list.append(None)
@@ -1765,7 +1779,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "out_shape": new_shape,
                     }
                     current_shape = new_shape
-                    conv_layer_params[-1] = conv_params
+                    conv_layer_params.append(conv_params)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
@@ -1847,7 +1861,7 @@ def extractModel(model, file_type, base_file_name=None):
                     conv_params["in_shape"] = in_shape
                     conv_params["out_shape"] = new_shape
                     current_shape = new_shape
-                    conv_layer_params[-1] = conv_params
+                    conv_layer_params.append(conv_params)
 
                     weights_list.append(None)
                     biases_list.append(None)
@@ -1913,7 +1927,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "out_shape": new_shape,
                     }
                     current_shape = new_shape
-                    conv_layer_params[-1] = conv_params
+                    conv_layer_params.append(conv_params)
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
