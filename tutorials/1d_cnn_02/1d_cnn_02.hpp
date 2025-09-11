@@ -15,6 +15,54 @@
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
 
 
+template <typename Scalar, int pool_size, int stride>
+inline void MaxPooling1D_1d_cnn_02(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels) noexcept
+{
+    int out_length = (in_length - pool_size) / stride + 1;
+    for (int c = 0; c < channels; ++c)
+    {
+        for (int o = 0; o < out_length; ++o)
+        {
+            Scalar max_val = inputs[(o * stride * channels) + c];
+            
+            for (int p = 0; p < pool_size; ++p)
+            {
+                int idx = ((o * stride + p) * channels) + c;
+                if (inputs[idx] > max_val)
+                {
+                    max_val = inputs[idx];
+                }
+            }
+            outputs[o * channels + c] = max_val;
+        }
+    }
+}
+
+template <typename Scalar>
+inline void GlobalAvgPooling1D_1d_cnn_02(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels)
+{
+    for (int ic = 0, ic < channels, ic++)
+    {
+        
+        for (int i = 0, i < in_length, i++)
+        {
+            int idx = (i * channels) + (channels) + c;
+            sum += inputs[idx];
+        }
+        output[c] = sum / (length);
+    }
+}
+
+template <typename Scalar, int size>
+inline void BatchNormalization_1d_cnn_02(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict gamma, const Scalar * __restrict beta, const Scalar * __restrict mean, const Scalar * __restrict variance, const Scalar epsilon) noexcept
+{
+    
+    for (int i = 0; i < size; ++i)
+    {
+        outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
+    }
+}
+
 template <typename Scalar, int out_size, typename ActFun>
 inline void Conv1D_1d_cnn_02(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases,
                    int in_size, int kernel_size, int stride, int padding,
@@ -52,54 +100,6 @@ inline void Dense_1d_cnn_02(Scalar* __restrict outputs, const Scalar* __restrict
     }
 }
 
-template <typename Scalar>
-inline void GlobalAvgPooling1D_1d_cnn_02(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels)
-{
-    for (int ic = 0, ic < channels, ic++)
-    {
-        
-        for (int i = 0, i < in_length, i++)
-        {
-            int idx = (i * channels) + (channels) + c;
-            sum += inputs[idx];
-        }
-        output[c] = sum / (length);
-    }
-}
-
-template <typename Scalar, int pool_size, int stride>
-inline void MaxPooling1D_1d_cnn_02(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels) noexcept
-{
-    int out_length = (in_length - pool_size) / stride + 1;
-    for (int c = 0; c < channels; ++c)
-    {
-        for (int o = 0; o < out_length; ++o)
-        {
-            Scalar max_val = inputs[(o * stride * channels) + c];
-            
-            for (int p = 0; p < pool_size; ++p)
-            {
-                int idx = ((o * stride + p) * channels) + c;
-                if (inputs[idx] > max_val)
-                {
-                    max_val = inputs[idx];
-                }
-            }
-            outputs[o * channels + c] = max_val;
-        }
-    }
-}
-
-template <typename Scalar, int size>
-inline void BatchNormalization_1d_cnn_02(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict gamma, const Scalar * __restrict beta, const Scalar * __restrict mean, const Scalar * __restrict variance, const Scalar epsilon) noexcept
-{
-    
-    for (int i = 0; i < size; ++i)
-    {
-        outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
-    }
-}
-
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
 
 
@@ -118,7 +118,6 @@ inline auto 1d_cnn_02(const std::array<Scalar, 100>& initial_input) {
     constexpr Scalar epsilon_2 = 1.000000000e-03;
 
     // Layer 3: MaxPooling1D
-    // MaxPooling1D layer parameters for layer 3
     constexpr std::array<int, 1> poolSize_3 = {2};
     constexpr std::array<int, 1> poolStrides_3 = {2};
     constexpr const char* poolPadding_3 = "valid";
@@ -135,7 +134,6 @@ inline auto 1d_cnn_02(const std::array<Scalar, 100>& initial_input) {
     constexpr Scalar epsilon_5 = 1.000000000e-03;
 
     // Layer 6: MaxPooling1D
-    // MaxPooling1D layer parameters for layer 6
     constexpr std::array<int, 1> poolSize_6 = {2};
     constexpr std::array<int, 1> poolStrides_6 = {2};
     constexpr const char* poolPadding_6 = "valid";
@@ -152,7 +150,6 @@ inline auto 1d_cnn_02(const std::array<Scalar, 100>& initial_input) {
     constexpr Scalar epsilon_8 = 1.000000000e-03;
 
     // Layer 9: MaxPooling1D
-    // MaxPooling1D layer parameters for layer 9
     constexpr std::array<int, 1> poolSize_9 = {2};
     constexpr std::array<int, 1> poolStrides_9 = {2};
     constexpr const char* poolPadding_9 = "valid";
@@ -185,14 +182,14 @@ inline auto 1d_cnn_02(const std::array<Scalar, 100>& initial_input) {
 //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\// 
 
 
-    auto linear = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
-    {
-        output = input;
-    };
-
     auto relu = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
     {
         output = input > 0 ? input : 0;
+    };
+
+    auto linear = +[](Scalar& output, Scalar input, Scalar alpha) noexcept 
+    {
+        output = input;
     };
 
 

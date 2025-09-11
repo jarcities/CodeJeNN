@@ -1137,19 +1137,21 @@ def extractModel(model, file_type, base_file_name=None):
                 or "globalmaxpooling1d" in layer.name.lower()
             ):
                 try:
+                    out_shape = (current_shape[-1],)
                     pool_params = {
                         "layer_type": "GlobalMaxPooling1D",
                         "in_shape": current_shape,
-                        "out_shape": (current_shape[0],),
+                        "out_shape": out_shape,
                     }
                     conv_layer_params.append(pool_params)
+                    current_shape = out_shape
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
                     alphas.append(alpha_value)
                     dropout_rates.append(0.0)
-                    layer_shape.append((current_shape[0],))
+                    layer_shape.append(out_shape)
                     layer_type.append("GlobalMaxPooling1D")
                     continue
                 except ValueError as e:
@@ -1165,19 +1167,21 @@ def extractModel(model, file_type, base_file_name=None):
                 or "globalmaxpooling2d" in layer.name.lower()
             ):
                 try:
+                    out_shape = (current_shape[-1],)
                     pool_params = {
                         "layer_type": "GlobalMaxPooling2D",
                         "in_shape": current_shape,
-                        "out_shape": (current_shape[0], current_shape[1]),
+                        "out_shape": out_shape,
                     }
                     conv_layer_params.append(pool_params)
+                    current_shape = out_shape
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
                     alphas.append(alpha_value)
                     dropout_rates.append(0.0)
-                    layer_shape.append((current_shape[0], current_shape[1]))
+                    layer_shape.append(out_shape)
                     layer_type.append("GlobalMaxPooling2D")
                     continue
                 except ValueError as e:
@@ -1193,25 +1197,21 @@ def extractModel(model, file_type, base_file_name=None):
                 or "globalmaxpooling3d" in layer.name.lower()
             ):
                 try:
+                    out_shape = (current_shape[-1],)
                     pool_params = {
                         "layer_type": "GlobalMaxPooling3D",
                         "in_shape": current_shape,
-                        "out_shape": (
-                            current_shape[0],
-                            current_shape[1],
-                            current_shape[2],
-                        ),
+                        "out_shape": out_shape,
                     }
                     conv_layer_params.append(pool_params)
+                    current_shape = out_shape
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
                     alphas.append(alpha_value)
                     dropout_rates.append(0.0)
-                    layer_shape.append(
-                        (current_shape[0], current_shape[1], current_shape[2])
-                    )
+                    layer_shape.append(out_shape)
                     layer_type.append("GlobalMaxPooling3D")
                     continue
                 except ValueError as e:
@@ -1227,19 +1227,21 @@ def extractModel(model, file_type, base_file_name=None):
                 or "globalaveragepooling1d" in layer.name.lower()
             ):
                 try:
+                    out_shape = (current_shape[-1],)
                     pool_params = {
                         "layer_type": "GlobalAveragePooling1D",
                         "in_shape": current_shape,
-                        "out_shape": (current_shape[0],),
+                        "out_shape": out_shape,
                     }
                     conv_layer_params.append(pool_params)
+                    current_shape = out_shape
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
                     alphas.append(alpha_value)
                     dropout_rates.append(0.0)
-                    layer_shape.append((current_shape[0],))
+                    layer_shape.append(out_shape)
                     layer_type.append("GlobalAvgPooling1D")
                     continue
                 except ValueError as e:
@@ -1255,19 +1257,21 @@ def extractModel(model, file_type, base_file_name=None):
                 or "globalaveragepooling2d" in layer.name.lower()
             ):
                 try:
+                    out_shape = (current_shape[2],)
                     pool_params = {
                         "layer_type": "GlobalAveragePooling2D",
                         "in_shape": current_shape,
-                        "out_shape": (current_shape[2],),
+                        "out_shape": out_shape,
                     }
                     conv_layer_params.append(pool_params)
+                    current_shape = out_shape
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
                     alphas.append(alpha_value)
                     dropout_rates.append(0.0)
-                    layer_shape.append((current_shape[2],))
+                    layer_shape.append(out_shape)
                     layer_type.append("GlobalAvgPooling2D")
                     continue
                 except ValueError as e:
@@ -1283,19 +1287,21 @@ def extractModel(model, file_type, base_file_name=None):
                 or "globalaveragepooling3d" in layer.name.lower()
             ):
                 try:
+                    out_shape = (current_shape[3],)
                     pool_params = {
                         "layer_type": "GlobalAveragePooling3D",
                         "in_shape": current_shape,
-                        "out_shape": (current_shape[3],),
+                        "out_shape": out_shape,
                     }
                     conv_layer_params.append(pool_params)
+                    current_shape = out_shape
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
                     activation_functions.append(None)
                     alphas.append(alpha_value)
                     dropout_rates.append(0.0)
-                    layer_shape.append((current_shape[3],))
+                    layer_shape.append(out_shape)
                     layer_type.append("GlobalAvgPooling3D")
                     continue
                 except ValueError as e:

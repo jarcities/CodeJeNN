@@ -349,7 +349,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 pool_size = conv_dict.get("pool_size", 2)
                 strides = conv_dict.get("strides", pool_size)
                 padding = conv_dict.get("padding", "valid")
-                cpp_code += f"    // {ltype} layer parameters for layer {layer_idx}\n"
                 cpp_code += f"    constexpr std::array<int, 1> poolSize_{layer_idx} = {{{pool_size}}};\n"
                 cpp_code += f"    constexpr std::array<int, 1> poolStrides_{layer_idx} = {{{strides}}};\n"
                 cpp_code += f'    constexpr const char* poolPadding_{layer_idx} = "{padding}";\n\n'
@@ -358,7 +357,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 pool_size = conv_dict.get("pool_size", (2, 2))
                 strides = conv_dict.get("strides", pool_size)
                 padding = conv_dict.get("padding", "valid")
-                cpp_code += f"    // {ltype} layer parameters for layer {layer_idx}\n"
                 cpp_code += f"    constexpr std::array<int, 2> poolSize_{layer_idx} = {{{pool_size[0]}, {pool_size[1]}}};\n"
                 cpp_code += f"    constexpr std::array<int, 2> poolStrides_{layer_idx} = {{{strides[0]}, {strides[1]}}};\n"
                 cpp_code += f'    constexpr const char* poolPadding_{layer_idx} = "{padding}";\n\n'
@@ -367,24 +365,21 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 pool_size = conv_dict.get("pool_size", (2, 2, 2))
                 strides = conv_dict.get("strides", pool_size)
                 padding = conv_dict.get("padding", "valid")
-                cpp_code += f"    // {ltype} layer parameters for layer {layer_idx}\n"
                 cpp_code += f"    constexpr std::array<int, 3> poolSize_{layer_idx} = {{{pool_size[0]}, {pool_size[1]}, {pool_size[2]}}};\n"
                 cpp_code += f"    constexpr std::array<int, 3> poolStrides_{layer_idx} = {{{strides[0]}, {strides[1]}, {strides[2]}}};\n"
                 cpp_code += f'    constexpr const char* poolPadding_{layer_idx} = "{padding}";\n\n'
 
             elif ltype in ["GlobalMaxPooling1D", "GlobalAvgPooling1D"]:
                 in_shape = conv_dict["in_shape"]
-                cpp_code += f"    // {ltype} layer parameters for layer {layer_idx}\n"
+                print(in_shape)
                 cpp_code += f"    constexpr std::array<int, 1> poolSize_{layer_idx} = {{{in_shape[0]}}};\n\n"
 
             elif ltype in ["GlobalMaxPooling2D", "GlobalAvgPooling2D"]:
                 in_shape = conv_dict["in_shape"]
-                cpp_code += f"    // {ltype} layer parameters for layer {layer_idx}\n"
                 cpp_code += f"    constexpr std::array<int, 2> poolSize_{layer_idx} = {{{in_shape[0]}, {in_shape[1]}}};\n\n"
 
             elif ltype in ["GlobalMaxPooling3D", "GlobalAvgPooling3D"]:
                 in_shape = conv_dict["in_shape"]
-                cpp_code += f"    // {ltype} layer parameters for layer {layer_idx}\n"
                 cpp_code += f"    constexpr std::array<int, 3> poolSize_{layer_idx} = "
                 cpp_code += f"{{{in_shape[0]}, {in_shape[1]}, {in_shape[2]}}};\n\n"
 
@@ -795,9 +790,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 last_shape = (out_size,)
             continue
     
-        #############################################
-        ## CONVOLUTIONAL LAYERS AND POOLING LAYERS ##
-        #############################################
+        ##########################
+        ## CONVOLUTIONAL LAYERS ##
+        ##########################
         elif ltype is not None and conv_dict is not None:
 
             # get layer input shape and output shape with safe handling
@@ -1054,6 +1049,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             # -------------------------------------------------------------------------------------------
             #############################################################################################
 
+            ####################
+            ## POOLING LAYERS ##
+            ####################
             # 1d max pooling layers
             elif ltype == "MaxPooling1D":
                 # Safe dimension extraction for 1D pooling

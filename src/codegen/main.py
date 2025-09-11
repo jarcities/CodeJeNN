@@ -124,10 +124,10 @@ else:
                         layer_shape,
                         layer_type,
                     ) = extractModel(model, file_extension, base_file_name)
-                    print(layer_type)
-                    print(activation_functions)
-                    for i, (lt, cdict) in enumerate(zip(layer_type, conv_layer_params), start=1):
-                        print(i, lt, "has_conv_dict=" + str(cdict is not None))
+                    # print(layer_type)
+                    # print(activation_functions)
+                    # for i, (lt, cdict) in enumerate(zip(layer_type, conv_layer_params), start=1):
+                    #     print(i, lt, "has_conv_dict=" + str(cdict is not None))
                 except ValueError as e:
                     print("\nError in extracting model:", e)
                     continue
