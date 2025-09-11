@@ -1275,15 +1275,16 @@ inline void GlobalMaxPooling3D_{base_file_name}(Scalar * __restrict outputs, con
 template <typename Scalar>
 inline void GlobalAvgPooling1D_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs, int in_length, int channels)
 {{
-    for (int ic = 0, ic < channels, ic++)
+    for (int ic = 0; ic < channels; ic++)
     {{
-        
-        for (int i = 0, i < in_length, i++)
+        Scalar sum = 0;
+
+        for (int i = 0; i < in_length; i++)
         {{
-            int idx = (i * channels) + (channels) + c;
+            int idx = (i * channels) + ic;
             sum += inputs[idx];
         }}
-        output[c] = sum / (length);
+        outputs[ic] = sum / (in_length);
     }}
 }}
 """,

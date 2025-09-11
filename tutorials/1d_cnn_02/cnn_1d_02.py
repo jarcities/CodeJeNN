@@ -12,7 +12,7 @@ from sklearn.preprocessing import MinMaxScaler
 import os
 
 #parameters
-FILE = '1d_cnn_02'
+FILE = 'cnn_1d_02'
 np.random.seed(1)
 NUM_SAMPLES = 10000 #10,000
 INPUT_DIM = 100  
