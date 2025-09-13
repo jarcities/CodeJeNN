@@ -142,21 +142,17 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
     };
 """,
         "softmax": """
-    auto softmax = +[](Scalar * __restrict outputs, Scalar * __restrict inputs, int size) noexcept 
+    auto softmax = +[](const Scalar* __restrict inputs, Scalar* __restrict outputs, int size) noexcept
     {
-        Scalar max_val = *std::max_element(input, input + size);
+        const Scalar max_val = *std::max_element(inputs, inputs + size);
         Scalar sum = 0;
-        
-        for (int i = 0; i < size; ++i)
-        {
-            const Scalar exp_val = std::exp(input[i] - max_val);
-            output[i] = exp_val;
-            sum += exp_val;
+        for (int i = 0; i < size; ++i) {
+            const Scalar e = std::exp(inputs[i] - max_val);
+            outputs[i] = e;
+            sum += e;
         }
-        
-        for (int i = 0; i < size; ++i)
-        {
-            output[i] /= sum;
+        for (int i = 0; i < size; ++i) {
+            outputs[i] /= sum;
         }
     };
 """,
@@ -381,26 +377,36 @@ inline void GroupNormalization2D_{base_file_name}(Scalar * __restrict outputs, c
     # convolution functions
     convolution_functions = {
         "Conv1D": f"""
-template <typename Scalar, int out_size, typename ActFun>
-inline void Conv1D_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases,
-                   int in_size, int kernel_size, int stride, int padding,
-                   ActFun activation_function, Scalar alpha) noexcept
+template <typename Scalar, int out_channels, int out_length, typename ActFun>
+inline void Conv1D_{base_file_name}(
+    Scalar* __restrict outputs,
+    const Scalar* __restrict inputs,
+    const Scalar* __restrict weights,
+    const Scalar* __restrict biases,
+    int in_channels, int in_length,
+    int kernel_width, int stride, int padding,
+    ActFun activation_function, Scalar alpha) noexcept
 {{
-    for (int o = 0; o < out_size; ++o)
+    for (int ow = 0; ow < out_length; ++ow) 
     {{
-        Scalar sum = 0;
-        
-        for (int k = 0; k < kernel_size; ++k)
+        const int in_center = ow * stride - padding;
+        for (int oc = 0; oc < out_channels; ++oc) 
         {{
-            int in_index = o * stride - padding + k;
-            if (in_index >= 0 && in_index < in_size)
+            Scalar sum = biases ? biases[oc] : Scalar(0);
+            for (int ic = 0; ic < in_channels; ++ic) 
             {{
-                int weight_index = k * out_size + o;
-                sum += inputs[in_index] * weights[weight_index];
+                for (int k = 0; k < kernel_width; ++k) 
+                {{
+                    const int iw = in_center + k;
+                    if (iw < 0 || iw >= in_length) continue;
+                    // weight layout: [k, ic, oc]
+                    const int w_idx = ((k * in_channels) + ic) * out_channels + oc;
+                    const int in_idx = iw * in_channels + ic;
+                    sum += inputs[in_idx] * weights[w_idx];
+                }}
             }}
+            activation_function(outputs[ow * out_channels + oc], sum, alpha);
         }}
-        sum += biases[o];
-        activation_function(outputs[o], sum, alpha);
     }}
 }}
 """,
@@ -1011,7 +1017,7 @@ inline void ConvLSTM2D_{base_file_name}(Scalar* __restrict outputs,
             }}
         }}
 
-        // --- Activation + state update + write output ---
+        // --- Activation + state update + write outputs ---
         for (int idx = 0; idx < filters * spatial_size; ++idx) {{
             recurrent_activation_function(i_gate[idx], i_gate[idx], alpha);
             recurrent_activation_function(f_gate[idx], f_gate[idx], alpha);
@@ -1218,7 +1224,7 @@ inline void GlobalMaxPooling1D_{base_file_name}(Scalar * __restrict outputs, con
                 max_val = inputs[idx];
             }}
         }}
-        output[c] = max_val;
+        outputs[c] = max_val;
     }}
 }}
 """,
@@ -1241,7 +1247,7 @@ inline void GlobalMaxPooling2D_{base_file_name}(Scalar * __restrict outputs, con
                 }}
             }}
         }}
-        output[c] = max_val;
+        outputs[c] = max_val;
     }}
 }}
 """,
@@ -1267,7 +1273,7 @@ inline void GlobalMaxPooling3D_{base_file_name}(Scalar * __restrict outputs, con
                 }}
             }}
         }}
-        output[c] = max_val;
+        outputs[c] = max_val;
     }}
 }}
 """,
@@ -1305,7 +1311,7 @@ inline void GlobalAvgPooling2D_{base_file_name}(Scalar * __restrict outputs, con
                 sum += inputs[idx];
             }}
         }}
-        output[c] = sum / (in_height * in_width);
+        outputs[c] = sum / (in_height * in_width);
     }}
 }}
 """,
@@ -1328,7 +1334,7 @@ inline void GlobalAvgPooling3D_{base_file_name}(Scalar * __restrict outputs, con
                 }}
             }}
         }}
-        output[c] = sum / (in_depth * in_height * in_width);
+        outputs[c] = sum / (in_depth * in_height * in_width);
     }}
 }}
 """,

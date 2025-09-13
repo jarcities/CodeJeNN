@@ -276,7 +276,8 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(alpha_value)
                     dropout_rates.append(0.0)
-                    layer_shape.append(0)
+                    # layer_shape.append(0)
+                    layer_shape.append(current_shape)
                     layer_type.append("Activation")
                     continue
                 except ValueError as e:
@@ -310,7 +311,8 @@ def extractModel(model, file_type, base_file_name=None):
                     activation_functions.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(0.0)
-                    layer_shape.append(len(scale))
+                    # layer_shape.append(len(scale))
+                    layer_shape.append(current_shape)
                     layer_type.append("Rescale")
                     continue
                 except ValueError as e:
@@ -332,7 +334,9 @@ def extractModel(model, file_type, base_file_name=None):
                     weights_list.append(w)
                     biases_list.append(b)
                     norm_layer_params.append(None)
-                    layer_shape.append(w.shape[1])
+                    # layer_shape.append(w.shape[1])
+                    current_shape = (w.shape[1],)
+                    layer_shape.append(current_shape)
                     layer_type.append("Dense")
                     activation_functions.append(act_name)
                     activation_configs.append(act_params)
@@ -363,7 +367,8 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(dropout_rate)
-                    layer_shape.append(0)
+                    # layer_shape.append(0)
+                    layer_shape.append(current_shape)
                     layer_type.append("Dropout")
                     continue
                 except ValueError as e:
@@ -387,7 +392,8 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(dropout_rate)
-                    layer_shape.append(0)
+                    # layer_shape.append(0)
+                    layer_shape.append(current_shape)
                     layer_type.append("Dropout")
                     continue
                 except ValueError as e:
@@ -411,7 +417,8 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(dropout_rate)
-                    layer_shape.append(0)
+                    # layer_shape.append(0)
+                    layer_shape.append(current_shape)
                     layer_type.append("Dropout")
                     continue
                 except ValueError as e:
@@ -435,7 +442,8 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(dropout_rate)
-                    layer_shape.append(0)
+                    # layer_shape.append(0)
+                    layer_shape.append(current_shape)
                     layer_type.append("Dropout")
                     continue
                 except ValueError as e:
@@ -499,7 +507,9 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(0.0)
-                    layer_shape.append(0)
+                    # layer_shape.append(0)
+                    current_shape = (int(np.prod(current_shape)),)
+                    layer_shape.append(current_shape)
                     layer_type.append("Flatten")
                     continue
                 except ValueError as e:
@@ -528,15 +538,16 @@ def extractModel(model, file_type, base_file_name=None):
                         norm_layer_params.append(
                             (gamma, beta, moving_mean, moving_variance, epsilon)
                         )
-                        layer_shape.append(
-                            (
-                                gamma.shape,
-                                beta.shape,
-                                moving_mean.shape,
-                                moving_variance.shape,
-                                1,
-                            )
-                        )
+                        # layer_shape.append(
+                        #     (
+                        #         gamma.shape,
+                        #         beta.shape,
+                        #         moving_mean.shape,
+                        #         moving_variance.shape,
+                        #         1,
+                        #     )
+                        # )
+                        layer_shape.append(current_shape)
                         conv_layer_params.append(None)
                         weights_list.append(None)
                         biases_list.append(None)
@@ -548,7 +559,8 @@ def extractModel(model, file_type, base_file_name=None):
                         conv_layer_params.append(None)
                         norm_layer_params.append(None)
                         activation_functions.append(None)
-                        layer_shape.append(0)
+                        # layer_shape.append(0)
+                        layer_shape.append(current_shape)
                         layer_type.append(None)
                         alphas.append(0.0)
                     continue
@@ -573,7 +585,8 @@ def extractModel(model, file_type, base_file_name=None):
                         gamma, beta = layer_weights
                         epsilon = config.get("epsilon", 1e-5)
                         norm_layer_params.append((gamma, beta, None, None, epsilon))
-                        layer_shape.append((gamma.shape, beta.shape, 1))
+                        # layer_shape.append((gamma.shape, beta.shape, 1))
+                        layer_shape.append(current_shape)
                         activation_functions.append(None)
                         conv_layer_params.append(None)
                         weights_list.append(None)
@@ -585,7 +598,8 @@ def extractModel(model, file_type, base_file_name=None):
                         norm_layer_params.append(None)
                         conv_layer_params.append(None)
                         activation_functions.append(None)
-                        layer_shape.append(0)
+                        # layer_shape.append(0)
+                        layer_shape.append(current_shape)
                         layer_type.append(None)
                         alphas.append(alpha_value)
                     continue
@@ -604,7 +618,8 @@ def extractModel(model, file_type, base_file_name=None):
                 try:
                     epsilon = config.get("epsilon", 1e-5)
                     norm_layer_params.append((None, None, None, None, epsilon))
-                    layer_shape.append(None)
+                    # layer_shape.append(None)
+                    layer_shape.append(current_shape)
                     activation_functions.append(None)
                     conv_layer_params.append(None)
                     weights_list.append(None)
@@ -638,7 +653,8 @@ def extractModel(model, file_type, base_file_name=None):
                         norm_layer_params.append(
                             (gamma, beta, None, None, epsilon, groups)
                         )
-                        layer_shape.append((gamma.shape, beta.shape, 1, groups))
+                        # layer_shape.append((gamma.shape, beta.shape, 1, groups))
+                        layer_shape.append(current_shape)
                         activation_functions.append(None)
                         conv_layer_params.append(None)
                         weights_list.append(None)
@@ -650,7 +666,8 @@ def extractModel(model, file_type, base_file_name=None):
                         norm_layer_params.append(None)
                         activation_functions.append(None)
                         conv_layer_params.append(None)
-                        layer_shape.append(0)
+                        # layer_shape.append(0)
+                        layer_shape.append(current_shape)
                         layer_type.append(None)
                         alphas.append(alpha_value)
                     continue
@@ -1354,7 +1371,8 @@ def extractModel(model, file_type, base_file_name=None):
                     else:
                         out_H, out_W = H, W
                     # for depthwise=True, channels stay the same
-                    out_C = C
+                    # out_C = C
+                    out_C = C * conv_params["filters"]  # depth_multiplier
                     new_shape = (out_H, out_W, out_C)
 
                     conv_params["in_shape"] = current_shape
@@ -1960,7 +1978,8 @@ def extractModel(model, file_type, base_file_name=None):
             else:
                 this_raw_output_shape = this_output_shape
             output_flat_size = int(np.prod(this_raw_output_shape))
-            layer_shape.append(tuple(this_raw_intput_shape))
+            # layer_shape.append(tuple(this_raw_intput_shape))
+            layer_shape.append(tuple(this_raw_output_shape))
         except ValueError as e:
             print(
                 f"\nError in extracting parameters: output shape {layer_idx} --> ",
