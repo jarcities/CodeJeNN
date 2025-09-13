@@ -10,6 +10,8 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 import os
 import absl.logging
 import warnings
+from functools import reduce
+import operator
 
 absl.logging.set_verbosity("error")
 warnings.filterwarnings("ignore", category=UserWarning, module="keras")
@@ -678,43 +680,47 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
         ) and norm_params is not None:
             gamma, beta, mean, var, eps = norm_params
 
-            # 2d batch normalization layers for 2d convolutional layers (not necessarily a layer itself)
-            if ltype == "BatchNormalization2D":
-                height, width, channels = last_shape
-                cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, ({height} * {width} * {channels})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    BatchNormalization2D_{base_file_name}<Scalar, {channels}, {height}, {width}>(\n"
-                cpp_code += (
-                    f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-                )
-                cpp_code += (
-                    f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
-                )
-                cpp_code += (
-                    f"        mean_{layer_idx}.data(), variance_{layer_idx}.data(),\n"
-                )
-                cpp_code += f"        epsilon_{layer_idx});\n\n"
-                last_layer = f"layer_{layer_idx}_output"
-                last_shape = (height, width, channels)
-
-            # 1d batch normalization layers
+            # Unified batch normalization call - determine channels and length based on shape
+            if isinstance(last_shape, tuple) and len(last_shape) > 1:
+                # CNN case: multi-dimensional tensor
+                if len(last_shape) == 3:  # (height, width, channels) or (length, channels, 1)
+                    if last_shape[2] == 1:  # 1D CNN case: (length, channels, 1)
+                        length, channels, _ = last_shape
+                    else:  # 2D CNN case: (height, width, channels)
+                        height, width, channels = last_shape
+                        length = height * width
+                elif len(last_shape) == 4:  # 3D CNN case: (depth, height, width, channels)
+                    depth, height, width, channels = last_shape
+                    length = depth * height * width
+                else:  # Fallback for unexpected shapes
+                    channels = last_shape[-1]  # assume last dimension is channels
+                    length = reduce(operator.mul, last_shape[:-1], 1)  # spatial dimensions
             else:
-                out_size = len(gamma)
-                cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    BatchNormalization_{base_file_name}<Scalar, {out_size}>(\n"
-                cpp_code += (
-                    f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-                )
-                cpp_code += (
-                    f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
-                )
-                cpp_code += (
-                    f"        mean_{layer_idx}.data(), variance_{layer_idx}.data(),\n"
-                )
-                cpp_code += f"        epsilon_{layer_idx});\n\n"
-                last_layer = f"layer_{layer_idx}_output"
-                last_shape = (out_size,)
+                # MLP case: flat tensor, treat each element as its own channel
+                channels = len(gamma)
+                length = 1
+
+            total_size = channels * length
+            cpp_code += f"    // {ltype}, layer {layer_idx}\n"
+            cpp_code += f"    static std::array<Scalar, {total_size}> layer_{layer_idx}_output;\n"
+            cpp_code += f"    BatchNormalization_{base_file_name}<Scalar, {channels}, {length}>(\n"
+            cpp_code += (
+                f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+            )
+            cpp_code += (
+                f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
+            )
+            cpp_code += (
+                f"        mean_{layer_idx}.data(), variance_{layer_idx}.data(),\n"
+            )
+            cpp_code += f"        epsilon_{layer_idx});\n\n"
+            last_layer = f"layer_{layer_idx}_output"
+            
+            # Update last_shape based on the processing type
+            if length == 1:
+                last_shape = (channels,)  # MLP case
+            else:
+                last_shape = last_shape  # Keep original shape for CNNs
             continue
 
         elif (
@@ -723,52 +729,84 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
         ) and norm_params is not None:
             gamma, beta, mean, var, eps = norm_params
 
-            # 2d normlaization layers for 2d convolutional layers (not necessarily a layer itself)
-            if ltype == "LayerNormalization2D":
-                height, width, channels = last_shape
-                cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, ({height} * {width} * {channels})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    LayerNormalization2D_{base_file_name}<Scalar, {channels}, {height}, {width}>(\n"
-                cpp_code += (
-                    f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-                )
-                cpp_code += (
-                    f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
-                )
-                cpp_code += f"        epsilon_{layer_idx});\n\n"
-                last_layer = f"layer_{layer_idx}_output"
-                last_shape = (height, width, channels)
-
-            # 1d layer normalization layers
+            # Unified layer normalization call - determine channels and length based on shape
+            if isinstance(last_shape, tuple) and len(last_shape) > 1:
+                # CNN case: multi-dimensional tensor
+                if len(last_shape) == 3:  # (height, width, channels) or (length, channels, 1)
+                    if last_shape[2] == 1:  # 1D CNN case: (length, channels, 1)
+                        length, channels, _ = last_shape
+                    else:  # 2D CNN case: (height, width, channels)
+                        height, width, channels = last_shape
+                        length = height * width
+                elif len(last_shape) == 4:  # 3D CNN case: (depth, height, width, channels)
+                    depth, height, width, channels = last_shape
+                    length = depth * height * width
+                else:  # Fallback for unexpected shapes
+                    channels = last_shape[-1]  # assume last dimension is channels
+                    length = reduce(operator.mul, last_shape[:-1], 1)  # spatial dimensions
             else:
-                out_size = len(gamma)
-                cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    LayerNormalization_{base_file_name}<Scalar, {out_size}>(\n"
-                cpp_code += (
-                    f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-                )
-                cpp_code += (
-                    f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
-                )
-                cpp_code += f"        epsilon_{layer_idx});\n\n"
-                last_layer = f"layer_{layer_idx}_output"
-                last_shape = (out_size,)
+                # MLP case: flat tensor, normalize across all features
+                channels = len(gamma)
+                length = 1
+
+            total_size = channels * length
+            cpp_code += f"    // {ltype}, layer {layer_idx}\n"
+            cpp_code += f"    static std::array<Scalar, {total_size}> layer_{layer_idx}_output;\n"
+            cpp_code += f"    LayerNormalization_{base_file_name}<Scalar, {channels}, {length}>(\n"
+            cpp_code += (
+                f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+            )
+            cpp_code += (
+                f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
+            )
+            cpp_code += f"        epsilon_{layer_idx});\n\n"
+            last_layer = f"layer_{layer_idx}_output"
+            
+            # Update last_shape based on the processing type
+            if length == 1:
+                last_shape = (channels,)  # MLP case
+            else:
+                last_shape = last_shape  # Keep original shape for CNNs
             continue
 
         elif ltype == "UnitNormalization":
-            size = get_flat_size(last_shape)
+            # Unified unit normalization call - determine channels and length based on shape
+            if isinstance(last_shape, tuple) and len(last_shape) > 1:
+                # CNN case: multi-dimensional tensor
+                if len(last_shape) == 3:  # (height, width, channels) or (length, channels, 1)
+                    if last_shape[2] == 1:  # 1D CNN case: (length, channels, 1)
+                        length, channels, _ = last_shape
+                    else:  # 2D CNN case: (height, width, channels)
+                        height, width, channels = last_shape
+                        length = height * width
+                elif len(last_shape) == 4:  # 3D CNN case: (depth, height, width, channels)
+                    depth, height, width, channels = last_shape
+                    length = depth * height * width
+                else:  # Fallback for unexpected shapes
+                    channels = last_shape[-1]  # assume last dimension is channels
+                    length = reduce(operator.mul, last_shape[:-1], 1)  # spatial dimensions
+            else:
+                # MLP case: flat tensor, normalize across all features
+                channels = get_flat_size(last_shape)
+                length = 1
+
+            total_size = channels * length
             cpp_code += f"    // {ltype}, layer {layer_idx}\n"
             cpp_code += (
-                f"    static std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
+                f"    static std::array<Scalar, {total_size}> layer_{layer_idx}_output;\n"
             )
-            cpp_code += f"    UnitNormalization_{base_file_name}<Scalar, {size}>(\n"
+            cpp_code += f"    UnitNormalization_{base_file_name}<Scalar, {channels}, {length}>(\n"
             cpp_code += (
                 f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
             )
             cpp_code += f"        epsilon_{layer_idx});\n\n"
             last_layer = f"layer_{layer_idx}_output"
-            last_shape = last_shape
+            
+            # Update last_shape based on the processing type
+            if length == 1:
+                last_shape = (channels,)  # MLP case
+            else:
+                last_shape = last_shape  # Keep original shape for CNNs
             continue
 
         elif (
@@ -782,37 +820,44 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 gamma, beta, mean, var, eps = norm_params
                 groups = 32  # default groups
 
-            # 2d group normalization layers for 2d convolutional layers
-            if ltype == "GroupNormalization2D":
-                height, width, channels = last_shape
-                cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, ({height} * {width} * {channels})> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GroupNormalization2D_{base_file_name}<Scalar, {channels}, {height}, {width}, {groups}>(\n"
-                cpp_code += (
-                    f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-                )
-                cpp_code += (
-                    f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
-                )
-                cpp_code += f"        epsilon_{layer_idx});\n\n"
-                last_layer = f"layer_{layer_idx}_output"
-                last_shape = (height, width, channels)
-
-            # 1d group normalization layers
+            # Unified group normalization call - determine channels and length based on shape
+            if isinstance(last_shape, tuple) and len(last_shape) > 1:
+                # CNN case: multi-dimensional tensor
+                if len(last_shape) == 3:  # (height, width, channels) or (length, channels, 1)
+                    if last_shape[2] == 1:  # 1D CNN case: (length, channels, 1)
+                        length, channels, _ = last_shape
+                    else:  # 2D CNN case: (height, width, channels)
+                        height, width, channels = last_shape
+                        length = height * width
+                elif len(last_shape) == 4:  # 3D CNN case: (depth, height, width, channels)
+                    depth, height, width, channels = last_shape
+                    length = depth * height * width
+                else:  # Fallback for unexpected shapes
+                    channels = last_shape[-1]  # assume last dimension is channels
+                    length = reduce(operator.mul, last_shape[:-1], 1)  # spatial dimensions
             else:
-                out_size = len(gamma)
-                cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                cpp_code += f"    static std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
-                cpp_code += f"    GroupNormalization_{base_file_name}<Scalar, {out_size}, {groups}>(\n"
-                cpp_code += (
-                    f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-                )
-                cpp_code += (
-                    f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
-                )
-                cpp_code += f"        epsilon_{layer_idx});\n\n"
-                last_layer = f"layer_{layer_idx}_output"
-                last_shape = (out_size,)
+                # MLP case: flat tensor, group across features
+                channels = len(gamma)
+                length = 1
+
+            total_size = channels * length
+            cpp_code += f"    // {ltype}, layer {layer_idx}\n"
+            cpp_code += f"    static std::array<Scalar, {total_size}> layer_{layer_idx}_output;\n"
+            cpp_code += f"    GroupNormalization_{base_file_name}<Scalar, {channels}, {length}, {groups}>(\n"
+            cpp_code += (
+                f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+            )
+            cpp_code += (
+                f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
+            )
+            cpp_code += f"        epsilon_{layer_idx});\n\n"
+            last_layer = f"layer_{layer_idx}_output"
+            
+            # Update last_shape based on the processing type
+            if length == 1:
+                last_shape = (channels,)  # MLP case
+            else:
+                last_shape = last_shape  # Keep original shape for CNNs
             continue
     
         ##########################

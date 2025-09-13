@@ -188,185 +188,215 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
     # normalization functions
     normalization_functions = {
         "LayerNormalization": f"""
-template <typename Scalar, int size>
+template <typename Scalar, int channels, int length>
 inline void LayerNormalization_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict gamma, const Scalar * __restrict beta, Scalar epsilon) noexcept
 {{
-    Scalar mean = 0;
-    Scalar variance = 0;
-    
-    for (int i = 0; i < size; ++i)
+    //1d case or MLP case
+    if constexpr (length == 1) 
     {{
-        mean += inputs[i];
-    }}
-    mean /= size;
-    
-    for (int i = 0; i < size; ++i)
+        Scalar mean = 0;
+        Scalar variance = 0;
+        
+        for (int i = 0; i < channels; ++i) 
+        {{
+            mean += inputs[i];
+        }}
+        mean /= channels;
+        
+        for (int i = 0; i < channels; ++i) 
+        {{
+            variance += (inputs[i] - mean) * (inputs[i] - mean);
+        }}
+        variance /= channels;
+        
+        for (int i = 0; i < channels; ++i) 
+        {{
+            outputs[i] = gamma[i] * ((inputs[i] - mean) / std::sqrt(variance + epsilon)) + beta[i];
+        }}
+    }} 
+    //multi-dimension case
+    else 
     {{
-        variance += (inputs[i] - mean) * (inputs[i] - mean);
-    }}
-    variance /= size;
-    
-    for (int i = 0; i < size; ++i)
-    {{
-        outputs[i] = gamma[i] * ((inputs[i] - mean) / std::sqrt(variance + epsilon)) + beta[i];
+        for (int c = 0; c < channels; ++c) 
+        {{
+            // Compute mean for this channel across spatial dimensions
+            Scalar mean = 0;
+            for (int t = 0; t < length; ++t) 
+            {{
+                int idx = t * channels + c;
+                mean += inputs[idx];
+            }}
+            mean /= length;
+            
+            Scalar variance = 0;
+            for (int t = 0; t < length; ++t) 
+            {{
+                int idx = t * channels + c;
+                variance += (inputs[idx] - mean) * (inputs[idx] - mean);
+            }}
+            variance /= length;
+            
+            Scalar scale = gamma[c] / std::sqrt(variance + epsilon);
+            Scalar shift = beta[c] - mean * scale;
+            
+            for (int t = 0; t < length; ++t) 
+            {{
+                int idx = t * channels + c;
+                outputs[idx] = inputs[idx] * scale + shift;
+            }}
+        }}
     }}
 }}
 """,
         "BatchNormalization": f"""
-template <typename Scalar, int size>
+template <typename Scalar, int channels, int length>
 inline void BatchNormalization_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict gamma, const Scalar * __restrict beta, const Scalar * __restrict mean, const Scalar * __restrict variance, const Scalar epsilon) noexcept
 {{
-    
-    for (int i = 0; i < size; ++i)
+    //1d case or MLP case
+    if constexpr (length == 1) 
     {{
-        outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
-    }}
-}}
-""",
-        "BatchNormalization2D": f"""
-template <typename Scalar, int channels, int height, int width>
-inline void BatchNormalization2D_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs,
-                          const Scalar * __restrict gamma, const Scalar * __restrict beta,
-                          const Scalar * __restrict mean, const Scalar * __restrict variance,
-                          Scalar epsilon) noexcept
-{{
-    for (int c = 0; c < channels; ++c)
+        for (int i = 0; i < channels; ++i) 
+        {{
+            outputs[i] = gamma[i] * ((inputs[i] - mean[i]) / std::sqrt(variance[i] + epsilon)) + beta[i];
+        }}
+    }} 
+    //multi-dimension case
+    else 
     {{
-        
-        for (int i = 0; i < height * width; ++i)
+        for (int c = 0; c < channels; ++c) 
         {{
-            int idx = i * channels + c;
-            outputs[idx] = gamma[c] * ((inputs[idx] - mean[c]) / std::sqrt(variance[c] + epsilon)) +
-                           beta[c];
-        }}
-    }}
-}}
-""",
-        "LayerNormalization2D": f"""
-template <typename Scalar, int channels, int height, int width>
-inline void LayerNormalization2D_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs,
-                          const Scalar * __restrict gamma, const Scalar * __restrict beta,
-                          Scalar epsilon) noexcept
-{{
-    for (int c = 0; c < channels; ++c)
-    {{
-        Scalar sum = 0;
-        
-        for (int i = 0; i < height * width; ++i)
-        {{
-            int idx = i * channels + c;
-            sum += inputs[idx];
-        }}
-        Scalar mean = sum / (height * width);
-        Scalar var = 0;
-        
-        for (int i = 0; i < height * width; ++i)
-        {{
-            int idx = i * channels + c;
-            var += (inputs[idx] - mean) * (inputs[idx] - mean);
-        }}
-        var /= (height * width);
-        
-        for (int i = 0; i < height * width; ++i)
-        {{
-            int idx = i * channels + c;
-            outputs[idx] = gamma[c] * ((inputs[idx] - mean) / std::sqrt(var + epsilon)) + beta[c];
+            Scalar scale = gamma[c] / std::sqrt(variance[c] + epsilon);
+            Scalar shift = beta[c] - mean[c] * scale;
+            
+            for (int t = 0; t < length; ++t) 
+            {{
+                int idx = t * channels + c;
+                outputs[idx] = inputs[idx] * scale + shift;
+            }}
         }}
     }}
 }}
 """,
         "UnitNormalization": f"""
-template <typename Scalar, int size>
+template <typename Scalar, int channels, int length>
 inline void UnitNormalization_{base_file_name}(Scalar * __restrict outputs,
                               const Scalar * __restrict inputs,
                               Scalar epsilon) noexcept
 {{
-    Scalar sum_sq = 0;
-    for (int i = 0; i < size; ++i) 
+    //1d case or MLP case
+    if constexpr (length == 1) {{
+        Scalar sum_sq = 0;
+        for (int i = 0; i < channels; ++i) 
+        {{
+            sum_sq += inputs[i] * inputs[i];
+        }}
+        Scalar inv_norm = Scalar(1) / std::sqrt(sum_sq + epsilon);
+        
+        for (int i = 0; i < channels; ++i) 
+        {{
+            outputs[i] = inputs[i] * inv_norm;
+        }}
+    }} 
+    //multi-dimension case
+    else 
     {{
-        sum_sq += inputs[i] * inputs[i];
-    }}
-    Scalar inv_norm = Scalar(1) / std::sqrt(sum_sq + epsilon);
-    for (int i = 0; i < size; ++i) 
-    {{
-        outputs[i] = inputs[i] * inv_norm;
+        for (int c = 0; c < channels; ++c) 
+        {{
+            Scalar sum_sq = 0;
+            for (int t = 0; t < length; ++t) 
+            {{
+                int idx = t * channels + c;
+                sum_sq += inputs[idx] * inputs[idx];
+            }}
+            Scalar inv_norm = Scalar(1) / std::sqrt(sum_sq + epsilon);
+            
+            for (int t = 0; t < length; ++t) 
+            {{
+                int idx = t * channels + c;
+                outputs[idx] = inputs[idx] * inv_norm;
+            }}
+        }}
     }}
 }}
 """,
         "GroupNormalization": f"""
-template <typename Scalar, int size, int groups>
+template <typename Scalar, int channels, int length, int groups>
 inline void GroupNormalization_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict gamma, const Scalar * __restrict beta, Scalar epsilon) noexcept
 {{
-    constexpr int group_size = size / groups;
-    
-    for (int g = 0; g < groups; ++g)
-    {{
-        int group_start = g * group_size;
-        
-        Scalar mean = 0;
-        for (int i = 0; i < group_size; ++i)
-        {{
-            mean += inputs[group_start + i];
-        }}
-        mean /= group_size;
-        
-        Scalar variance = 0;
-        for (int i = 0; i < group_size; ++i)
-        {{
-            variance += (inputs[group_start + i] - mean) * (inputs[group_start + i] - mean);
-        }}
-        variance /= group_size;
-        
-        for (int i = 0; i < group_size; ++i)
-        {{
-            int idx = group_start + i;
-            outputs[idx] = gamma[idx] * ((inputs[idx] - mean) / std::sqrt(variance + epsilon)) + beta[idx];
-        }}
-    }}
-}}
-""",
-        "GroupNormalization2D": f"""
-template <typename Scalar, int channels, int height, int width, int groups>
-inline void GroupNormalization2D_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs,
-                          const Scalar * __restrict gamma, const Scalar * __restrict beta,
-                          Scalar epsilon) noexcept
-{{
     constexpr int channels_per_group = channels / groups;
-    constexpr int group_size = channels_per_group * height * width;
+    constexpr int group_size = channels_per_group * length;
     
-    for (int g = 0; g < groups; ++g)
+    //1d case or MLP case
+    if constexpr (length == 1) 
     {{
-        int group_start_channel = g * channels_per_group;
-        
-        Scalar mean = 0;
-        for (int c = 0; c < channels_per_group; ++c)
+        for (int g = 0; g < groups; ++g) 
         {{
-            for (int i = 0; i < height * width; ++i)
+            int group_start = g * channels_per_group;
+            
+            Scalar mean = 0;
+            for (int i = 0; i < channels_per_group; ++i) 
             {{
-                int idx = i * channels + (group_start_channel + c);
-                mean += inputs[idx];
+                mean += inputs[group_start + i];
+            }}
+            mean /= channels_per_group;
+            
+            Scalar variance = 0;
+            for (int i = 0; i < channels_per_group; ++i) 
+            {{
+                variance += (inputs[group_start + i] - mean) * (inputs[group_start + i] - mean);
+            }}
+            variance /= channels_per_group;
+            
+            for (int i = 0; i < channels_per_group; ++i) 
+            {{
+                int idx = group_start + i;
+                outputs[idx] = gamma[idx] * ((inputs[idx] - mean) / std::sqrt(variance + epsilon)) + beta[idx];
             }}
         }}
-        mean /= group_size;
-        
-        Scalar variance = 0;
-        for (int c = 0; c < channels_per_group; ++c)
+    //multi-dimension case
+    }} 
+    else 
+    {{
+        for (int g = 0; g < groups; ++g) 
         {{
-            for (int i = 0; i < height * width; ++i)
+            int group_start_channel = g * channels_per_group;
+            
+            Scalar mean = 0;
+            for (int c = 0; c < channels_per_group; ++c) 
             {{
-                int idx = i * channels + (group_start_channel + c);
-                variance += (inputs[idx] - mean) * (inputs[idx] - mean);
+                for (int t = 0; t < length; ++t) 
+                {{
+                    int idx = t * channels + (group_start_channel + c);
+                    mean += inputs[idx];
+                }}
             }}
-        }}
-        variance /= group_size;
-        
-        for (int c = 0; c < channels_per_group; ++c)
-        {{
-            for (int i = 0; i < height * width; ++i)
+            mean /= group_size;
+            
+            Scalar variance = 0;
+            for (int c = 0; c < channels_per_group; ++c) 
             {{
-                int idx = i * channels + (group_start_channel + c);
+                for (int t = 0; t < length; ++t) 
+                {{
+                    int idx = t * channels + (group_start_channel + c);
+                    variance += (inputs[idx] - mean) * (inputs[idx] - mean);
+                }}
+            }}
+            variance /= group_size;
+            
+            Scalar scale = 1 / std::sqrt(variance + epsilon);
+            Scalar shift = -mean * scale;
+            
+            for (int c = 0; c < channels_per_group; ++c) 
+            {{
                 int param_idx = group_start_channel + c;
-                outputs[idx] = gamma[param_idx] * ((inputs[idx] - mean) / std::sqrt(variance + epsilon)) + beta[param_idx];
+                Scalar final_scale = gamma[param_idx] * scale;
+                Scalar final_shift = gamma[param_idx] * shift + beta[param_idx];
+                
+                for (int t = 0; t < length; ++t) 
+                {{
+                    int idx = t * channels + (group_start_channel + c);
+                    outputs[idx] = inputs[idx] * final_scale + final_shift;
+                }}
             }}
         }}
     }}

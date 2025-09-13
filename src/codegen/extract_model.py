@@ -528,25 +528,14 @@ def extractModel(model, file_type, base_file_name=None):
                 or "batchnormalization" in layer.name.lower()
             ):
                 try:
-                    if len([d for d in layer_input_shape if d is not None]) > 2:
-                        norm_type = "BatchNormalization2D"
-                    else:
-                        norm_type = "BatchNormalization"
+                    # Use unified BatchNormalization (no need for separate 2D variant)
+                    norm_type = "BatchNormalization"
                     if len(layer_weights) == 4:
                         gamma, beta, moving_mean, moving_variance = layer_weights
                         epsilon = config.get("epsilon", 1e-5)
                         norm_layer_params.append(
                             (gamma, beta, moving_mean, moving_variance, epsilon)
                         )
-                        # layer_shape.append(
-                        #     (
-                        #         gamma.shape,
-                        #         beta.shape,
-                        #         moving_mean.shape,
-                        #         moving_variance.shape,
-                        #         1,
-                        #     )
-                        # )
                         layer_shape.append(current_shape)
                         conv_layer_params.append(None)
                         weights_list.append(None)
@@ -559,7 +548,6 @@ def extractModel(model, file_type, base_file_name=None):
                         conv_layer_params.append(None)
                         norm_layer_params.append(None)
                         activation_functions.append(None)
-                        # layer_shape.append(0)
                         layer_shape.append(current_shape)
                         layer_type.append(None)
                         alphas.append(0.0)
@@ -577,15 +565,12 @@ def extractModel(model, file_type, base_file_name=None):
                 or "layernormalization" in layer.name.lower()
             ):
                 try:
-                    if len([d for d in layer_input_shape if d is not None]) > 2:
-                        norm_type = "LayerNormalization2D"
-                    else:
-                        norm_type = "LayerNormalization"
+                    # Use unified LayerNormalization (no need for separate 2D variant)
+                    norm_type = "LayerNormalization"
                     if len(layer_weights) == 2:
                         gamma, beta = layer_weights
                         epsilon = config.get("epsilon", 1e-5)
                         norm_layer_params.append((gamma, beta, None, None, epsilon))
-                        # layer_shape.append((gamma.shape, beta.shape, 1))
                         layer_shape.append(current_shape)
                         activation_functions.append(None)
                         conv_layer_params.append(None)
@@ -598,7 +583,6 @@ def extractModel(model, file_type, base_file_name=None):
                         norm_layer_params.append(None)
                         conv_layer_params.append(None)
                         activation_functions.append(None)
-                        # layer_shape.append(0)
                         layer_shape.append(current_shape)
                         layer_type.append(None)
                         alphas.append(alpha_value)
@@ -641,10 +625,8 @@ def extractModel(model, file_type, base_file_name=None):
                 or "groupnormalization" in layer.name.lower()
             ):
                 try:
-                    if len([d for d in layer_input_shape if d is not None]) > 2:
-                        norm_type = "GroupNormalization2D"
-                    else:
-                        norm_type = "GroupNormalization"
+                    # Use unified GroupNormalization (no need for separate 2D variant)
+                    norm_type = "GroupNormalization"
                     if len(layer_weights) == 2:
                         gamma, beta = layer_weights
                         epsilon = config.get("epsilon", 1e-3)
@@ -653,7 +635,6 @@ def extractModel(model, file_type, base_file_name=None):
                         norm_layer_params.append(
                             (gamma, beta, None, None, epsilon, groups)
                         )
-                        # layer_shape.append((gamma.shape, beta.shape, 1, groups))
                         layer_shape.append(current_shape)
                         activation_functions.append(None)
                         conv_layer_params.append(None)
@@ -666,7 +647,6 @@ def extractModel(model, file_type, base_file_name=None):
                         norm_layer_params.append(None)
                         activation_functions.append(None)
                         conv_layer_params.append(None)
-                        # layer_shape.append(0)
                         layer_shape.append(current_shape)
                         layer_type.append(None)
                         alphas.append(alpha_value)
