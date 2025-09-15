@@ -333,6 +333,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> convBias_{layer_idx} = {{"
                     cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
                     cpp_code += "};\n"
+                cpp_code += "\n"
 
             ##########################################################################
             # -------------------------------------------------------------------------
@@ -1054,17 +1055,20 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 strides = conv_dict.get("strides", 1)
                 pad = 0
                 if conv_dict.get("padding", "valid").lower() == "same":
-                    pad = kernel // 2
-                    
+                    kernel_val = kernel[0] if isinstance(kernel, (tuple, list)) else kernel
+                    pad = kernel_val // 2
+
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {output_size}> layer_{layer_idx}_output;\n"
                 cpp_code += (
                     f"    Conv1DTranspose_{base_file_name}<Scalar, {output_channels}, {output_length}>"
                 )
+                kernel_val = kernel[0] if isinstance(kernel, (tuple, list)) else kernel
+                strides_val = strides[0] if isinstance(strides, (tuple, list)) else strides
                 cpp_code += "(layer_{0}_output.data(), {1}.data(), convKernel_{0}.data(), convBias_{0}.data(),".format(
                     layer_idx, last_layer
                 )
-                cpp_code += f"{input_channels}, {input_length}, {kernel}, {strides}, {pad}, {mapped_act}, {alpha});\n\n"
+                cpp_code += f"{input_channels}, {input_length}, {kernel_val}, {strides_val}, {pad}, {mapped_act}, {alpha});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = (output_length, output_channels) if out_shape else (output_length, output_channels)
                 continue

@@ -35,23 +35,26 @@ output = (output - y_min) / (y_max - y_min)
 #define model
 inputs = layers.Input(shape=(INPUT_DIM, 1))
 #layer 1
-x = layers.Conv1D(filters=32, kernel_size=5, activation='relu', padding='same')(inputs)
+x = layers.Conv1D(filters=32, kernel_size=5, activation='sigmoid', padding='same')(inputs)
 x = layers.BatchNormalization()(x)
-x = layers.MaxPooling1D(pool_size=2)(x)
+x = layers.AveragePooling1D(pool_size=2)(x)
 #layer 2
 x = layers.Conv1D(filters=64, kernel_size=5, activation='relu', padding='same')(x)
 x = layers.BatchNormalization()(x)
 x = layers.MaxPooling1D(pool_size=2)(x)
 #layer 3
-x = layers.Conv1D(filters=128, kernel_size=3, activation='relu', padding='same')(x)
+x = layers.Conv1D(filters=128, kernel_size=3, activation='tanh', padding='same')(x)
 x = layers.BatchNormalization()(x)
 x = layers.MaxPooling1D(pool_size=2)(x)
 #layer 4
-x = layers.GlobalAveragePooling1D()(x)
+x = layers.Conv1DTranspose(filters=64, kernel_size=3, strides=2, activation='relu', padding='same')(x)
+x = layers.BatchNormalization()(x)
 #layer 5
-x = layers.Dense(256, activation='relu')(x)
+x = layers.GlobalAveragePooling1D()(x)
+#layer 6
+x = layers.Dense(256, activation='mish')(x)
 x = layers.Dropout(0.3)(x)
-x = layers.Dense(128, activation='relu')(x)
+x = layers.Dense(128, activation='gelu')(x)
 x = layers.Dropout(0.2)(x)
 outputs = layers.Dense(OUTPUT_DIM, activation='linear')(x)
 #create the model

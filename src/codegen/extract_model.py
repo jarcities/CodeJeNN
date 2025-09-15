@@ -669,13 +669,13 @@ def extractModel(model, file_type, base_file_name=None):
                 try:
                     raw_pool = config.get("pool_size", 2)
                     pool_size = (
-                        raw_pool if isinstance(raw_pool, int) else tuple(raw_pool)
+                        raw_pool if isinstance(raw_pool, int) else raw_pool[0]
                     )
                     raw_strides = config.get("strides", pool_size)
                     strides = (
                         raw_strides
                         if isinstance(raw_strides, int)
-                        else tuple(raw_strides)
+                        else raw_strides[0]
                     )
 
                     padding = config.get("padding", "valid")
@@ -903,13 +903,13 @@ def extractModel(model, file_type, base_file_name=None):
                 try:
                     raw_pool = config.get("pool_size", 2)
                     pool_size = (
-                        raw_pool if isinstance(raw_pool, int) else tuple(raw_pool)
+                        raw_pool if isinstance(raw_pool, int) else raw_pool[0]
                     )
                     raw_strides = config.get("strides", pool_size)
                     strides = (
                         raw_strides
                         if isinstance(raw_strides, int)
-                        else tuple(raw_strides)
+                        else raw_strides[0]
                     )
 
                     padding = config.get("padding", "valid")
@@ -1758,10 +1758,12 @@ def extractModel(model, file_type, base_file_name=None):
                         kernel, bias = None, None
 
                     in_length = current_shape[0]
-                    strides = config.get("strides", 1)
-                    kernel_size = config.get("kernel_size", 3)
+                    raw_strides = config.get("strides", 1)
+                    raw_kernel_size = config.get("kernel_size", 3)
                     padding = config.get("padding", "valid").lower()
                     filters = config.get("filters", None)
+                    strides = raw_strides[0] if isinstance(raw_strides, (tuple, list)) else raw_strides
+                    kernel_size = raw_kernel_size[0] if isinstance(raw_kernel_size, (tuple, list)) else raw_kernel_size
 
                     if padding == "same":
                         out_length = in_length * strides
