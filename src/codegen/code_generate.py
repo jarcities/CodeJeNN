@@ -8,6 +8,7 @@ NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DIS
 MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 """
 
+from doctest import debug
 import os
 import absl.logging
 import warnings
@@ -45,6 +46,36 @@ def preambleHeader():
     return cpp_code
 
 
+def debug_printing(layer_idx, layer_type, layer_shape, last_layer_name, num_values=10):
+    # calculate total size of the layer output
+    if isinstance(layer_shape, tuple):
+        total_size = 1
+        for dim in layer_shape:
+            total_size *= dim
+    else:
+        total_size = layer_shape
+    num_val = min(num_values, total_size)
+    cpp_debug_code = f"""    // DEBUGGING, 1st {num_val} values of {layer_type} layer {layer_idx}
+    std::cout << "({layer_type}) layer {layer_idx} -> shape = ";"""
+    
+    #shape information
+    if isinstance(layer_shape, tuple):
+        shape_str = "(" + ", ".join(map(str, layer_shape)) + ")"
+    else:
+        shape_str = f"({layer_shape},)"
+    
+    cpp_debug_code += f"""
+    std::cout << "{shape_str} -> ";
+    for (int ii = 0; ii < {num_val}; ++ii) {{
+        std::cout << {last_layer_name}[ii];
+        if (ii < {num_val} - 1) std::cout << ", ";
+    }}
+    std::cout << std::endl;
+
+"""
+    return cpp_debug_code
+
+
 def codeGen(
     cpp_code,
     cpp_lambda,
@@ -67,6 +98,7 @@ def codeGen(
     layer_type,
     base_file_name,
     user_activation,
+    debug_outputs,
 ):
     # ===============================================================================
     # function to generate put all the cpp code together from the previous scripts
@@ -562,6 +594,10 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     ######################################
     ## PRINT EACH LAYERS FUNCTION CALLS ##
     ######################################
+    if (debug_outputs):
+        cpp_code += "   //DEBUG PRINTING FLAG IS ON\n"
+        cpp_code += f"""    std::cout << "Debug printing first ~10 outputs of each layer:" << std::endl;\n\n"""
+
     for i, (w, b, norm_params, conv_dict, ltype, alpha, act_fun) in enumerate(
         zip(
             weights_list,
@@ -600,6 +636,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 )
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = current_shape
+                #debug printing flag
+                if (debug_outputs):
+                    cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
                 print(
@@ -619,6 +658,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 )
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = current_shape
+                #debug printing flag
+                if (debug_outputs):
+                    cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
                 print(
@@ -655,6 +697,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 cpp_code += f"        {get_flat_size(last_shape)}, {effective_activation}, {effective_alpha});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = (out_size,)
+                #debug printing flag
+                if (debug_outputs):
+                    cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
                 print(
@@ -677,6 +722,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     )
                     cpp_code += f"    softmax({last_layer}.data(), layer_{layer_idx}_output.data(), {size});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
 
                 # handle other activations
                 else:
@@ -688,6 +736,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        {mapped_act}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
                     cpp_code += f"    }}\n\n"
                     last_layer = f"layer_{layer_idx}_output"
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
                 print(
@@ -746,6 +797,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     last_shape = (channels,)
                 else:
                     last_shape = last_shape
+                #debug printing flag
+                if (debug_outputs):
+                    cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
                 print(
@@ -793,6 +847,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     last_shape = (channels,)
                 else:
                     last_shape = last_shape
+                #debug printing flag
+                if (debug_outputs):
+                    cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
                 print(
@@ -834,6 +891,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     last_shape = (channels,)
                 else:
                     last_shape = last_shape
+                #debug printing flag
+                if (debug_outputs):
+                    cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
                 print(
@@ -884,12 +944,14 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 cpp_code += f"        gamma_{layer_idx}.data(), beta_{layer_idx}.data(),\n"
                 cpp_code += f"        epsilon_{layer_idx});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-
                 # update last shape
                 if length == 1:
                     last_shape = (channels,)
                 else:
                     last_shape = last_shape
+                #debug printing flag
+                if (debug_outputs):
+                    cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
                 print(
@@ -942,6 +1004,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        {mapped_act}, {alpha});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (output_length, output_channels)
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -990,6 +1055,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        {mapped_act}, {alpha});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1025,6 +1093,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        {mapped_act}, {alpha});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1055,6 +1126,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        {mapped_act}, {alpha});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1085,6 +1159,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        {mapped_act}, {alpha});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1129,6 +1206,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         if out_shape
                         else (output_length, output_channels)
                     )
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1161,6 +1241,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        {mapped_act}, {alpha});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1188,6 +1271,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"{in_shape[3]}, {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {kd}, {kh}, {kw}, {sd}, {sh}, {sw}, {pd}, {ph}, {pw}, {mapped_act}, {alpha});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1255,6 +1341,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         if out_shape
                         else (output_size // input_channels, input_channels)
                     )
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1274,6 +1363,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1293,6 +1385,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {in_shape[3]});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1324,6 +1419,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         if out_shape
                         else (output_size // input_channels, input_channels)
                     )
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1343,6 +1441,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1362,6 +1463,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {in_shape[3]});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1382,6 +1486,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"         layer_{layer_idx}_output.data(), {last_layer}.data(), {input_length}, {input_channels});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (input_channels,)
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1403,6 +1510,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_height}, {input_width}, {input_channels});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (input_channels,)
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1428,6 +1538,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {in_shape[3]});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (in_shape[3],)
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1448,6 +1561,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_length}, {input_channels});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (input_channels,)
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1469,6 +1585,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_height}, {input_width}, {input_channels});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (input_channels,)
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1491,6 +1610,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {input_depth}, {input_height}, {input_width}, {input_channels});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (input_channels,)
+                    #debug printing flag
+                    if (debug_outputs):
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(

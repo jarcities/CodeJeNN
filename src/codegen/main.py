@@ -9,6 +9,7 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 """
 
 from calendar import c
+from encodings.punycode import T
 import os
 import argparse
 import numpy as np
@@ -44,6 +45,11 @@ parser.add_argument(
     required=False,
     help="custom activation function to use, if any",
 )
+parser.add_argument(
+    "--debug",
+    action="store_true",
+    help="include debug print statements in the generated code",
+)
 args = parser.parse_args()
 
 ## DATA TYPE PRECISION ##
@@ -62,7 +68,6 @@ if args.custom_activation is not None:
     user_activation = args.custom_activation
 else:
     user_activation = None
-# print(user_activation)
 
 ## CHECK INPUT AND OUTPUT DIRECTORIES ##
 if not os.path.exists(model_dir):
@@ -103,7 +108,7 @@ else:
                     )
                     # model.summary()
                 except ValueError as e:
-                    print(f"\n-> {file_name} is not a .keras, .h5, or a .npy file (skipping).")
+                    print(f"\n-> <{file_name}> is NOT a compatible file (skipping).")
                     continue
 
                 #################################
@@ -175,6 +180,7 @@ else:
                         layer_type,
                         base_file_name,
                         user_activation,
+                        args.debug,
                     )
                 except ValueError as e:
                     print("\nError in generating C++ code:", e)
