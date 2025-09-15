@@ -429,7 +429,7 @@ inline void Conv1D_{base_file_name}(
                 {{
                     const int iw = in_center + k;
                     if (iw < 0 || iw >= in_length) continue;
-                    // weight layout: [k, ic, oc]
+                    // weight layout -> [k, ic, oc]
                     const int w_idx = ((k * in_channels) + ic) * out_channels + oc;
                     const int in_idx = iw * in_channels + ic;
                     sum += inputs[in_idx] * weights[w_idx];
