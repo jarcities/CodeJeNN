@@ -556,57 +556,68 @@ inline void Conv2D_{base_file_name}(Scalar * __restrict outputs, const Scalar * 
 """,
         "Conv2DTranspose": f"""
 template <typename Scalar, int out_channels, int out_height, int out_width, typename ActFun>
-inline void Conv2DTranspose_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs,
-                     const Scalar * __restrict kernels, const Scalar * __restrict biases,
-                     int in_channels, int in_height, int in_width,
-                     int kernel_height, int kernel_width, int stride_height,
-                     int stride_width, int padding_height, int padding_width,
-                     ActFun activation_function,
-                     Scalar alpha)
+inline void Conv2DTranspose(
+    Scalar* __restrict outputs,                 
+    const Scalar* __restrict inputs,            
+    const Scalar* __restrict weights,           
+    const Scalar* __restrict biases,           
+    int in_channels,
+    int in_height, int in_width,
+    int kernel_h,  int kernel_w,
+    int stride_h,  int stride_w,
+    int pad_h,     int pad_w,
+    ActFun activation_function, Scalar alpha) noexcept
 {{
-    for (int h = 0; h < out_height; ++h)
+    // init bias
+    for (int oh = 0; oh < out_height; ++oh) 
     {{
-        for (int w = 0; w < out_width; ++w)
+        for (int ow = 0; ow < out_width; ++ow) 
         {{
-            
-            for (int oc = 0; oc < out_channels; ++oc)
+            const int out_base = (oh * out_width + ow) * out_channels;
+            if (biases) 
             {{
-                int idx = (h * out_width + w) * out_channels + oc;
-                outputs[idx] = biases ? biases[oc] : Scalar(0);
+                for (int oc = 0; oc < out_channels; ++oc)
+                    outputs[out_base + oc] = biases[oc];
+            }} 
+            else 
+            {{
+                for (int oc = 0; oc < out_channels; ++oc)
+                    outputs[out_base + oc] = Scalar(0);
             }}
         }}
     }}
 
-    for (int ic = 0; ic < in_channels; ++ic)
+    // scatter add
+    for (int ih = 0; ih < in_height; ++ih) 
     {{
-        for (int ih = 0; ih < in_height; ++ih)
-        {{
-            for (int iw = 0; iw < in_width; ++iw)
-            {{
-                Scalar current_value = inputs[(ih * in_width + iw) * in_channels + ic];
-                int base_height = ih * stride_height - padding_height;
-                int base_width = iw * stride_width - padding_width;
+        const int oh_base = ih * stride_h - pad_h;
 
-                for (int kh = 0; kh < kernel_height; ++kh)
+        for (int iw = 0; iw < in_width; ++iw) 
+        {{
+            const int ow_base = iw * stride_w - pad_w;
+
+            for (int ic = 0; ic < in_channels; ++ic) 
+            {{
+                const Scalar v = inputs[( (ih * in_width + iw) * in_channels ) + ic];
+
+                for (int kh = 0; kh < kernel_h; ++kh) 
                 {{
-                    int oh = base_height + kh;
-                    if (oh < 0 || oh >= out_height)
-                        continue;
-                    for (int kw = 0; kw < kernel_width; ++kw)
+                    const int oh = oh_base + kh;
+                    if (oh < 0 || oh >= out_height) continue;
+
+                    for (int kw = 0; kw < kernel_w; ++kw) 
                     {{
-                        int ow = base_width + kw;
-                        if (ow < 0 || ow >= out_width)
-                            continue;
-                        int out_base = (oh * out_width + ow) * out_channels;
-                        int fh = kernel_height - 1 - kh;
-                        int fw = kernel_width - 1 - kw;
-                        int ker_base =
-                            (fh * kernel_width + fw) * (out_channels * in_channels) + ic;
-                        
-                        for (int oc = 0; oc < out_channels; ++oc)
+                        const int ow = ow_base + kw;
+                        if (ow < 0 || ow >= out_width) continue;
+
+                        // weights[kh, kw, ic, oc] contiguous in oc
+                        const int w_k_base =
+                            ( ( (kh * kernel_w + kw) * in_channels + ic) * out_channels );
+                        const int out_pix_base = ( (oh * out_width + ow) * out_channels );
+
+                        for (int oc = 0; oc < out_channels; ++oc) 
                         {{
-                            int k_idx = ker_base + oc * in_channels;
-                            outputs[out_base + oc] += current_value * kernels[k_idx];
+                            outputs[out_pix_base + oc] += v * weights[w_k_base + oc];
                         }}
                     }}
                 }}
@@ -614,33 +625,19 @@ inline void Conv2DTranspose_{base_file_name}(Scalar * __restrict outputs, const 
         }}
     }}
 
-    int total = out_height * out_width * out_channels;
-    for (int i = 0; i < total; ++i)
+    // pointwise activation
+    for (int oh = 0; oh < out_height; ++oh) 
     {{
-        activation_function(outputs[i], outputs[i], alpha);
-    }}
-
-    std::array<Scalar, out_height * out_width * out_channels> tmp;
-    std::copy(outputs, outputs + total, tmp.begin());
-
-    /*
-    NEEDED TO REORDER OUTPUTS (WILL UPDATE)
-    */
-    for (int h = 0; h < out_height; ++h)
-        for (int w = 0; w < out_width; ++w)
+        for (int ow = 0; ow < out_width; ++ow) 
         {{
-            const int dst_base = (h * out_width + w) * out_channels;
-            const int src_base =
-                ((out_height - 1 - h) * out_width + (out_width - 1 - w)) *
-                out_channels;
-
-            
-            for (int c = 0; c < out_channels; ++c)
-                outputs[dst_base + c] = tmp[src_base + c];
+            const int out_base = (oh * out_width + ow) * out_channels;
+            for (int oc = 0; oc < out_channels; ++oc) 
+            {{
+                const Scalar z = outputs[out_base + oc];
+                activation_function(outputs[out_base + oc], z, alpha);
+            }}
         }}
-    /*
-    NEEDED TO REORDER OUTPUTS (WILL UPDATE)
-    */
+    }}
 }}
 """,
         "Conv3D": f"""
@@ -698,78 +695,82 @@ inline void Conv3D_{base_file_name}(Scalar * __restrict outputs, const Scalar * 
 }}
 """,
         "Conv3DTranspose": f"""
-template <typename Scalar, int out_channels, int out_depth, int out_height,
-          int out_width, typename ActFun>
-inline void Conv3DTranspose_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs,
-                     const Scalar * __restrict kernels, const Scalar * __restrict biases,
-                     int in_channels, int in_depth, int in_height, int in_width,
-                     int kernel_depth, int kernel_height, int kernel_width,
-                     int stride_depth, int stride_height, int stride_width,
-                     int padding_depth, int padding_height, int padding_width,
-                     ActFun activation_function,
-                     Scalar alpha)
+template <typename Scalar, int out_channels, int out_depth, int out_height, int out_width, typename ActFun>
+inline void Conv3DTranspose(
+    Scalar* __restrict outputs,                  
+    const Scalar* __restrict inputs,             
+    const Scalar* __restrict weights,           
+    const Scalar* __restrict biases,            
+    int in_channels,
+    int in_depth,  int in_height,  int in_width,
+    int kernel_d,  int kernel_h,   int kernel_w,
+    int stride_d,  int stride_h,   int stride_w,
+    int pad_d,     int pad_h,      int pad_w,
+    ActFun activation_function, Scalar alpha) noexcept
 {{
-    for (int d = 0; d < out_depth; ++d)
+    // init bias
+    for (int od = 0; od < out_depth; ++od) 
     {{
-        for (int h = 0; h < out_height; ++h)
+        for (int oh = 0; oh < out_height; ++oh) 
         {{
-            for (int w = 0; w < out_width; ++w)
+            for (int ow = 0; ow < out_width; ++ow) 
             {{
-                
-                for (int oc = 0; oc < out_channels; ++oc)
+                const int out_base = ((od * out_height + oh) * out_width + ow) * out_channels;
+                if (biases) 
                 {{
-                    int idx = ((d * out_height + h) * out_width + w) * out_channels + oc;
-                    outputs[idx] = biases ? biases[oc] : Scalar(0);
+                    for (int oc = 0; oc < out_channels; ++oc)
+                        outputs[out_base + oc] = biases[oc];
+                }} 
+                else 
+                {{
+                    for (int oc = 0; oc < out_channels; ++oc)
+                        outputs[out_base + oc] = Scalar(0);
                 }}
             }}
         }}
     }}
 
-    for (int ic = 0; ic < in_channels; ++ic)
+    // scatter add
+    for (int id = 0; id < in_depth; ++id) 
     {{
-        for (int id = 0; id < in_depth; ++id)
+        const int od_base = id * stride_d - pad_d;
+
+        for (int ih = 0; ih < in_height; ++ih) 
         {{
-            for (int ih = 0; ih < in_height; ++ih)
+            const int oh_base = ih * stride_h - pad_h;
+
+            for (int iw = 0; iw < in_width; ++iw) 
             {{
-                for (int iw = 0; iw < in_width; ++iw)
+                const int ow_base = iw * stride_w - pad_w;
+
+                for (int ic = 0; ic < in_channels; ++ic) 
                 {{
-                    Scalar in_val =
-                        inputs[((id * in_height + ih) * in_width + iw) * in_channels +
-                               ic];
-                    int base_d = id * stride_depth - padding_depth;
-                    int base_h = ih * stride_height - padding_height;
-                    int base_w = iw * stride_width - padding_width;
+                    const Scalar v = inputs[(((id * in_height + ih) * in_width + iw) * in_channels) + ic];
 
-                    for (int kd = 0; kd < kernel_depth; ++kd)
+                    for (int kd = 0; kd < kernel_d; ++kd) 
                     {{
-                        int od = base_d + kd;
-                        if (od < 0 || od >= out_depth)
-                            continue;
-                        for (int kh = 0; kh < kernel_height; ++kh)
+                        const int od = od_base + kd;
+                        if (od < 0 || od >= out_depth) continue;
+
+                        for (int kh = 0; kh < kernel_h; ++kh) 
                         {{
-                            int oh = base_h + kh;
-                            if (oh < 0 || oh >= out_height)
-                                continue;
-                            for (int kw = 0; kw < kernel_width; ++kw)
+                            const int oh = oh_base + kh;
+                            if (oh < 0 || oh >= out_height) continue;
+
+                            for (int kw = 0; kw < kernel_w; ++kw) 
                             {{
-                                int ow = base_w + kw;
-                                if (ow < 0 || ow >= out_width)
-                                    continue;
+                                const int ow = ow_base + kw;
+                                if (ow < 0 || ow >= out_width) continue;
 
-                                int out_base =
-                                    ((od * out_height + oh) * out_width + ow) * out_channels;
-                                int fd = kernel_depth - 1 - kd;
-                                int fh = kernel_height - 1 - kh;
-                                int fw = kernel_width - 1 - kw;
-                                int ker_base = ((fd * kernel_height + fh) * kernel_width + fw) *
-                                                   (out_channels * in_channels) +
-                                               ic;
+                                // weights[kd, kh, kw, ic, oc] contiguous in oc
+                                const int w_k_base =
+                                    (((((kd * kernel_h + kh) * kernel_w + kw) * in_channels) + ic) * out_channels);
+                                const int out_pix_base =
+                                    (((od * out_height + oh) * out_width + ow) * out_channels);
 
-                                
-                                for (int oc = 0; oc < out_channels; ++oc)
+                                for (int oc = 0; oc < out_channels; ++oc) 
                                 {{
-                                    int k_idx = ker_base + oc * in_channels;
-                                    outputs[out_base + oc] += in_val * kernels[k_idx];
+                                    outputs[out_pix_base + oc] += v * weights[w_k_base + oc];
                                 }}
                             }}
                         }}
@@ -779,42 +780,22 @@ inline void Conv3DTranspose_{base_file_name}(Scalar * __restrict outputs, const 
         }}
     }}
 
-    int total = out_depth * out_height * out_width * out_channels;
-    for (int i = 0; i < total; ++i)
+    // pointwise activation
+    for (int od = 0; od < out_depth; ++od) 
     {{
-        activation_function(outputs[i], outputs[i], alpha);
-    }}
-
-    /*
-    NEEDED TO REORDER OUTPUTS (WILL UPDATE)
-    */
-    std::array<Scalar, out_depth * out_height * out_width * out_channels> tmp;
-    std::copy(outputs, outputs + total, tmp.begin());
-
-    for (int d = 0; d < out_depth; ++d)
-    {{
-        for (int h = 0; h < out_height; ++h)
+        for (int oh = 0; oh < out_height; ++oh) 
         {{
-            for (int w = 0; w < out_width; ++w)
+            for (int ow = 0; ow < out_width; ++ow) 
             {{
-                int dst_base = ((d * out_height + h) * out_width + w) * out_channels;
-                int src_base =
-                    (((out_depth - 1 - d) * out_height + (out_height - 1 - h)) *
-                         out_width +
-                     (out_width - 1 - w)) *
-                    out_channels;
-                
-                for (int c = 0; c < out_channels; ++c)
+                const int out_base = ((od * out_height + oh) * out_width + ow) * out_channels;
+                for (int oc = 0; oc < out_channels; ++oc) 
                 {{
-                    outputs[dst_base + c] = tmp[src_base + c];
+                    const Scalar z = outputs[out_base + oc];
+                    activation_function(outputs[out_base + oc], z, alpha);
                 }}
             }}
         }}
     }}
-    /*
-    NEEDED TO REORDER OUTPUTS (WILL UPDATE)
-    */
-   
 }}
 """,
         "DepthwiseConv2D": f"""
