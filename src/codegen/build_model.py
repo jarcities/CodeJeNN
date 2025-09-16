@@ -442,69 +442,56 @@ inline void Conv1D_{base_file_name}(
 """,
         "Conv1DTranspose": f"""
 template <typename Scalar, int out_channels, int out_length, typename ActFun>
-inline void Conv1DTranspose_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict kernels, const Scalar * __restrict biases, int in_channels,int in_length, int kernel_width, int stride, int padding, ActFun activation_function, Scalar alpha)
+inline void Conv1DTranspose_{base_file_name}(
+    Scalar *__restrict outputs,
+    const Scalar *__restrict inputs,
+    const Scalar *__restrict kernels,
+    const Scalar *__restrict biases,
+    int in_channels, int in_length,
+    int kernel_width, int stride, int padding,
+    ActFun activation_function, Scalar alpha) noexcept
 {{
+    // init
     for (int ow = 0; ow < out_length; ++ow)
     {{
-        
         for (int oc = 0; oc < out_channels; ++oc)
         {{
-            int idx = ow * out_channels + oc;
-            outputs[idx] = biases ? biases[oc] : Scalar(0);
+            outputs[ow * out_channels + oc] = biases ? biases[oc] : Scalar(0);
         }}
     }}
-
-    for (int ic = 0; ic < in_channels; ++ic)
+    // ow = iw * stride - padding + k
+    for (int iw = 0; iw < in_length; ++iw)
     {{
-        for (int iw = 0; iw < in_length; ++iw)
+        const int base = iw * stride - padding;
+
+        for (int ic = 0; ic < in_channels; ++ic)
         {{
-            Scalar val = inputs[iw * in_channels + ic];
-            int base = iw * stride - padding;
+            const Scalar val = inputs[iw * in_channels + ic];
 
             for (int k = 0; k < kernel_width; ++k)
             {{
-                int ow = base + k;
+                const int ow = base + k;
                 if (ow < 0 || ow >= out_length)
                     continue;
 
-                int fk = kernel_width - 1 - k;
-                int ker_base = fk * (out_channels * in_channels) + ic;
-                int out_base = ow * out_channels;
-                
+                const int out_base = ow * out_channels;
+                const int ker_k_base = k * (out_channels * in_channels); // [k][oc][ic]
+
                 for (int oc = 0; oc < out_channels; ++oc)
                 {{
-                    int k_idx = ker_base + oc * in_channels;
+                    const int k_idx = ker_k_base + oc * in_channels + ic; // [k][oc][ic]
                     outputs[out_base + oc] += val * kernels[k_idx];
                 }}
             }}
         }}
     }}
 
-    int total = out_length * out_channels;
+    // activation
+    const int total = out_length * out_channels;
     for (int i = 0; i < total; ++i)
     {{
         activation_function(outputs[i], outputs[i], alpha);
     }}
-
-    /*
-    NEEDED TO REORDER OUTPUTS (WILL UPDATE)
-    */
-    std::array<Scalar, out_length * out_channels> tmp;
-    std::copy(outputs, outputs + total, tmp.begin());
-    for (int ow = 0; ow < out_length; ++ow)
-    {{
-        int dst = ow * out_channels;
-        int src = (out_length - 1 - ow) * out_channels;
-        
-        for (int oc = 0; oc < out_channels; ++oc)
-        {{
-            outputs[dst + oc] = tmp[src + oc];
-        }}
-    }}
-    /*
-    NEEDED TO REORDER OUTPUTS (WILL UPDATE)
-    */
-   
 }}
 """,
         "Conv2D": f"""
