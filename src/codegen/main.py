@@ -133,6 +133,8 @@ else:
                         layer_shape,
                         layer_type,
                     ) = extractModel(model, file_extension, base_file_name)
+
+                    ## DEBUG PRINTS ##
                     if args.debug:
                         print(f"\n\nModel Summary for {file_name}:")
                         print("----------------------------------")
@@ -145,6 +147,15 @@ else:
                         print(f"Layer Sizes -> {layer_shape}")
                         print(f"Layer Types -> {layer_type}")
                         print(f"Activation Functions -> {activation_functions}")
+                        print(f"Convolutional Params -> {conv_layer_params}")
+                        # print("Convolutional Params -> [",  end="")
+                        # for i, params in enumerate(conv_layer_params):
+                        #     if conv_layer_params is not None:
+                        #         print("yes",  end="")
+                        #     else:
+                        #         print("no",  end="")
+                        #     print(",",  end=" ")
+                        # print("]",  end="")
                         print()
                 except ValueError as e:
                     print("\nError in extracting model:", e)
