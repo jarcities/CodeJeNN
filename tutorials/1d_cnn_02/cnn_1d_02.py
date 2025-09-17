@@ -39,19 +39,25 @@ x = layers.Conv1D(filters=32, kernel_size=5, activation='sigmoid', padding='same
 x = layers.BatchNormalization()(x)
 x = layers.AveragePooling1D(pool_size=2)(x)
 #layer 2
-x = layers.Conv1D(filters=64, kernel_size=5, activation='relu', padding='same')(x)
+x = layers.DepthwiseConv1D(kernel_size=3, activation='relu', padding='same')(x)
 x = layers.BatchNormalization()(x)
-x = layers.MaxPooling1D(pool_size=2)(x)
 #layer 3
-x = layers.Conv1D(filters=128, kernel_size=3, activation='tanh', padding='same')(x)
+x = layers.Conv1D(filters=64, kernel_size=5, activation='silu', padding='same')(x)
 x = layers.BatchNormalization()(x)
 x = layers.MaxPooling1D(pool_size=2)(x)
 #layer 4
-x = layers.Conv1DTranspose(filters=64, kernel_size=3, strides=2, activation='relu', padding='same')(x)
-x = layers.BatchNormalization()(x)
+# x = layers.SeparableConv1D(filters=96, kernel_size=3, activation='swish', padding='same')(x)
+# x = layers.BatchNormalization()(x)
 #layer 5
-x = layers.GlobalAveragePooling1D()(x)
+x = layers.Conv1D(filters=128, kernel_size=3, activation='tanh', padding='same')(x)
+x = layers.BatchNormalization()(x)
+x = layers.MaxPooling1D(pool_size=2)(x)
 #layer 6
+x = layers.Conv1DTranspose(filters=64, kernel_size=3, strides=2, activation='softmax', padding='same')(x)
+x = layers.BatchNormalization()(x)
+#layer 7
+x = layers.GlobalAveragePooling1D()(x)
+#layer 8
 x = layers.Dense(256, activation='mish')(x)
 x = layers.Dropout(0.3)(x)
 x = layers.Dense(128, activation='gelu')(x)

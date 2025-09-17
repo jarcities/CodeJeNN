@@ -143,9 +143,9 @@ else:
                 save_path = os.path.join(save_dir, base_file_name)
                 cpp_code = preambleHeader()
 
-                ############################################
-                ## 5. PROCESS LAYER PROPAGATION FUNCTIONS ##
-                ############################################
+                ######################
+                ## 5. REBUILD MODEL ##
+                ######################
                 try:
                     cpp_code, cpp_lambda = buildModel(
                         cpp_code, activation_functions, layer_type, base_file_name

@@ -142,7 +142,7 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
     };
 """,
         "softmax": """
-    auto softmax = +[](const Scalar* __restrict inputs, Scalar* __restrict outputs, int size) noexcept
+    auto softmax = +[](Scalar* __restrict outputs, const Scalar* __restrict inputs, int size) noexcept
     {
         const Scalar max_val = *std::max_element(inputs, inputs + size);
         Scalar sum = 0;
@@ -180,6 +180,7 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
     auto {act_name} = +[](Scalar& output, Scalar input, Scalar alpha) noexcept
     {{
         //TODO: implement custom activation '{act_name}'
+        std::cout << "WARNING: CUSTOM ACTIVATION HAS NOT BEEN IMPLEMENTED" << std::endl;
         output = input; //default fallback
     }};
 """,
@@ -794,6 +795,42 @@ inline void Conv3DTranspose(
                     activation_function(outputs[out_base + oc], z, alpha);
                 }}
             }}
+        }}
+    }}
+}}
+""",
+        "DepthwiseConv1D": f"""
+template <typename Scalar, typename ActFun>
+inline void DepthwiseConv1D_{base_file_name}(Scalar * __restrict outputs,
+                                             const Scalar * __restrict inputs,
+                                             const Scalar * __restrict weights,
+                                             const Scalar * __restrict biases,
+                                             int out_channels, int out_length,
+                                             int in_channels,  int in_length,
+                                             int kernel_size,  int stride,
+                                             int padding,
+                                             ActFun activation_function, Scalar alpha) noexcept
+{{
+    for (int c = 0; c < in_channels; ++c)
+    {{
+        for (int ol = 0; ol < out_length; ++ol)
+        {{
+            Scalar sum = 0;
+            for (int k = 0; k < kernel_size; ++k)
+            {{
+                const int il = ol * stride - padding + k;
+                if (il >= 0 && il < in_length)
+                {{
+                    const int input_index  = il * in_channels + c;      
+                    const int weight_index = k  * in_channels + c;      
+                    sum += inputs[input_index] * weights[weight_index];
+                }}
+            }}
+
+            sum += biases[c];
+
+            const int output_index = ol * in_channels + c;               
+            activation_function(outputs[output_index], sum, alpha);
         }}
     }}
 }}

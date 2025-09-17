@@ -1311,7 +1311,107 @@ def extractModel(model, file_type, base_file_name=None):
             ########################
             ## CONVOLUTION LAYERS ##
             ########################
-            # 2d depthwsie convolutional layer
+
+            # 1d depthwise convolutional layer
+            if (
+                isinstance(layer, keras.layers.DepthwiseConv1D)
+                or "depthwiseconv1d" in layer.name.lower()
+            ):
+                try:
+                    use_bias = config.get("use_bias", True)
+                    if use_bias and len(layer_weights) == 2:
+                        depthwise_kernel, bias = layer_weights
+                    elif not use_bias and len(layer_weights) == 1:
+                        depthwise_kernel, bias = layer_weights[0], None
+                    else:
+                        depthwise_kernel, bias = None, None
+
+                    in_C = current_shape[-1]
+                    inferred_dm = None
+                    if hasattr(layer, "filters") and in_C is not None and in_C > 0:
+                        try:
+                            inferred_dm = max(1, layer.filters // in_C)
+                        except Exception:
+                            inferred_dm = None
+
+                    depth_multiplier = config.get("depth_multiplier", inferred_dm if inferred_dm is not None else 1)
+                    
+                    # Extract kernel_size, strides, dilation_rate as integers for 1D
+                    k_raw = config.get("kernel_size", None)
+                    if k_raw is None and hasattr(layer, "kernel_size"):
+                        k_raw = layer.kernel_size
+                    if isinstance(k_raw, (list, tuple)):
+                        k = k_raw[0]
+                    else:
+                        k = k_raw if k_raw is not None else 3
+                    
+                    s_raw = config.get("strides", None)
+                    if s_raw is None and hasattr(layer, "strides"):
+                        s_raw = layer.strides
+                    if isinstance(s_raw, (list, tuple)):
+                        s = s_raw[0]
+                    else:
+                        s = s_raw if s_raw is not None else 1
+                    
+                    d_raw = config.get("dilation_rate", None)
+                    if d_raw is None and hasattr(layer, "dilation_rate"):
+                        d_raw = layer.dilation_rate
+                    if isinstance(d_raw, (list, tuple)):
+                        d = d_raw[0]
+                    else:
+                        d = d_raw if d_raw is not None else 1
+                    
+                    pad = config.get("padding", None)
+                    if pad is None and hasattr(layer, "padding"):
+                        pad = layer.padding
+                    if pad is None:
+                        pad = "valid"
+
+                    conv_params = {
+                        "layer_type": "DepthwiseConv1D",
+                        "depthwise_kernel": depthwise_kernel,
+                        "depthwise_bias": bias,
+                        "pointwise_kernel": None,
+                        "pointwise_bias": None,
+                        "filters": depth_multiplier,        
+                        "kernel_size": k,
+                        "strides": s,
+                        "padding": pad,
+                        "dilation_rate": d,
+                        "use_bias": use_bias,
+                    }
+                    L, C = current_shape
+                    eff_k = (k - 1) * d + 1
+                    if pad.lower() == "same":
+                        out_L = math.ceil(L / s)
+                    elif pad.lower() == "valid":
+                        out_L = math.floor((L - eff_k) / s) + 1
+                    else:
+                        out_L = math.ceil(L / s)
+                    out_C = C * depth_multiplier
+                    new_shape = (out_L, out_C)
+                    conv_params["in_shape"] = current_shape
+                    conv_params["out_shape"] = new_shape
+                    current_shape = new_shape
+                    conv_layer_params.append(conv_params)
+                    weights_list.append(None)
+                    biases_list.append(None)
+                    alphas.append(alpha_value)
+                    norm_layer_params.append(None)
+                    activation_functions.append(activation if activation != "linear" else "linear")
+                    dropout_rates.append(0.0)
+                    layer_shape.append(new_shape)
+                    layer_type.append("DepthwiseConv1D")
+                    continue
+
+                except ValueError as e:
+                    print(
+                        f"\nError in extracting parameters: 1d depthwise convolutional layer {layer_idx} --> ",
+                        e,
+                    )
+                    continue
+
+            # 2d depthwise convolutional layer
             if (
                 isinstance(layer, keras.layers.DepthwiseConv2D)
                 or "depthwiseconv2d" in layer.name.lower()
@@ -1350,8 +1450,6 @@ def extractModel(model, file_type, base_file_name=None):
                         out_W = math.floor((W - kW) / sW) + 1
                     else:
                         out_H, out_W = H, W
-                    # for depthwise=True, channels stay the same
-                    # out_C = C
                     out_C = C * conv_params["filters"]  # depth_multiplier
                     new_shape = (out_H, out_W, out_C)
 
@@ -1377,7 +1475,7 @@ def extractModel(model, file_type, base_file_name=None):
                     )
                     continue
 
-            # seperable convolution layers
+            # 2d separable convolution layers
             if (
                 isinstance(layer, keras.layers.SeparableConv2D)
                 or "separableconv2d" in layer.name.lower()
