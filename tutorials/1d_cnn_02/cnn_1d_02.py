@@ -46,8 +46,8 @@ x = layers.Conv1D(filters=64, kernel_size=5, activation='silu', padding='same')(
 x = layers.BatchNormalization()(x)
 x = layers.MaxPooling1D(pool_size=2)(x)
 #layer 4
-# x = layers.SeparableConv1D(filters=96, kernel_size=3, activation='swish', padding='same')(x)
-# x = layers.BatchNormalization()(x)
+x = layers.SeparableConv1D(filters=96, kernel_size=3, activation='swish', padding='same')(x)
+x = layers.BatchNormalization()(x)
 #layer 5
 x = layers.Conv1D(filters=128, kernel_size=3, activation='tanh', padding='same')(x)
 x = layers.BatchNormalization()(x)

@@ -334,51 +334,26 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += "\n"
                     continue
 
-                # # 2d depthwise convolutional layers
-                # elif ltype == "DepthwiseConv2D":
-                #     kernel = conv_dict.get("kernel_size", (3, 3))
-                #     strides = conv_dict.get("strides", (1, 1))
-                #     padding = conv_dict.get("padding", "valid")
-                #     pad_h = kernel[0] // 2 if padding.lower() == "same" else 0
-                #     pad_w = kernel[1] // 2 if padding.lower() == "same" else 0
-
-                #     cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                #     cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
-                #     cpp_code += f"    DepthwiseConv2D_{base_file_name}(\n"
-                #     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
-                #     cpp_code += f"        depthwiseKernel_{layer_idx}.data(), depthwiseBias_{layer_idx}.data(),\n"
-                #     cpp_code += (
-                #         f"        {out_shape[2]}, {out_shape[0]}, {out_shape[1]},\n"
-                #     )
-                #     cpp_code += (
-                #         f"        {in_shape[2]}, {in_shape[0]}, {in_shape[1]},\n"
-                #     )
-                #     cpp_code += f"        {kernel[0]}, {kernel[1]}, {strides[0]}, {strides[1]}, {pad_h}, {pad_w},\n"
-                #     cpp_code += f"        {mapped_act}, {alpha});\n\n"
-                #     last_layer = f"layer_{layer_idx}_output"
-                #     last_shape = out_shape
-                #     continue
-
-                # 2d serpable convolutional layers
-                elif ltype == "SeparableConv2D":
-                    dw = conv_dict.get("depthwise_kernel", None)
-                    pw = conv_dict.get("pointwise_kernel", None)
+                # 1d and 2d separable convolutional layers
+                elif ltype in ["SeparableConv1D", "SeparableConv2D"]:
+                    dk = conv_dict.get("depthwise_kernel", None)
+                    pk = conv_dict.get("pointwise_kernel", None)
                     db = conv_dict.get("depthwise_bias", None)
                     pb = conv_dict.get("pointwise_bias", None)
-                    if dw is not None:
-                        dwflat = dw.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(dwflat)}> sepDepthwise_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in dwflat)
+                    if dk is not None:
+                        dkflat = dk.flatten()
+                        cpp_code += f"    constexpr std::array<Scalar, {len(dkflat)}> sepDepthwise_{layer_idx} = {{"
+                        cpp_code += ", ".join(f"{val:10.9e}" for val in dkflat)
                         cpp_code += "};\n"
                     if db is not None:
                         dbflat = db.flatten()
                         cpp_code += f"    constexpr std::array<Scalar, {len(dbflat)}> sepDepthwiseBias_{layer_idx} = {{"
                         cpp_code += ", ".join(f"{val:10.9e}" for val in dbflat)
                         cpp_code += "};\n"
-                    if pw is not None:
-                        pwflat = pw.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(pwflat)}> sepPointwise_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in pwflat)
+                    if pk is not None:
+                        pkflat = pk.flatten()
+                        cpp_code += f"    constexpr std::array<Scalar, {len(pkflat)}> sepPointwise_{layer_idx} = {{"
+                        cpp_code += ", ".join(f"{val:10.9e}" for val in pkflat)
                         cpp_code += "};\n"
                     if pb is not None:
                         pbflat = pb.flatten()
@@ -1231,6 +1206,48 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 except ValueError as e:
                     print(
                         f"\nError in generating function call: depthwiseconv2d layer {layer_idx} --> ",
+                        e,
+                    )
+                    continue
+
+            # 1d separable convolutional layers
+            elif ltype == "SeparableConv1D":
+                try:
+                    input_length = in_shape[0] if len(in_shape) > 0 else 1
+                    input_channels = in_shape[-1] if len(in_shape) > 1 else 1
+                    output_length = out_shape[0] if out_shape else 1
+                    output_channels = (
+                        out_shape[-1]
+                        if out_shape and len(out_shape) > 1
+                        else (conv_dict.get("filters") or 1)
+                    )
+
+                    kernel_size_val = conv_dict.get("kernel_size", 3)
+                    strides_val = conv_dict.get("strides", 1)
+                    pad = (
+                        kernel_size_val // 2
+                        if str(conv_dict.get("padding", "valid")).lower() == "same"
+                        else 0
+                    )
+
+                    cpp_code += f"    // {ltype}, layer {layer_idx}\n"
+                    cpp_code += f"    static std::array<Scalar, {output_length * output_channels}> layer_{layer_idx}_output;\n"
+                    cpp_code += f"    SeparableConv1D_{base_file_name}<Scalar, {output_channels}, {output_length}>(\n"
+                    cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+                    cpp_code += f"        sepDepthwise_{layer_idx}.data(), sepPointwise_{layer_idx}.data(), sepPointwiseBias_{layer_idx}.data(),\n"
+                    cpp_code += f"        {input_channels}, {input_length}, {kernel_size_val}, {strides_val}, {pad},\n"
+                    cpp_code += f"        {mapped_act}, {alpha});\n\n"
+                    last_layer = f"layer_{layer_idx}_output"
+                    last_shape = (output_length, output_channels)
+                    # debug printing flag
+                    if debug_outputs:
+                        cpp_code += debug_printing(
+                            layer_idx, ltype, last_shape, last_layer
+                        )
+                    continue
+                except ValueError as e:
+                    print(
+                        f"\nError in generating function call: separableconv1d layer {layer_idx} --> ",
                         e,
                     )
                     continue

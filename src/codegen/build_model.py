@@ -874,6 +874,76 @@ inline void DepthwiseConv2D_{base_file_name}(Scalar * __restrict outputs, const 
     }}
 }}
 """,
+        "SeparableConv1D": f"""
+template <typename Scalar>
+inline void DepthwiseForsSeparableConv1D(Scalar *__restrict outputs, const Scalar *__restrict inputs, const Scalar *__restrict weights, const Scalar *__restrict biases,
+                                  int out_length,
+                                  int in_channels, int in_length,
+                                  int kernel_size, int stride,
+                                  int padding) noexcept
+{{
+    for (int c = 0; c < in_channels; ++c)
+    {{
+        for (int ol = 0; ol < out_length; ++ol)
+        {{
+            Scalar sum = 0;
+            for (int k = 0; k < kernel_size; ++k)
+            {{
+                int in_l = ol * stride - padding + k;
+                if (in_l >= 0 && in_l < in_length)
+                {{
+                    int input_index = (in_l * in_channels) + c;
+                    int weight_index = k * in_channels + c;
+                    sum += inputs[input_index] * weights[weight_index];
+                }}
+            }}
+            sum += biases[c];
+            int output_index = (ol * in_channels) + c;
+            outputs[output_index] = sum;
+        }}
+    }}
+}}
+
+template <typename Scalar, int out_channels, int out_length, typename ActFun>
+inline void SeparableConv1D_{base_file_name}(
+    Scalar *__restrict outputs,
+    const Scalar *__restrict inputs,
+    const Scalar *__restrict depthwise_weights,
+    const Scalar *__restrict pointwise_weights,
+    const Scalar *__restrict biases,
+    int in_channels, int in_length,
+    int kernel_size,
+    int stride,
+    int padding,
+    ActFun activation_function, Scalar alpha) noexcept
+{{
+    std::vector<Scalar> depthwise_output(out_length * in_channels, 0);
+    std::vector<Scalar> zero_bias(in_channels, 0);
+    DepthwiseForsSeparableConv1D(
+        depthwise_output.data(), inputs, depthwise_weights, zero_bias.data(), out_length,
+        in_channels, in_length,
+        kernel_size,
+        stride,
+        padding);
+    for (int oc = 0; oc < out_channels; ++oc)
+    {{
+        for (int i = 0; i < out_length; ++i)
+        {{
+            Scalar sum = 0;
+            
+            for (int ic = 0; ic < in_channels; ++ic)
+            {{
+                int index = i * in_channels + ic;
+                int weight_index = ic * out_channels + oc;
+                sum += depthwise_output[index] * pointwise_weights[weight_index];
+            }}
+            sum += biases[oc];
+            int output_index = i * out_channels + oc;
+            activation_function(outputs[output_index], sum, alpha);
+        }}
+    }}
+}}
+""",
         "SeparableConv2D": f"""
 template <typename Scalar>
 inline void DepthwiseForsSeparableConv2D(Scalar *__restrict outputs, const Scalar *__restrict inputs, const Scalar *__restrict weights, const Scalar *__restrict biases,

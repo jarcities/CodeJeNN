@@ -7,6 +7,7 @@ USE, MODIFICATION, AND DISSEMINATION ARE PERMITTED ONLY IN ACCORDANCE WITH THE T
 NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DISPOSITION, OR MODIFICATION OF THIS SOURCE CODE
 MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 """
+
 from multiprocessing import pool
 import tensorflow as tf
 import onnx
@@ -124,7 +125,6 @@ def extractModel(model, file_type, base_file_name=None):
 
     # check for keras based models
     if file_type in [".h5", ".keras"]:
-
         # INPUT SHAPE
         this_input_shape = model.input_shape
         if this_input_shape[0] is None:
@@ -142,7 +142,6 @@ def extractModel(model, file_type, base_file_name=None):
         ## LAYER ITERATION ##
         #####################
         for layer in model.layers:
-
             layer_idx += 1
 
             ################################
@@ -668,14 +667,10 @@ def extractModel(model, file_type, base_file_name=None):
             ):
                 try:
                     raw_pool = config.get("pool_size", 2)
-                    pool_size = (
-                        raw_pool if isinstance(raw_pool, int) else raw_pool[0]
-                    )
+                    pool_size = raw_pool if isinstance(raw_pool, int) else raw_pool[0]
                     raw_strides = config.get("strides", pool_size)
                     strides = (
-                        raw_strides
-                        if isinstance(raw_strides, int)
-                        else raw_strides[0]
+                        raw_strides if isinstance(raw_strides, int) else raw_strides[0]
                     )
 
                     padding = config.get("padding", "valid")
@@ -696,8 +691,14 @@ def extractModel(model, file_type, base_file_name=None):
                                 raw_shape[0],
                             )
                     current_shape = raw_shape
-                    pool_size = pool_size[0] if isinstance(pool_size, (tuple, list)) else pool_size
-                    strides = strides[0] if isinstance(strides, (tuple, list)) else strides
+                    pool_size = (
+                        pool_size[0]
+                        if isinstance(pool_size, (tuple, list))
+                        else pool_size
+                    )
+                    strides = (
+                        strides[0] if isinstance(strides, (tuple, list)) else strides
+                    )
                     if padding == "valid":
                         length = math.floor((in_shape[0] - pool_size) / strides) + 1
                     else:  # same
@@ -902,14 +903,10 @@ def extractModel(model, file_type, base_file_name=None):
             ):
                 try:
                     raw_pool = config.get("pool_size", 2)
-                    pool_size = (
-                        raw_pool if isinstance(raw_pool, int) else raw_pool[0]
-                    )
+                    pool_size = raw_pool if isinstance(raw_pool, int) else raw_pool[0]
                     raw_strides = config.get("strides", pool_size)
                     strides = (
-                        raw_strides
-                        if isinstance(raw_strides, int)
-                        else raw_strides[0]
+                        raw_strides if isinstance(raw_strides, int) else raw_strides[0]
                     )
 
                     padding = config.get("padding", "valid")
@@ -1334,8 +1331,11 @@ def extractModel(model, file_type, base_file_name=None):
                         except Exception:
                             inferred_dm = None
 
-                    depth_multiplier = config.get("depth_multiplier", inferred_dm if inferred_dm is not None else 1)
-                    
+                    depth_multiplier = config.get(
+                        "depth_multiplier",
+                        inferred_dm if inferred_dm is not None else 1,
+                    )
+
                     # Extract kernel_size, strides, dilation_rate as integers for 1D
                     k_raw = config.get("kernel_size", None)
                     if k_raw is None and hasattr(layer, "kernel_size"):
@@ -1344,7 +1344,7 @@ def extractModel(model, file_type, base_file_name=None):
                         k = k_raw[0]
                     else:
                         k = k_raw if k_raw is not None else 3
-                    
+
                     s_raw = config.get("strides", None)
                     if s_raw is None and hasattr(layer, "strides"):
                         s_raw = layer.strides
@@ -1352,7 +1352,7 @@ def extractModel(model, file_type, base_file_name=None):
                         s = s_raw[0]
                     else:
                         s = s_raw if s_raw is not None else 1
-                    
+
                     d_raw = config.get("dilation_rate", None)
                     if d_raw is None and hasattr(layer, "dilation_rate"):
                         d_raw = layer.dilation_rate
@@ -1360,7 +1360,7 @@ def extractModel(model, file_type, base_file_name=None):
                         d = d_raw[0]
                     else:
                         d = d_raw if d_raw is not None else 1
-                    
+
                     pad = config.get("padding", None)
                     if pad is None and hasattr(layer, "padding"):
                         pad = layer.padding
@@ -1373,7 +1373,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "depthwise_bias": bias,
                         "pointwise_kernel": None,
                         "pointwise_bias": None,
-                        "filters": depth_multiplier,        
+                        "filters": depth_multiplier,
                         "kernel_size": k,
                         "strides": s,
                         "padding": pad,
@@ -1398,7 +1398,9 @@ def extractModel(model, file_type, base_file_name=None):
                     biases_list.append(None)
                     alphas.append(alpha_value)
                     norm_layer_params.append(None)
-                    activation_functions.append(activation if activation != "linear" else "linear")
+                    activation_functions.append(
+                        activation if activation != "linear" else "linear"
+                    )
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("DepthwiseConv1D")
@@ -1471,6 +1473,84 @@ def extractModel(model, file_type, base_file_name=None):
                 except ValueError as e:
                     print(
                         f"\nError in extracting parameters: 2d depthwise convolutional layer {layer_idx} --> ",
+                        e,
+                    )
+                    continue
+
+            # 1d seperable convolution layers
+            if (
+                isinstance(layer, keras.layers.SeparableConv1D)
+                or "separableconv1d" in layer.name.lower()
+            ):
+                try:
+                    use_bias = config.get("use_bias", True)
+                    if use_bias and len(layer_weights) == 3:
+                        depthwise_kernel, pointwise_kernel, bias = layer_weights
+                    elif not use_bias and len(layer_weights) == 2:
+                        depthwise_kernel, pointwise_kernel, bias = (
+                            layer_weights[0],
+                            layer_weights[1],
+                            None,
+                        )
+                    else:
+                        depthwise_kernel, pointwise_kernel, bias = None, None, None
+
+                    conv_params = {
+                        "layer_type": "SeparableConv1D",
+                        "depthwise_kernel": depthwise_kernel,
+                        "depthwise_bias": None,
+                        "pointwise_kernel": pointwise_kernel,
+                        "pointwise_bias": bias,
+                        "filters": config.get("filters", None),
+                        "kernel_size": config.get("kernel_size", 3),
+                        "strides": config.get("strides", 1),
+                        "padding": config.get("padding", "valid"),
+                        "dilation_rate": config.get("dilation_rate", 1),
+                        "use_bias": use_bias,
+                    }
+
+                    L, C = (
+                        current_shape
+                        if len(current_shape) == 2
+                        else (current_shape[0], 1)
+                    )
+                    k = conv_params["kernel_size"]
+                    if isinstance(k, (list, tuple)):
+                        k = k[0]
+                    s = conv_params["strides"]
+                    if isinstance(s, (list, tuple)):
+                        s = s[0]
+                    pad = conv_params["padding"]
+                    filt = conv_params.get("filters")
+
+                    if pad.lower() == "same":
+                        out_L = math.ceil(L / s)
+                    elif pad.lower() == "valid":
+                        out_L = math.floor((L - k) / s) + 1
+                    else:
+                        out_L = L
+
+                    out_C = filt if filt is not None else C
+                    new_shape = (out_L, out_C)
+
+                    conv_params["in_shape"] = current_shape
+                    conv_params["out_shape"] = new_shape
+                    current_shape = new_shape
+                    conv_layer_params.append(conv_params)
+                    weights_list.append(None)
+                    biases_list.append(None)
+                    norm_layer_params.append(None)
+                    activation_functions.append(
+                        activation if activation != "linear" else "linear"
+                    )
+                    alphas.append(alpha_value)
+                    dropout_rates.append(0.0)
+                    layer_shape.append(new_shape)
+                    layer_type.append("SeparableConv1D")
+                    continue
+                except ValueError as e:
+                    print(
+                        f"\nError in extracting parameters: 1d seperable convolutional layer {layer_idx} --> ",
                         e,
                     )
                     continue
@@ -1573,7 +1653,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "dilation_rate": config.get("dilation_rate", None),
                         "use_bias": use_bias,
                         "in_shape": None,
-                        "out_shape": None
+                        "out_shape": None,
                     }
 
                     in_length = current_shape[0]
@@ -1582,8 +1662,14 @@ def extractModel(model, file_type, base_file_name=None):
                     padding = conv_params["padding"]
                     filters = conv_params["filters"]
 
-                    kernel_size = kernel_size[0] if isinstance(kernel_size, (tuple, list)) else kernel_size
-                    strides = strides[0] if isinstance(strides, (tuple, list)) else strides
+                    kernel_size = (
+                        kernel_size[0]
+                        if isinstance(kernel_size, (tuple, list))
+                        else kernel_size
+                    )
+                    strides = (
+                        strides[0] if isinstance(strides, (tuple, list)) else strides
+                    )
 
                     conv_params["kernel_size"] = kernel_size
                     conv_params["strides"] = strides
@@ -1860,8 +1946,16 @@ def extractModel(model, file_type, base_file_name=None):
                     raw_kernel_size = config.get("kernel_size", 3)
                     padding = config.get("padding", "valid").lower()
                     filters = config.get("filters", None)
-                    strides = raw_strides[0] if isinstance(raw_strides, (tuple, list)) else raw_strides
-                    kernel_size = raw_kernel_size[0] if isinstance(raw_kernel_size, (tuple, list)) else raw_kernel_size
+                    strides = (
+                        raw_strides[0]
+                        if isinstance(raw_strides, (tuple, list))
+                        else raw_strides
+                    )
+                    kernel_size = (
+                        raw_kernel_size[0]
+                        if isinstance(raw_kernel_size, (tuple, list))
+                        else raw_kernel_size
+                    )
 
                     if padding == "same":
                         out_length = in_length * strides
