@@ -33,11 +33,16 @@ parser.add_argument(
     required=True,
     help="path of folder to save generated header files",
 )
-parser.add_argument(
-    "--precision",
-    type=str,
-    required=False,
-    help='precision type to run neural net, either "double" or "float"',
+precision_group = parser.add_mutually_exclusive_group()
+precision_group.add_argument(
+    "--double",
+    action="store_true",
+    help="use double precision for neural net computations",
+)
+precision_group.add_argument(
+    "--float",
+    action="store_true",
+    help="use float precision for neural net computations (default)",
 )
 parser.add_argument(
     "--custom_activation",
@@ -53,13 +58,12 @@ parser.add_argument(
 args = parser.parse_args()
 
 ## DATA TYPE PRECISION ##
-if args.precision is not None:
-    if args.precision not in ["float", "double"]:
-        print("\nERROR: Precision type must be 'float' or 'double'.\n")
-        exit(1)
-    precision_type = args.precision
-else:
+if args.double:
+    precision_type = "double"
+elif args.float:
     precision_type = "float"
+else:
+    precision_type = "float"  # default to float
 
 model_dir = args.input
 save_dir = args.output
