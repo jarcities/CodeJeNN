@@ -129,10 +129,19 @@ else:
                         layer_shape,
                         layer_type,
                     ) = extractModel(model, file_extension, base_file_name)
-                    # print(layer_type)
-                    # print(activation_functions)
-                    # for i, (lt, cdict) in enumerate(zip(layer_type, conv_layer_params), start=1):
-                    #     print(i, lt, "has_conv_dict=" + str(cdict is not None))
+                    if args.debug:
+                        print(f"\n\nModel Summary for {file_name}:")
+                        print("----------------------------------")
+                        model.summary()
+                        print()
+                        print(f"\nWhat CodeJeNN extracted for {file_name}:")
+                        print("--------------------------------------------")
+                        print(f"Input Size -> {input_flat_size}")
+                        print(f"Output Size -> {output_flat_size}")
+                        print(f"Layer Sizes -> {layer_shape}")
+                        print(f"Layer Types -> {layer_type}")
+                        print(f"Activation Functions -> {activation_functions}")
+                        print()
                 except ValueError as e:
                     print("\nError in extracting model:", e)
                     continue

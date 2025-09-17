@@ -55,8 +55,9 @@ def debug_printing(layer_idx, layer_type, layer_shape, last_layer_name, num_valu
     else:
         total_size = layer_shape
     num_val = min(num_values, total_size)
-    cpp_debug_code = f"""    // DEBUGGING, 1st {num_val} values of {layer_type} layer {layer_idx}
-    std::cout << "({layer_type}) layer {layer_idx} -> shape = ";"""
+    cpp_debug_code = f"""    // DEBUGGING, 1st {num_val} values of {layer_type} layer {layer_idx}:
+    std::cout << "({layer_type}) layer {layer_idx}:" << "\\n";
+    std::cout << "Shape -> ";"""
 
     # shape information
     if isinstance(layer_shape, tuple):
@@ -65,13 +66,13 @@ def debug_printing(layer_idx, layer_type, layer_shape, last_layer_name, num_valu
         shape_str = f"({layer_shape},)"
 
     cpp_debug_code += f"""
-    std::cout << "{shape_str} -> ";
+    std::cout << "{shape_str}" << "\\n";
+    std::cout << "Values -> ";
     for (int ii = 0; ii < {num_val}; ++ii) {{
         std::cout << {last_layer_name}[ii];
         if (ii < {num_val} - 1) std::cout << ", ";
     }}
-    std::cout << std::endl;
-
+    std::cout << " . . .\\n\\n";\n
 """
     return cpp_debug_code
 
@@ -364,7 +365,8 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     continue
 
                 # transposed 1d, 2d, and 3d convolutional layers
-                elif ltype in ["Conv1DTranspose", "Conv2DTranspose", "Conv3DTranspose"]:
+                elif ltype in ["Conv1DTranspose", "Conv2DTranspose", "Conv3DTranspose"] \
+                    and ltype not in ["Conv1D", "Conv2D", "Conv3D"]:
                     kernel = conv_dict.get("weights", None)
                     bias = conv_dict.get("biases", None)
                     if kernel is not None:
@@ -616,7 +618,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     ######################################
     if debug_outputs:
         cpp_code += "   //DEBUG PRINTING FLAG IS ON\n"
-        cpp_code += f"""    std::cout << "Debug printing first ~10 outputs of each layer:" << std::endl;\n\n"""
+        cpp_code += f"""    std::cout << "\\n";\n"""
+        cpp_code += f"""    std::cout << "Debug printing first ~10 outputs of each layer:" << "\\n";\n"""
+        cpp_code += f"""    std::cout << "\\n";\n\n"""
 
     for i, (w, b, norm_params, conv_dict, ltype, alpha, act_fun) in enumerate(
         zip(
@@ -1000,7 +1004,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 )
 
             # 1d convolutional layers
-            if ltype == "Conv1D":
+            if ltype == "Conv1D" and ltype not in ["Conv1DTranspose"]:
                 try:
                     input_length = in_shape[0] if len(in_shape) > 0 else 1
                     input_channels = in_shape[-1] if len(in_shape) > 1 else 1
@@ -1042,7 +1046,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     continue
 
             # 2d convolutional layers
-            elif ltype == "Conv2D":
+            elif ltype == "Conv2D" and ltype not in ["Conv2DTranspose"]:
                 try:
                     in_shape = conv_dict.get(
                         "in_shape",
@@ -1095,7 +1099,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     continue
 
             # 3d convolutional layers
-            elif ltype == "Conv3D":
+            elif ltype == "Conv3D" and ltype not in ["Conv3DTranspose"]:
                 try:
                     kernel = conv_dict.get("kernel_size", (3, 3, 3))
                     strides = conv_dict.get("strides", (1, 1, 1))
@@ -1223,7 +1227,12 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     )
 
                     kernel_size_val = conv_dict.get("kernel_size", 3)
+                    if isinstance(kernel_size_val, (list, tuple)):
+                        kernel_size_val = kernel_size_val[0]
                     strides_val = conv_dict.get("strides", 1)
+                    if isinstance(strides_val, (list, tuple)):
+                        strides_val = strides_val[0]
+                    
                     pad = (
                         kernel_size_val // 2
                         if str(conv_dict.get("padding", "valid")).lower() == "same"
@@ -1288,7 +1297,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     continue
 
             # 1d transposed convolutional layers
-            elif ltype == "Conv1DTranspose":
+            elif ltype == "Conv1DTranspose" and ltype not in ["Conv1D"]:
                 try:
                     input_length = in_shape[0] if len(in_shape) > 0 else 1
                     input_channels = in_shape[-1] if len(in_shape) > 1 else 1
@@ -1352,7 +1361,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     continue
 
             # 2d transposed convolutional layers
-            elif ltype == "Conv2DTranspose":
+            elif ltype == "Conv2DTranspose" and ltype not in ["Conv2D"]:
                 try:
                     kernel = conv_dict.get("kernel_size", (3, 3))
                     strides = conv_dict.get("strides", (1, 1))
@@ -1396,7 +1405,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     continue
 
             # 3d transposed convolutional layers
-            elif ltype == "Conv3DTranspose":
+            elif ltype == "Conv3DTranspose" and ltype not in ["Conv3D"]:
                 try:
                     out_shape = conv_dict["out_shape"]
                     in_shape = conv_dict["in_shape"]
