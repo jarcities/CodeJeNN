@@ -36,9 +36,6 @@ def preambleHeader():
 #include <vector>
 #include <limits>
 
-// template<typename Scalar>
-// using activationFunction = void(*)(Scalar&, Scalar, Scalar);
-
 """
 
     cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
@@ -47,6 +44,9 @@ def preambleHeader():
 
 
 def debug_printing(layer_idx, layer_type, layer_shape, last_layer_name, num_values=10):
+    # ===============================================
+    # generate the debug printing code for each layer
+    # ===============================================
     # calculate total size of the layer output
     if isinstance(layer_shape, tuple):
         total_size = 1
@@ -312,8 +312,12 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
                 elif ltype in ["DepthwiseConv1D", "DepthwiseConv2D"]:
                     # prefer explicit depthwise tensors if present, else fall back to generic names
-                    kernel = conv_dict.get("depthwise_kernel", conv_dict.get("weights", None))
-                    bias   = conv_dict.get("depthwise_bias",   conv_dict.get("biases",  None))
+                    kernel = conv_dict.get(
+                        "depthwise_kernel", conv_dict.get("weights", None)
+                    )
+                    bias = conv_dict.get(
+                        "depthwise_bias", conv_dict.get("biases", None)
+                    )
 
                     if kernel is not None:
                         kflat = kernel.flatten()
@@ -321,7 +325,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         cpp_code += ", ".join(f"{val:10.9e}" for val in kflat)
                         cpp_code += "};\n"
 
-                    out_shape = conv_dict.get("out_shape", conv_dict.get("output_shape", None))
+                    out_shape = conv_dict.get(
+                        "out_shape", conv_dict.get("output_shape", None)
+                    )
 
                     if bias is not None:
                         bflat = bias.flatten()
@@ -329,7 +335,11 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
                         cpp_code += "};\n"
                     else:
-                        size = out_shape[-1] if out_shape else (conv_dict.get("filters") or 1)
+                        size = (
+                            out_shape[-1]
+                            if out_shape
+                            else (conv_dict.get("filters") or 1)
+                        )
                         cpp_code += f"    constexpr std::array<Scalar, {size}> depthwiseBias_{layer_idx} = {{}};\n"
 
                     cpp_code += "\n"
@@ -365,8 +375,11 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     continue
 
                 # transposed 1d, 2d, and 3d convolutional layers
-                elif ltype in ["Conv1DTranspose", "Conv2DTranspose", "Conv3DTranspose"] \
-                    and ltype not in ["Conv1D", "Conv2D", "Conv3D"]:
+                elif ltype in [
+                    "Conv1DTranspose",
+                    "Conv2DTranspose",
+                    "Conv3DTranspose",
+                ] and ltype not in ["Conv1D", "Conv2D", "Conv3D"]:
                     kernel = conv_dict.get("weights", None)
                     bias = conv_dict.get("biases", None)
                     if kernel is not None:
@@ -608,14 +621,14 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     else:
         cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
 
+    ######################################
+    ## PRINT EACH LAYERS FUNCTION CALLS ##
+    ######################################
     # intialize pointer to "last" layers output shape as input for the next layers input shape
     last_layer = "model_input"
     last_shape = layer_shape[0]
     layer_idx = 0
 
-    ######################################
-    ## PRINT EACH LAYERS FUNCTION CALLS ##
-    ######################################
     if debug_outputs:
         cpp_code += "   //DEBUG PRINTING FLAG IS ON\n"
         cpp_code += f"""    std::cout << "\\n";\n"""
@@ -644,7 +657,106 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             current_shape = None
 
         # retrieve activation function
-        mapped_act = activation_func_map.get(act_fun, "linear")
+        if act_fun == "softmax" and ltype != "Activation":
+            # softmax is handled as a separate layer if not already an activation layer
+            mapped_act = "linear"
+            alpha = 0.0
+
+        else:
+            mapped_act = activation_func_map.get(act_fun, "linear")
+            # alpha = alpha #leave alpha as is
+
+        ## THIS IS SOFTMAX FROM PREVIOUS LAYER ##
+        if activation_functions[i - 1] == "softmax" and ltype[i - 1] != "Activation":
+            if isinstance(last_shape, tuple) and len(last_shape) > 1:
+                channels = last_shape[-1]
+                length = 1
+                for d in last_shape[:-1]:
+                    length *= d
+                cpp_code += (
+                    f"    // standalone softmax (from previous layer), layer {layer_idx-1}: "
+                    f"along last axis (channels={channels}, groups={length})\n"
+                )
+                cpp_code += f"    for (size_t g = 0; g < {length}; ++g) {{\n"
+                cpp_code += (
+                    f"        softmax({last_layer}.data() + g*{channels}, "
+                    f"{last_layer}.data() + g*{channels}, {channels});\n"
+                )
+                cpp_code += "    }\n\n"
+            else:
+                size = get_flat_size(last_shape)
+                cpp_code += f"    // standalone softmax layer for layer {layer_idx-1}\n"
+                cpp_code += f"    softmax({last_layer}.data(), {last_layer}.data(), {size});\n\n"
+            # debug printing flag
+            if debug_outputs:
+                cpp_code += debug_printing(
+                    layer_idx - 1, "SOFTMAX FROM LAST LAYER", last_shape, last_layer
+                )
+            # continue
+
+        ## ACTIVATION LAYERS ##
+        if ltype == "Activation":
+            try:
+                # HANDLES FULL LAYER ACTIVATION FUNCTIONS
+                # if act_fun == "softmax":
+                #     size = get_flat_size(last_shape)
+                #     cpp_code += (
+                #         f"    // Pure {ltype}, layer {layer_idx}: standalone softmax\n"
+                #     )
+                #     cpp_code += f"    static std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
+                #     cpp_code += f"    softmax(layer_{layer_idx}_output.data(), {last_layer}.data(), {size});\n\n"
+                #     last_layer = f"layer_{layer_idx}_output"
+                #     # debug printing flag
+                #     if debug_outputs:
+                #         cpp_code += debug_printing(
+                #             layer_idx, ltype, last_shape, last_layer
+                #         )
+                #     continue
+                if act_fun == "softmax":
+                    if isinstance(last_shape, tuple) and len(last_shape) > 1:
+                        channels = last_shape[-1]
+                        length = 1
+                        for d in last_shape[:-1]:
+                            length *= d
+                        total_size = channels * length
+                        cpp_code += f"    // Pure {ltype}, layer {layer_idx}: softmax along last axis (channels={channels}, groups={length})\n"
+                        cpp_code += f"    static std::array<Scalar, {total_size}> layer_{layer_idx}_output;\n"
+                        cpp_code += f"    for (size_t g = 0; g < {length}; ++g) {{\n"
+                        cpp_code += f"        softmax(layer_{layer_idx}_output.data() + g*{channels}, {last_layer}.data() + g*{channels}, {channels});\n"
+                        cpp_code += "    }\n\n"
+                    else:
+                        size = get_flat_size(last_shape)
+                        cpp_code += f"    // Pure {ltype}, layer {layer_idx}: standalone softmax\n"
+                        cpp_code += f"    static std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
+                        cpp_code += f"    softmax(layer_{layer_idx}_output.data(), {last_layer}.data(), {size});\n\n"
+                    last_layer = f"layer_{layer_idx}_output"
+                    # debug printing flag
+                    if debug_outputs:
+                        cpp_code += debug_printing(
+                            layer_idx, ltype, last_shape, last_layer
+                        )
+                    continue
+
+                # handle other activations
+                else:
+                    cpp_code += f"    // {ltype}, layer {layer_idx}\n"
+                    cpp_code += f"    static std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
+                    cpp_code += f"    for (int i = 0; i < {get_flat_size(last_shape)}; ++i) {{\n"
+                    cpp_code += f"        {act_fun}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
+                    cpp_code += f"    }}\n\n"
+                    last_layer = f"layer_{layer_idx}_output"
+                    # debug printing flag
+                    if debug_outputs:
+                        cpp_code += debug_printing(
+                            layer_idx, ltype, last_shape, last_layer
+                        )
+                continue
+            except ValueError as e:
+                print(
+                    f"\nError in generating function call: activation layer {layer_idx} --> ",
+                    e,
+                )
+                continue
 
         ## PREPROCESSING LAYERS ##
         if ltype == "Rescale":
@@ -672,7 +784,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 continue
 
         ## RESHAPE LAYERS ##
-        elif ltype == "Reshape":
+        if ltype == "Reshape":
             try:
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {get_flat_size(current_shape)}> layer_{layer_idx}_output;\n"
@@ -692,18 +804,10 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 continue
 
         ## DENSE LAYER ##
-        elif ltype == "Dense":
+        if ltype == "Dense":
 
             try:
                 out_size = w.shape[1]
-
-                if act_fun == "softmax":
-                    effective_activation = "linear"
-                    effective_alpha = 0.0
-
-                else:
-                    effective_activation = mapped_act
-                    effective_alpha = alpha
 
                 cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                 cpp_code += f"    static std::array<Scalar, {out_size}> layer_{layer_idx}_output;\n"
@@ -714,7 +818,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 cpp_code += (
                     f"        weights_{layer_idx}.data(), biases_{layer_idx}.data(),\n"
                 )
-                cpp_code += f"        {get_flat_size(last_shape)}, {effective_activation}, {effective_alpha});\n\n"
+                cpp_code += (
+                    f"        {get_flat_size(last_shape)}, {mapped_act}, {alpha});\n\n"
+                )
                 last_layer = f"layer_{layer_idx}_output"
                 last_shape = (out_size,)
                 # debug printing flag
@@ -728,58 +834,8 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 )
                 continue
 
-        ## ACTIVATION LAYERS ##
-        elif ltype == "Activation":
-
-            try:
-                # STANDALONE SOFTMAX ACTIVATION LAYER
-                if act_fun == "softmax":
-                    size = get_flat_size(last_shape)
-                    cpp_code += (
-                        f"    // Pure {ltype}, layer {layer_idx}: standalone softmax\n"
-                    )
-                    cpp_code += f"    static std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
-                    cpp_code += f"    softmax({last_layer}.data(), layer_{layer_idx}_output.data(), {size});\n\n"
-                    last_layer = f"layer_{layer_idx}_output"
-                    # debug printing flag
-                    if debug_outputs:
-                        cpp_code += debug_printing(
-                            layer_idx, ltype, last_shape, last_layer
-                        )
-                    continue
-
-                # handle other activations
-                else:
-                    cpp_code += f"    // {ltype}, layer {layer_idx}\n"
-                    cpp_code += f"    static std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
-                    cpp_code += f"    for (int i = 0; i < {get_flat_size(last_shape)}; ++i) {{\n"
-                    cpp_code += f"        {mapped_act}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
-                    cpp_code += f"    }}\n\n"
-                    last_layer = f"layer_{layer_idx}_output"
-                    # debug printing flag
-                    if debug_outputs:
-                        cpp_code += debug_printing(
-                            layer_idx, ltype, last_shape, last_layer
-                        )
-                continue
-            except ValueError as e:
-                print(
-                    f"\nError in generating function call: activation layer {layer_idx} --> ",
-                    e,
-                )
-                continue
-
-        ## SOFTMAX INLINE ANOTHER LAYER ##
-        if activation_functions[i] == "softmax" and ltype != "softmax":
-            size = get_flat_size(last_shape)
-            cpp_code += f"    // standalone softmax layer for layer {layer_idx}\n"
-            cpp_code += f"    static std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
-            cpp_code += f"    softmax(layer_{layer_idx}_output.data(), {last_layer}.data(), {size});\n\n"
-            last_layer = f"layer_{layer_idx}_output"
-            #NO CONTINUE ON THIS
-
         ## NORMALIZATION LAYERS ##
-        elif (
+        if (
             ltype is not None
             and ltype.lower() in ["batchnormalization", "batchnormalization2d"]
         ) and norm_params is not None:
@@ -834,7 +890,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 )
                 continue
 
-        elif (
+        if (
             ltype is not None
             and ltype.lower() in ["layernormalization", "layernormalization2d"]
         ) and norm_params is not None:
@@ -886,7 +942,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 )
                 continue
 
-        elif ltype == "UnitNormalization":
+        if ltype == "UnitNormalization":
             try:
                 if isinstance(last_shape, tuple) and len(last_shape) > 1:
                     if len(last_shape) == 3:
@@ -930,7 +986,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 )
                 continue
 
-        elif (
+        if (
             ltype is not None
             and ltype.lower() in ["groupnormalization", "groupnormalization2d"]
         ) and norm_params is not None:
@@ -991,7 +1047,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 continue
 
         ## CONVOLUTIONAL LAYERS ##
-        elif ltype is not None and conv_dict is not None:
+        if ltype is not None and conv_dict is not None:
 
             # get layer input shape and output shape with safe handling
             in_shape = conv_dict.get("in_shape", None)
@@ -1232,7 +1288,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     strides_val = conv_dict.get("strides", 1)
                     if isinstance(strides_val, (list, tuple)):
                         strides_val = strides_val[0]
-                    
+
                     pad = (
                         kernel_size_val // 2
                         if str(conv_dict.get("padding", "valid")).lower() == "same"

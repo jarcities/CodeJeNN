@@ -54,6 +54,8 @@ x = layers.BatchNormalization()(x)
 x = layers.MaxPooling1D(pool_size=2)(x)
 #layer 6
 x = layers.Conv1DTranspose(filters=64, kernel_size=3, strides=2, activation='softmax', padding='same')(x)
+# x = layers.Conv1DTranspose(filters=64, kernel_size=3, strides=2, padding='same')(x)
+# x = layers.Activation('softmax')(x)
 x = layers.BatchNormalization()(x)
 #layer 7
 x = layers.GlobalAveragePooling1D()(x)

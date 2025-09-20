@@ -81,7 +81,6 @@ elif not os.path.exists(save_dir):
     print(f"WARNING: Output directory '{save_dir}' does not exist. Creating it now...")
     os.makedirs(save_dir)
 else:
-
     ## PROCESS EACH MODEL IN INPUT DIRECTORY ##
     for file_name in os.listdir(model_dir):
         file_path = os.path.join(model_dir, file_name)
@@ -126,7 +125,7 @@ else:
                         activation_configs,
                         alphas,
                         dropout_rates,
-                        batch_norm_params,
+                        norm_layer_params,
                         conv_layer_params,
                         input_flat_size,
                         output_flat_size,
@@ -136,27 +135,44 @@ else:
 
                     ## DEBUG PRINTS ##
                     if args.debug:
-                        print(f"\n\nModel Summary for {file_name}:")
+                        print(f"\nModel Summary for {file_name}:")
                         print("----------------------------------")
                         model.summary()
-                        print()
                         print(f"\nWhat CodeJeNN extracted for {file_name}:")
-                        print("--------------------------------------------")
-                        print(f"Input Size -> {input_flat_size}")
-                        print(f"Output Size -> {output_flat_size}")
-                        print(f"Layer Sizes -> {layer_shape}")
-                        print(f"Layer Types -> {layer_type}")
-                        print(f"Activation Functions -> {activation_functions}")
-                        print(f"Convolutional Params -> {conv_layer_params}")
-                        # print("Convolutional Params -> [",  end="")
-                        # for i, params in enumerate(conv_layer_params):
-                        #     if conv_layer_params is not None:
-                        #         print("yes",  end="")
-                        #     else:
-                        #         print("no",  end="")
-                        #     print(",",  end=" ")
-                        # print("]",  end="")
-                        print()
+                        print("------------------------------------------------------")
+                        print(f"Input Size -> {input_flat_size}\n")
+                        print(f"Output Size -> {output_flat_size}\n")
+                        print(f"Layer Shape [{len(layer_shape)}] -> {layer_shape}\n")
+                        print(f"Layer Types [{len(layer_type)}] -> {layer_type}\n")
+                        print(f"Activation Functions [{len(activation_functions)}] -> {activation_functions}\n")
+                        print(f"Convolutional Params (# of params per layer) [{len(conv_layer_params)}] -> [", end="")
+                        for i, params in enumerate(conv_layer_params):
+                            if params is not None:
+                                num_of_info = len(params)
+                                print(f"{num_of_info}", end="")
+                            else:
+                                print("-", end="")
+                            if i < len(conv_layer_params) - 1:
+                                print(",", end=" ")
+                        print("]", end="")
+                        print("\n")
+                        print(
+                            f"Normalization Params (# of params per layer) [{len(norm_layer_params)}] -> [",
+                            end="",
+                        )
+                        for i, params in enumerate(norm_layer_params):
+                            if params is not None:
+                                num_of_info = len(params)
+                                print(f"{num_of_info}", end="")
+                            else:
+                                print("-", end="")
+                            if i < len(norm_layer_params) - 1:
+                                print(",", end=" ")
+                        print("]", end="")
+                        print(
+                            "\n------------------------------------------------------"
+                        )
+
                 except ValueError as e:
                     print("\nError in extracting model:", e)
                     continue
@@ -191,7 +207,7 @@ else:
                         activation_functions,
                         alphas,
                         dropout_rates,
-                        batch_norm_params,
+                        norm_layer_params,
                         conv_layer_params,
                         input_flat_size,
                         output_flat_size,
