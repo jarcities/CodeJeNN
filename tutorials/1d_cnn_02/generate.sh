@@ -3,6 +3,6 @@ python3 \
     --input="." \
     --output="." \
     --double \
-    --debug
+    # --debug
 
 rm -rf .vscode/ codegen/__pycache__ dump_model/__pycache__
