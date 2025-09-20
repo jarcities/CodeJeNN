@@ -698,20 +698,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
         if ltype == "Activation":
             try:
                 # HANDLES FULL LAYER ACTIVATION FUNCTIONS
-                # if act_fun == "softmax":
-                #     size = get_flat_size(last_shape)
-                #     cpp_code += (
-                #         f"    // Pure {ltype}, layer {layer_idx}: standalone softmax\n"
-                #     )
-                #     cpp_code += f"    static std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
-                #     cpp_code += f"    softmax(layer_{layer_idx}_output.data(), {last_layer}.data(), {size});\n\n"
-                #     last_layer = f"layer_{layer_idx}_output"
-                #     # debug printing flag
-                #     if debug_outputs:
-                #         cpp_code += debug_printing(
-                #             layer_idx, ltype, last_shape, last_layer
-                #         )
-                #     continue
                 if act_fun == "softmax":
                     if isinstance(last_shape, tuple) and len(last_shape) > 1:
                         channels = last_shape[-1]
@@ -719,14 +705,14 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         for d in last_shape[:-1]:
                             length *= d
                         total_size = channels * length
-                        cpp_code += f"    // Pure {ltype}, layer {layer_idx}: softmax along last axis (channels={channels}, groups={length})\n"
+                        cpp_code += "    // Standalone softmax layer\n"
                         cpp_code += f"    static std::array<Scalar, {total_size}> layer_{layer_idx}_output;\n"
                         cpp_code += f"    for (size_t g = 0; g < {length}; ++g) {{\n"
                         cpp_code += f"        softmax(layer_{layer_idx}_output.data() + g*{channels}, {last_layer}.data() + g*{channels}, {channels});\n"
                         cpp_code += "    }\n\n"
                     else:
                         size = get_flat_size(last_shape)
-                        cpp_code += f"    // Pure {ltype}, layer {layer_idx}: standalone softmax\n"
+                        cpp_code += "    // Standalone softmax layer\n"
                         cpp_code += f"    static std::array<Scalar, {size}> layer_{layer_idx}_output;\n"
                         cpp_code += f"    softmax(layer_{layer_idx}_output.data(), {last_layer}.data(), {size});\n\n"
                     last_layer = f"layer_{layer_idx}_output"
@@ -739,7 +725,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
                 # handle other activations
                 else:
-                    cpp_code += f"    // {ltype}, layer {layer_idx}\n"
+                    cpp_code += f"    // Pure {ltype}, layer {layer_idx}\n"
                     cpp_code += f"    static std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
                     cpp_code += f"    for (int i = 0; i < {get_flat_size(last_shape)}; ++i) {{\n"
                     cpp_code += f"        {act_fun}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
