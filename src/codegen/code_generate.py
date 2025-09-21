@@ -8,7 +8,7 @@ NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DIS
 MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 """
 
-from doctest import debug
+# doctest.debug removed (unused)
 import os
 import absl.logging
 import warnings
@@ -510,7 +510,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             cpp_code += ", ".join(f"{float(x):10.9e}" for x in input_shift)
             cpp_code += "};\n\n"
     except ValueError as e:
-        print(f"\nError in printing parameters: input normalization --> ", e)
+        print("\nError in printing parameters: input normalization --> ", e)
         pass
 
     # print output normalization/standardization parameters
@@ -538,7 +538,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             cpp_code += "};\n\n"
             cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
     except ValueError as e:
-        print(f"\nError in printing parameters: output normalization --> ", e)
+        print("\nError in printing parameters: output normalization --> ", e)
         pass
 
     #################################
@@ -569,17 +569,16 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     indent = ""
 
     ## FLATTEN INPUT ##
-    if isinstance(dims, tuple) and len(dims) > 1 and input_scale is None:
-
+    if isinstance(dims, tuple) and len(dims) > 1:
+        # multi-dimensional input
         try:
-            # get rid of dimensions with 1
             dims = [d for d in raw_shape if d != 1]
             loop_vars = [f"i{j}" for j in range(len(dims))]
             for d_i, d_val in enumerate(dims):
                 cpp_code += f"{indent}for (int {loop_vars[d_i]} = 0; {loop_vars[d_i]} < {d_val}; {loop_vars[d_i]}++) {{\n"
                 indent = "      " * (d_i + 1)
 
-            # compute the 1D index in row-major order with extra indentation
+            # compute the 1D row major index
             index_expr = ""
             for d_i in range(len(dims)):
                 stride = 1
@@ -589,37 +588,42 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     index_expr += " + "
                 index_expr += f"{loop_vars[d_i]} * {stride}"
             cpp_code += "    " * (len(dims) + 1) + f"int flatIndex = {index_expr};\n"
-            cpp_code += (
-                "    " * (len(dims) + 1) + f"model_input[flatIndex] = initial_input"
-            )
-            for lv in loop_vars:
-                cpp_code += f"[{lv}]"
-            cpp_code += ";\n"
 
-            # close loops using matching indentation levels
+            if input_scale is None:
+                cpp_code += (
+                    "    " * (len(dims) + 1) + "model_input[flatIndex] = initial_input"
+                )
+                for lv in loop_vars:
+                    cpp_code += f"[{lv}]"
+                cpp_code += ";\n"
+            else:
+                cpp_code += (
+                    "    " * (len(dims) + 1) + "model_input[flatIndex] = (initial_input"
+                )
+                for lv in loop_vars:
+                    cpp_code += f"[{lv}]"
+                cpp_code += " - input_shift[flatIndex]) / (input_scale[flatIndex]);\n"
+
+            # match indentation levels
             for d_i in range(len(dims), 0, -1):
                 cpp_code += "    " * d_i + "}\n"
 
             cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
         except ValueError as e:
-            print(f"\nError in flattening input: --> ", e)
+            print("\nError in flattening input: --> ", e)
             pass
 
-    elif input_scale is None:
-
-        # fallback 1D
-        cpp_code += f"""// pass input 
-    for (int i=0; i<flat_size; i++) {{ model_input[i] = initial_input[i]; }}\n\n"""
-        cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
-
-    elif input_scale is not None:
-
-        cpp_code += f"""// normalize input
-    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_shift[i]) / (input_scale[i]); }} \n\n"""
-        cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
-
     else:
-        cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
+        if input_scale is None:
+            cpp_code += """// pass input 
+    for (int i=0; i<flat_size; i++) {{ model_input[i] = initial_input[i]; }}\n\n"""
+            cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
+
+        else:
+            cpp_code += f"""// normalize input
+    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_shift[i]) / (input_scale[i]); }} \n\n"""
+            cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
+
 
     ######################################
     ## PRINT EACH LAYERS FUNCTION CALLS ##
@@ -631,9 +635,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
     if debug_outputs:
         cpp_code += "   //DEBUG PRINTING FLAG IS ON\n"
-        cpp_code += f"""    std::cout << "\\n";\n"""
-        cpp_code += f"""    std::cout << "Debug printing first ~10 outputs of each layer:" << "\\n";\n"""
-        cpp_code += f"""    std::cout << "\\n";\n\n"""
+        cpp_code += """    std::cout << "\\n";\n"""
+        cpp_code += """    std::cout << "Debug printing first ~10 outputs of each layer:" << "\\n";\n"""
+        cpp_code += """    std::cout << "\\n";\n\n"""
 
     for i, (w, b, norm_params, conv_dict, ltype, alpha, act_fun) in enumerate(
         zip(
@@ -1857,41 +1861,50 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     ## OUTPUT LAYER ##
     out_size = last_shape
 
-    # if normalize outputs
-    if output_scale is not None:
-        cpp_code += f"""    static std::array<Scalar, {out_norm_size}> model_output;\n
-    for (int i = 0; i < {out_norm_size}; i++) {{ model_output[i] = ({last_layer}[i] * output_scale[i]) + output_shift[i]; }}\n
-    """
-
-    # if not normalize outputs
-    else:
-
-        # handle multi-dimensional output
-        if isinstance(out_size, tuple):
-
-            raw_dims = [d for d in out_size if d != 1]
-            dims = len(raw_dims)
-
-            if dims == 1:
+    if isinstance(out_size, tuple):
+        raw_dims = [d for d in out_size if d != 1]
+        dims = len(raw_dims)
+        if dims == 1:
+            if output_scale is not None:
+                cpp_code += f"    static std::array<Scalar, {out_size[0]}> model_output;\n\n"
+                cpp_code += f"    for (int i = 0; i < {out_size[0]}; i++) {{ model_output[i] = ({last_layer}[i] * output_scale[i]) + output_shift[i]; }}\n\n"
+            else:
                 cpp_code += f"    static std::array<Scalar, {out_size[0]}> model_output = {last_layer};\n\n"
-            elif dims == 2:
-                cpp_code += f"    static std::array<std::array<Scalar, {out_size[1]}>, {out_size[0]}> model_output;\n"
+        elif dims == 2:
+            cpp_code += f"    static std::array<std::array<Scalar, {out_size[1]}>, {out_size[0]}> model_output;\n\n"
+            if output_scale is not None:
+                cpp_code += f"    for(int i = 0; i < {out_size[0]}; i++) {{\n"
+                cpp_code += f"        for(int j = 0; j < {out_size[1]}; j++) {{\n"
+                cpp_code += f"            int flatIdx = i * {out_size[1]} + j;\n"
+                cpp_code += f"            model_output[i][j] = ({last_layer}[flatIdx] * output_scale[flatIdx]) + output_shift[flatIdx];\n"
+                cpp_code += "        }\n    }\n\n"
+            else:
                 cpp_code += f"    for(int i = 0; i < {out_size[0]}; i++) {{\n"
                 cpp_code += f"        for(int j = 0; j < {out_size[1]}; j++) {{\n"
                 cpp_code += f"            model_output[i][j] = {last_layer}[i * {out_size[1]} + j];\n"
                 cpp_code += "        }\n    }\n\n"
-            elif dims == 3:
-                cpp_code += f"    static std::array<std::array<std::array<Scalar, {out_size[2]}>, {out_size[1]}>, {out_size[0]}> model_output;\n"
+        elif dims == 3:
+            cpp_code += f"    static std::array<std::array<std::array<Scalar, {out_size[2]}>, {out_size[1]}>, {out_size[0]}> model_output;\n\n"
+            if output_scale is not None:
+                cpp_code += f"    for(int i = 0; i < {out_size[0]}; i++) {{\n"
+                cpp_code += f"        for(int j = 0; j < {out_size[1]}; j++) {{\n"
+                cpp_code += f"            for(int k = 0; k < {out_size[2]}; k++) {{\n"
+                cpp_code += f"                int flatIdx = i * {out_size[1] * out_size[2]} + j * {out_size[2]} + k;\n"
+                cpp_code += f"                model_output[i][j][k] = ({last_layer}[flatIdx] * output_scale[flatIdx]) + output_shift[flatIdx];\n"
+                cpp_code += "            }\n        }\n    }\n\n"
+            else:
                 cpp_code += f"    for(int i = 0; i < {out_size[0]}; i++) {{\n"
                 cpp_code += f"        for(int j = 0; j < {out_size[1]}; j++) {{\n"
                 cpp_code += f"            for(int k = 0; k < {out_size[2]}; k++) {{\n"
                 cpp_code += f"                model_output[i][j][k] = {last_layer}[i * {out_size[1] * out_size[2]} + j * {out_size[2]} + k];\n"
                 cpp_code += "            }\n        }\n    }\n\n"
-
-        # hand single-dimensional output layer
+    else:
+        if output_scale is not None:
+            cpp_code += f"    static std::array<Scalar, {out_norm_size}> model_output;\n\n"
+            cpp_code += f"    for (int i = 0; i < {out_norm_size}; i++) {{ model_output[i] = ({last_layer}[i] * output_scale[i]) + output_shift[i]; }}\n\n"
         else:
-            cpp_code += f"static std::array<Scalar, {out_size}> model_output = {last_layer};\n\n"
+            cpp_code += f"    static std::array<Scalar, {out_size}> model_output = {last_layer};\n\n"
 
-    cpp_code += f"return model_output;\n\n}}"
+    cpp_code += "    return model_output;\n\n}"
 
     return cpp_code

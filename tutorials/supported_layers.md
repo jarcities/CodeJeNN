@@ -62,6 +62,7 @@ Helps in stabilizing and speeding up the training process.
 - **BatchNormalization**: Normalizes the activations of the previous layer at each batch.
 - **LayerNormalization**: Normalizes across the features instead of the batch.
 - **UnitNornalization**: Normalize the layer by the inputs 2 norm.
+- **GroupNormalization**: Normalize the layer by the groups.
 
 **Example:**
 ```python

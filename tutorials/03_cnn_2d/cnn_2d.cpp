@@ -6,19 +6,23 @@
 using Scalar = double;
 
 int main() {
-
-    //validation data
-    std::array<Scalar, 100> input;
-    for(int i = 0; i < 100; ++i) {
-        input[i] = static_cast<Scalar>(i);
+    // 2D validation data: 32x32
+    constexpr int H = 32;
+    constexpr int W = 32;
+    std::array<std::array<Scalar, W>, H> input;
+    int val = 1;
+    for(int i = 0; i < H; ++i) {
+        for(int j = 0; j < W; ++j) {
+            input[i][j] = static_cast<Scalar>(val++);
+        }
     }
 
-    //pass input to CNN
-    auto output = cnn_2d<Scalar>(input);
+    // pass input to CNN
+    auto output = cnn_2d(input);
 
-    //print the results with high precision
-    std::cout << std::scientific << std::setprecision(15);  
-    std::cout << "Output:\n";  
+    // print the results with high precision
+    std::cout << std::scientific << std::setprecision(15);
+    std::cout << "Output:\n";
     for(const auto& val : output) {
         std::cout << val << '\n';
     }

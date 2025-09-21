@@ -557,7 +557,7 @@ inline void Conv2D_{base_file_name}(Scalar * __restrict outputs, const Scalar * 
 """,
         "Conv2DTranspose": f"""
 template <typename Scalar, int out_channels, int out_height, int out_width, typename ActFun>
-inline void Conv2DTranspose(
+inline void Conv2DTranspose_{base_file_name}(
     Scalar* __restrict outputs,                 
     const Scalar* __restrict inputs,            
     const Scalar* __restrict weights,           

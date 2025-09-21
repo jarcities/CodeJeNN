@@ -21,8 +21,9 @@ input_min = np.load("input_min.npy")
 output_max = np.load("output_max.npy")
 output_min = np.load("output_min.npy")
 
+
 #input data
-data = np.arange(100, dtype='float32').reshape(1, 100, 1)
+data = np.arange(1, 32*32+1, dtype='float32').reshape(1, 32, 32, 1)
 data = (data - input_min) / (input_max - input_min)
 
 #extract each layer
