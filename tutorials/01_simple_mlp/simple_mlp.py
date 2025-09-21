@@ -12,7 +12,7 @@ from sklearn.preprocessing import MinMaxScaler
 import os
 
 #parameters
-FILE = 'simple_mlp_01'
+FILE = 'simple_mlp'
 np.random.seed(1)
 NUM_SAMPLES = 10000 #10,000
 INPUT_DIM = 10
@@ -84,10 +84,11 @@ np.save(f"output_mean.npy", y_mean)
 np.save(f"output_std.npy", y_std)
 
 #predict model
-trained_model = load_model(model_filename)
-prediction = trained_model.predict(input)
-plt.figure()
-plt.plot(output[:, 0], '-k', label=f'actual Output')
-plt.plot(prediction[:, 0], '--r', label=f'predicted Output')
-plt.legend()
-plt.show()
+model.summary()
+# trained_model = load_model(model_filename)
+# prediction = trained_model.predict(input)
+# plt.figure()
+# plt.plot(output[:, 0], '-k', label=f'actual Output')
+# plt.plot(prediction[:, 0], '--r', label=f'predicted Output')
+# plt.legend()
+# plt.show()

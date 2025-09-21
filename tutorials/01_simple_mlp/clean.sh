@@ -1,1 +1,1 @@
-rm -rf *.hpp *.npy layer_outputs/ *.keras *.out
+rm -rf *.hpp *.npy layer_outputs/ *.keras *.h5 *.out

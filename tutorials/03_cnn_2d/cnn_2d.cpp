@@ -1,17 +1,20 @@
 #include <iostream>
 #include <array>
 #include <iomanip>  
-#include "simple_mlp_01.hpp" 
+#include "cnn_2d.hpp" 
 
 using Scalar = double;
 
 int main() {
 
     //validation data
-    std::array<Scalar, 10> input = {1,2,3,4,5,6,7,8,9,10};
+    std::array<Scalar, 100> input;
+    for(int i = 0; i < 100; ++i) {
+        input[i] = static_cast<Scalar>(i);
+    }
 
-    //pass input to MLP
-    auto output = simple_mlp_01<Scalar>(input);
+    //pass input to CNN
+    auto output = cnn_2d<Scalar>(input);
 
     //print the results with high precision
     std::cout << std::scientific << std::setprecision(15);  
@@ -26,6 +29,6 @@ int main() {
 
 /*
 Compile and run:
-clang++ -std=c++23 -Wall -O3 -march=native -o test test.cpp
-./test
+clang++ -std=c++23 -Wall -O3 -march=native -o cnn_1d_02 cnn_1d_02.cpp
+./cnn_1d_02
 */

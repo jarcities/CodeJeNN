@@ -7,7 +7,7 @@ import h5py
 import os
 
 #parameters
-weights_file_name = "simple_mlp.h5"
+weights_file_name = "cnn_2d.keras"
 output_folder = "layer_outputs"
 os.makedirs(output_folder, exist_ok=True)
 
@@ -16,13 +16,14 @@ model = load_model(weights_file_name)
 extractor = keras.Model(inputs=model.inputs, outputs=[layer.output for layer in model.layers])
 
 #load normalization
-input_mean = np.load("input_mean.npy")
-input_std = np.load("input_std.npy")
-output_mean = np.load("output_mean.npy")
-output_std = np.load("output_std.npy")
+input_max = np.load("input_max.npy")
+input_min = np.load("input_min.npy")
+output_max = np.load("output_max.npy")
+output_min = np.load("output_min.npy")
 
-data = np.array([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]], dtype='float32')
-data = (data - input_mean) / input_std
+#input data
+data = np.arange(100, dtype='float32').reshape(1, 100, 1)
+data = (data - input_min) / (input_max - input_min)
 
 #extract each layer
 layers = extractor.predict(data)
@@ -34,7 +35,7 @@ for i, layer_output in enumerate(layers):
     
     #if last layer
     if i == len(layers) - 1:
-        denormalized_output = layer_output * output_std + output_mean
+        denormalized_output = layer_output * (output_max - output_min) + output_min
         flattened = denormalized_output.flatten()
         print(denormalized_output)
     else:
