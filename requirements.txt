@@ -6,5 +6,5 @@ tensorflow
 sympy
 spektral
 pydot
-graphviz
-svn
+# graphviz
+# svn
