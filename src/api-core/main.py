@@ -56,6 +56,12 @@ parser.add_argument(
     action="store_true",
     help="include debug print statements in the generated code",
 )
+parser.add_argument(
+    "--model_image",
+    action="store_true",
+    help="save a visualization of the model architecture as a PNG file",
+)
+# process arguments
 args = parser.parse_args()
 
 ## DATA TYPE PRECISION ##
@@ -134,20 +140,35 @@ else:
                         layer_type,
                     ) = extractModel(model, file_extension, base_file_name)
 
+                    #https://keras.io/api/utils/model_plotting_utils/
+                    if args.model_image:
+                        plot_model(
+                            model,
+                            to_file=f"{base_file_name}_architecture.png",
+                            show_shapes=True,
+                            show_dtype=True,
+                            show_layer_names=True,
+                            show_layer_activations=True,
+                        )
+
                     ## DEBUG PRINTS ##
                     if args.debug:
                         print(f"\nModel Summary for {file_name}:")
                         print("----------------------------------")
                         model.summary()
-                        plot_model(model, to_file='model_architecture.png', show_shapes=True, show_layer_names=True)
                         print(f"\nWhat CodeJeNN extracted for {file_name}:")
                         print("------------------------------------------------------")
                         print(f"Input Size -> {input_flat_size}\n")
                         print(f"Output Size -> {output_flat_size}\n")
                         print(f"Layer Shape [{len(layer_shape)}] -> {layer_shape}\n")
                         print(f"Layer Types [{len(layer_type)}] -> {layer_type}\n")
-                        print(f"Activation Functions [{len(activation_functions)}] -> {activation_functions}\n")
-                        print(f"Convolutional Params (# of params per layer) [{len(conv_layer_params)}] -> [", end="")
+                        print(
+                            f"Activation Functions [{len(activation_functions)}] -> {activation_functions}\n"
+                        )
+                        print(
+                            f"Convolutional Params (# of params per layer) [{len(conv_layer_params)}] -> [",
+                            end="",
+                        )
                         for i, params in enumerate(conv_layer_params):
                             if params is not None:
                                 num_of_info = len(params)
