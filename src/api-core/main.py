@@ -13,6 +13,7 @@ from encodings.punycode import T
 import os
 import argparse
 import numpy as np
+from tensorflow.keras.utils import plot_model
 from load_model import loadModel
 from extract_model import extractModel
 from build_model import buildModel
@@ -138,6 +139,7 @@ else:
                         print(f"\nModel Summary for {file_name}:")
                         print("----------------------------------")
                         model.summary()
+                        plot_model(model, to_file='model_architecture.png', show_shapes=True, show_layer_names=True)
                         print(f"\nWhat CodeJeNN extracted for {file_name}:")
                         print("------------------------------------------------------")
                         print(f"Input Size -> {input_flat_size}\n")

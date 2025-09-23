@@ -60,13 +60,13 @@ CodeJeNN/
     ```
     Or you can install conda and use:
     ```bash
-    conda create -n codejenn python=3.9
+    conda create -n codejenn python=3.11
     conda activate codejenn
     ```
     Where `codejenn` is the name of the environment.
 
 1. Next install the necessary packages which are common in most deep learning codes already.
     ```bash
-    pip install -r reequirements.txt
+    pip install -r requirements.txt
     ```
 1. From here, `cd` into `src` and carry on with the ***README.md*** file in there.

@@ -14,7 +14,7 @@ INPUT_H, INPUT_W = 32, 32   #32x32 pixel image
 OUTPUT_DIM = 10
 BATCH = 64
 LEARNING_RATE = 0.001
-EPOCHS = 1000
+EPOCHS = 10
 EPS = 1e-8
 
 #input

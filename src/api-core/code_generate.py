@@ -310,14 +310,45 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += "\n"
                     continue
 
+                # elif ltype in ["DepthwiseConv1D", "DepthwiseConv2D"]:
+                #     # prefer explicit depthwise tensors if present, else fall back to generic names
+                #     kernel = conv_dict.get(
+                #         "depthwise_kernel", conv_dict.get("weights", None)
+                #     )
+                #     bias = conv_dict.get(
+                #         "depthwise_bias", conv_dict.get("biases", None)
+                #     )
+
+                #     if kernel is not None:
+                #         kflat = kernel.flatten()
+                #         cpp_code += f"    constexpr std::array<Scalar, {len(kflat)}> depthwiseKernel_{layer_idx} = {{"
+                #         cpp_code += ", ".join(f"{val:10.9e}" for val in kflat)
+                #         cpp_code += "};\n"
+
+                #     out_shape = conv_dict.get(
+                #         "out_shape", conv_dict.get("output_shape", None)
+                #     )
+
+                #     if bias is not None:
+                #         bflat = bias.flatten()
+                #         cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> depthwiseBias_{layer_idx} = {{"
+                #         cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
+                #         cpp_code += "};\n"
+                #     else:
+                #         size = (
+                #             out_shape[-1]
+                #             if out_shape
+                #             else (conv_dict.get("filters") or 1)
+                #         )
+                #         cpp_code += f"    constexpr std::array<Scalar, {size}> depthwiseBias_{layer_idx} = {{}};\n"
+
+                #     cpp_code += "\n"
+                #     continue
                 elif ltype in ["DepthwiseConv1D", "DepthwiseConv2D"]:
-                    # prefer explicit depthwise tensors if present, else fall back to generic names
-                    kernel = conv_dict.get(
-                        "depthwise_kernel", conv_dict.get("weights", None)
-                    )
-                    bias = conv_dict.get(
-                        "depthwise_bias", conv_dict.get("biases", None)
-                    )
+                    kernel = conv_dict.get("depthwise_kernel", conv_dict.get("weights", None))
+                    bias   = conv_dict.get("depthwise_bias",   conv_dict.get("biases",  None))
+                    depth = int(conv_dict.get("depth_multiplier", 1))
+                    cpp_code += f"    constexpr int depthMultiplier_{layer_idx} = {depth};\n"
 
                     if kernel is not None:
                         kflat = kernel.flatten()
@@ -325,21 +356,15 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         cpp_code += ", ".join(f"{val:10.9e}" for val in kflat)
                         cpp_code += "};\n"
 
-                    out_shape = conv_dict.get(
-                        "out_shape", conv_dict.get("output_shape", None)
-                    )
+                    out_shape = conv_dict.get("out_shape", conv_dict.get("output_shape", None))
 
                     if bias is not None:
-                        bflat = bias.flatten()
+                        bflat = bias.flatten()  
                         cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> depthwiseBias_{layer_idx} = {{"
                         cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
                         cpp_code += "};\n"
                     else:
-                        size = (
-                            out_shape[-1]
-                            if out_shape
-                            else (conv_dict.get("filters") or 1)
-                        )
+                        size = (out_shape[-1] if out_shape else (conv_dict.get("filters") or 1))
                         cpp_code += f"    constexpr std::array<Scalar, {size}> depthwiseBias_{layer_idx} = {{}};\n"
 
                     cpp_code += "\n"
@@ -624,7 +649,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_shift[i]) / (input_scale[i]); }} \n\n"""
             cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
 
-
     ######################################
     ## PRINT EACH LAYERS FUNCTION CALLS ##
     ######################################
@@ -671,7 +695,8 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             # alpha = alpha #leave alpha as is
 
         ## THIS IS SOFTMAX FROM PREVIOUS LAYER ##
-        if activation_functions[i - 1] == "softmax" and ltype[i - 1] != "Activation":
+        # guard index and previous-layer type checks (avoid i-1 when i==0)
+        if i > 0 and activation_functions[i - 1] == "softmax" and (layer_type[i - 1] if isinstance(layer_type, (list, tuple)) else None) != "Activation":
             if isinstance(last_shape, tuple) and len(last_shape) > 1:
                 channels = last_shape[-1]
                 length = 1
@@ -1226,32 +1251,66 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     continue
 
             # 2d depthwise convolutional layers
+            # elif ltype == "DepthwiseConv2D":
+            #     try:
+            #         kernel = conv_dict.get("kernel_size", (3, 3))
+            #         strides = conv_dict.get("strides", (1, 1))
+            #         padding = conv_dict.get("padding", "valid")
+            #         pad_h = pad_w = 0
+            #         if padding.lower() == "same":
+            #             pad_h = kernel[0] // 2
+            #             pad_w = kernel[1] // 2
+            #         cpp_code += f"    // {ltype}, layer {layer_idx}\n"
+            #         cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
+            #         cpp_code += f"    DepthwiseConv2D_{base_file_name}(\n"
+            #         cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
+            #         cpp_code += f"        depthwiseKernel_{layer_idx}.data(), depthwiseBias_{layer_idx}.data(),\n"
+            #         cpp_code += (
+            #             f"        {out_shape[2]}, {out_shape[0]}, {out_shape[1]},\n"
+            #         )
+            #         cpp_code += (
+            #             f"        {in_shape[2]}, {in_shape[0]}, {in_shape[1]},\n"
+            #         )
+            #         cpp_code += f"        {kernel[0]}, {kernel[1]}, {strides[0]}, {strides[1]}, {pad_h}, {pad_w},\n"
+            #         cpp_code += f"        {mapped_act}, {alpha});\n\n"
+            #         last_layer = f"layer_{layer_idx}_output"
+            #         last_shape = out_shape
+            #         # debug printing flag
+            #         if debug_outputs:
+            #             cpp_code += debug_printing(
+            #                 layer_idx, ltype, last_shape, last_layer
+            #             )
+            #         continue
+            #     except ValueError as e:
+            #         print(
+            #             f"\nError in generating function call: depthwiseconv2d layer {layer_idx} --> ",
+            #             e,
+            #         )
+            #         continue
             elif ltype == "DepthwiseConv2D":
                 try:
-                    kernel = conv_dict.get("kernel_size", (3, 3))
+                    kernel  = conv_dict.get("kernel_size", (3, 3))
                     strides = conv_dict.get("strides", (1, 1))
                     padding = conv_dict.get("padding", "valid")
-                    pad_h = pad_w = 0
-                    if padding.lower() == "same":
-                        pad_h = kernel[0] // 2
-                        pad_w = kernel[1] // 2
+                    pad_h = kernel[0] // 2 if padding.lower() == "same" else 0
+                    pad_w = kernel[1] // 2 if padding.lower() == "same" else 0
+
                     cpp_code += f"    // {ltype}, layer {layer_idx}\n"
                     cpp_code += f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
                     cpp_code += f"    DepthwiseConv2D_{base_file_name}(\n"
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                     cpp_code += f"        depthwiseKernel_{layer_idx}.data(), depthwiseBias_{layer_idx}.data(),\n"
-                    cpp_code += (
-                        f"        {in_shape[2]}, {in_shape[0]}, {in_shape[1]},\n"
-                    )
-                    cpp_code += f"        {kernel[0]}, {kernel[1]}, {strides[0]}, {strides[1]}, {pad_h}, {pad_w},\n"
+                    cpp_code += f"        {out_shape[2]}, {out_shape[0]}, {out_shape[1]},\n"
+                    cpp_code += f"        {in_shape[2]}, {in_shape[0]}, {in_shape[1]},\n"
+                    cpp_code += f"        {kernel[0]}, {kernel[1]}, {strides[0]}, {strides[1]}, {pad_h}, {pad_w}, depthMultiplier_{layer_idx},\n"
                     cpp_code += f"        {mapped_act}, {alpha});\n\n"
+
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape
+
                     # debug printing flag
                     if debug_outputs:
-                        cpp_code += debug_printing(
-                            layer_idx, ltype, last_shape, last_layer
-                        )
+                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                     continue
                 except ValueError as e:
                     print(
@@ -1866,7 +1925,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
         dims = len(raw_dims)
         if dims == 1:
             if output_scale is not None:
-                cpp_code += f"    static std::array<Scalar, {out_size[0]}> model_output;\n\n"
+                cpp_code += (
+                    f"    static std::array<Scalar, {out_size[0]}> model_output;\n\n"
+                )
                 cpp_code += f"    for (int i = 0; i < {out_size[0]}; i++) {{ model_output[i] = ({last_layer}[i] * output_scale[i]) + output_shift[i]; }}\n\n"
             else:
                 cpp_code += f"    static std::array<Scalar, {out_size[0]}> model_output = {last_layer};\n\n"
@@ -1900,7 +1961,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 cpp_code += "            }\n        }\n    }\n\n"
     else:
         if output_scale is not None:
-            cpp_code += f"    static std::array<Scalar, {out_norm_size}> model_output;\n\n"
+            cpp_code += (
+                f"    static std::array<Scalar, {out_norm_size}> model_output;\n\n"
+            )
             cpp_code += f"    for (int i = 0; i < {out_norm_size}; i++) {{ model_output[i] = ({last_layer}[i] * output_scale[i]) + output_shift[i]; }}\n\n"
         else:
             cpp_code += f"    static std::array<Scalar, {out_size}> model_output = {last_layer};\n\n"

@@ -1,7 +1,7 @@
 python3 \
-    ../../src/codegen/main.py \
+    ../../src/api-core/main.py \
     --input="." \
     --output="." \
     --double 
 
-rm -rf .vscode/ codegen/__pycache__ dump_model/__pycache__
+rm -rf .vscode/ api-core/__pycache__ dump_model/__pycache__

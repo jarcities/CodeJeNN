@@ -741,43 +741,92 @@ def extractModel(model, file_type, base_file_name=None):
                 or "maxpooling2d" in layer.name.lower()
             ):
                 try:
-                    raw_pool = config.get("pool_size", (2, 2))
-                    pool_size = (
-                        (raw_pool, raw_pool)
-                        if isinstance(raw_pool, int)
-                        else tuple(raw_pool)
-                    )
-                    raw_strides = config.get("strides", pool_size)
-                    strides = (
-                        (raw_strides, raw_strides)
-                        if isinstance(raw_strides, int)
-                        else tuple(raw_strides)
-                    )
+                    # raw_pool = config.get("pool_size", (2, 2))
+                    # pool_size = (
+                    #     (raw_pool, raw_pool)
+                    #     if isinstance(raw_pool, int)
+                    #     else tuple(raw_pool)
+                    # )
+                    # raw_strides = config.get("strides", pool_size)
+                    # strides = (
+                    #     (raw_strides, raw_strides)
+                    #     if isinstance(raw_strides, int)
+                    #     else tuple(raw_strides)
+                    # )
 
-                    padding = config.get("padding", "valid")
+                    # padding = config.get("padding", "valid")
+                    # in_shape = current_shape
+
+                    # raw_shape = layer_input_shape[1:]
+                    # df = config.get("data_format", "channels_last")
+                    # if df == "channels_first":
+                    #     if len(raw_shape) == 2:
+                    #         raw_shape = (raw_shape[1], raw_shape[0])
+                    #     elif len(raw_shape) == 3:
+                    #         raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
+                    #     elif len(raw_shape) == 4:
+                    #         raw_shape = (
+                    #             raw_shape[1],
+                    #             raw_shape[2],
+                    #             raw_shape[3],
+                    #             raw_shape[0],
+                    #         )
+                    # current_shape = raw_shape
+
+                    # if len(current_shape) < 3:
+                    #     H, W = current_shape
+                    #     C = 1
+                    # else:
+                    #     H, W, C = current_shape
+
+                    # if padding.lower() == "same":
+                    #     out_H = math.ceil(H / strides[0])
+                    #     out_W = math.ceil(W / strides[1])
+                    # elif padding.lower() == "valid":
+                    #     out_H = math.floor((H - pool_size[0]) / strides[0]) + 1
+                    #     out_W = math.floor((W - pool_size[1]) / strides[1]) + 1
+                    # else:
+                    #     out_H, out_W = H, W
+                    # out_C = C
+                    # new_shape = (out_H, out_W, out_C)
+
+                    # pool_params = {
+                    #     "layer_type": layer.__class__.__name__,
+                    #     "pool_size": pool_size,
+                    #     "strides": strides,
+                    #     "padding": padding,
+                    #     "in_shape": in_shape,
+                    #     "output_shape": new_shape,
+                    # }
+                    # conv_layer_params.append(pool_params)
+                    # current_shape = new_shape
+                    # weights_list.append(None)
+                    # biases_list.append(None)
+                    # norm_layer_params.append(None)
+                    # activation_functions.append(None)
+                    # alphas.append(alpha_value)
+                    # dropout_rates.append(0.0)
+                    # layer_shape.append(new_shape)
+                    # layer_type.append("MaxPooling2D")
+                    # continue
                     in_shape = current_shape
-
-                    raw_shape = layer_input_shape[1:]
-                    df = config.get("data_format", "channels_last")
-                    if df == "channels_first":
-                        if len(raw_shape) == 2:
-                            raw_shape = (raw_shape[1], raw_shape[0])
-                        elif len(raw_shape) == 3:
-                            raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
-                        elif len(raw_shape) == 4:
-                            raw_shape = (
-                                raw_shape[1],
-                                raw_shape[2],
-                                raw_shape[3],
-                                raw_shape[0],
-                            )
-                    current_shape = raw_shape
-
-                    if len(current_shape) < 3:
-                        H, W = current_shape
+                    if isinstance(in_shape, tuple) and len(in_shape) == 3:
+                        H, W, C = in_shape
+                    elif isinstance(in_shape, tuple) and len(in_shape) == 2:
+                        H, W = in_shape
                         C = 1
                     else:
-                        H, W, C = current_shape
+                        raise ValueError(f"Unexpected in_shape for {layer.__class__.__name__}: {in_shape}")
+
+                    raw_pool = config.get("pool_size", (2, 2))
+                    pool_size = (raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+
+                    raw_strides = config.get("strides", None)
+                    if raw_strides is None:
+                        raw_strides = pool_size
+                    strides = (raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
+
+                    padding = config.get("padding", "valid")
 
                     if padding.lower() == "same":
                         out_H = math.ceil(H / strides[0])
@@ -787,6 +836,7 @@ def extractModel(model, file_type, base_file_name=None):
                         out_W = math.floor((W - pool_size[1]) / strides[1]) + 1
                     else:
                         out_H, out_W = H, W
+
                     out_C = C
                     new_shape = (out_H, out_W, out_C)
 
@@ -797,7 +847,9 @@ def extractModel(model, file_type, base_file_name=None):
                         "padding": padding,
                         "in_shape": in_shape,
                         "output_shape": new_shape,
+                        "out_shape": new_shape,  # alias used by codegen
                     }
+
                     conv_layer_params.append(pool_params)
                     current_shape = new_shape
                     weights_list.append(None)
@@ -808,6 +860,12 @@ def extractModel(model, file_type, base_file_name=None):
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("MaxPooling2D")
+                    continue
+                except ValueError as e:
+                    print(
+                        f"\nError in extracting parameters: 2d maxpooling layer {layer_idx} --> ",
+                        e,
+                    )
                     continue
                 except ValueError as e:
                     print(
@@ -970,39 +1028,96 @@ def extractModel(model, file_type, base_file_name=None):
                 or "averagepooling2d" in layer.name.lower()
             ):
                 try:
+                    # raw_pool = config.get("pool_size", (2, 2))
+                    # pool_size = (
+                    #     (raw_pool, raw_pool)
+                    #     if isinstance(raw_pool, int)
+                    #     else tuple(raw_pool)
+                    # )
+                    # raw_strides = config.get("strides", pool_size)
+                    # strides = (
+                    #     (raw_strides, raw_strides)
+                    #     if isinstance(raw_strides, int)
+                    #     else tuple(raw_strides)
+                    # )
+
+                    # padding = config.get("padding", "valid")
+                    # in_shape = current_shape
+
+                    # raw_shape = layer_input_shape[1:]
+                    # df = config.get("data_format", "channels_last")
+                    # if df == "channels_first":
+                    #     if len(raw_shape) == 2:
+                    #         raw_shape = (raw_shape[1], raw_shape[0])
+                    #     elif len(raw_shape) == 3:
+                    #         raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
+                    #     elif len(raw_shape) == 4:
+                    #         raw_shape = (
+                    #             raw_shape[1],
+                    #             raw_shape[2],
+                    #             raw_shape[3],
+                    #             raw_shape[0],
+                    #         )
+                    # current_shape = raw_shape
+
+                    # # H, W, C = current_shape
+                    # if len(current_shape) == 3:
+                    #     H, W, C = current_shape
+                    # elif len(current_shape) == 2:
+                    #     H, W = current_shape
+                    #     C = 1
+                    # else:
+                    #     raise ValueError(f"Unexpected shape for AveragePooling2D: {current_shape}")
+                    # if padding.lower() == "same":
+                    #     out_H = math.ceil(H / strides[0])
+                    #     out_W = math.ceil(W / strides[1])
+                    # elif padding.lower() == "valid":
+                    #     out_H = math.floor((H - pool_size[0]) / strides[0]) + 1
+                    #     out_W = math.floor((W - pool_size[1]) / strides[1]) + 1
+                    # else:
+                    #     out_H, out_W = H, W
+                    # out_C = C
+                    # new_shape = (out_H, out_W, out_C)
+
+                    # pool_params = {
+                    #     "layer_type": layer.__class__.__name__,
+                    #     "pool_size": pool_size,
+                    #     "strides": strides,
+                    #     "padding": padding,
+                    #     "in_shape": in_shape,
+                    #     "output_shape": new_shape,
+                    # }
+                    # conv_layer_params.append(pool_params)
+                    # current_shape = new_shape
+                    # weights_list.append(None)
+                    # biases_list.append(None)
+                    # norm_layer_params.append(None)
+                    # activation_functions.append(None)
+                    # alphas.append(alpha_value)
+                    # dropout_rates.append(0.0)
+                    # layer_shape.append(new_shape)
+                    # layer_type.append("AvgPooling2D")
+                    # AFTER (robust, preserves channels):
+
+                    in_shape = current_shape
+                    if isinstance(in_shape, tuple) and len(in_shape) == 3:
+                        H, W, C = in_shape
+                    elif isinstance(in_shape, tuple) and len(in_shape) == 2:
+                        H, W = in_shape
+                        C = 1
+                    else:
+                        raise ValueError(f"Unexpected in_shape for {layer.__class__.__name__}: {in_shape}")
+
                     raw_pool = config.get("pool_size", (2, 2))
-                    pool_size = (
-                        (raw_pool, raw_pool)
-                        if isinstance(raw_pool, int)
-                        else tuple(raw_pool)
-                    )
-                    raw_strides = config.get("strides", pool_size)
-                    strides = (
-                        (raw_strides, raw_strides)
-                        if isinstance(raw_strides, int)
-                        else tuple(raw_strides)
-                    )
+                    pool_size = (raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+
+                    raw_strides = config.get("strides", None)
+                    if raw_strides is None:
+                        raw_strides = pool_size
+                    strides = (raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
 
                     padding = config.get("padding", "valid")
-                    in_shape = current_shape
 
-                    raw_shape = layer_input_shape[1:]
-                    df = config.get("data_format", "channels_last")
-                    if df == "channels_first":
-                        if len(raw_shape) == 2:
-                            raw_shape = (raw_shape[1], raw_shape[0])
-                        elif len(raw_shape) == 3:
-                            raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
-                        elif len(raw_shape) == 4:
-                            raw_shape = (
-                                raw_shape[1],
-                                raw_shape[2],
-                                raw_shape[3],
-                                raw_shape[0],
-                            )
-                    current_shape = raw_shape
-
-                    H, W, C = current_shape
                     if padding.lower() == "same":
                         out_H = math.ceil(H / strides[0])
                         out_W = math.ceil(W / strides[1])
@@ -1011,6 +1126,7 @@ def extractModel(model, file_type, base_file_name=None):
                         out_W = math.floor((W - pool_size[1]) / strides[1]) + 1
                     else:
                         out_H, out_W = H, W
+
                     out_C = C
                     new_shape = (out_H, out_W, out_C)
 
@@ -1021,7 +1137,9 @@ def extractModel(model, file_type, base_file_name=None):
                         "padding": padding,
                         "in_shape": in_shape,
                         "output_shape": new_shape,
+                        "out_shape": new_shape,  # alias for codegen paths that expect 'out_shape'
                     }
+
                     conv_layer_params.append(pool_params)
                     current_shape = new_shape
                     weights_list.append(None)
@@ -1032,6 +1150,12 @@ def extractModel(model, file_type, base_file_name=None):
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("AvgPooling2D")
+                    continue
+                except ValueError as e:
+                    print(
+                        f"\nError in extracting parameters: 2d averagepooling layer {layer_idx} --> ",
+                        e,
+                    )
                     continue
                 except ValueError as e:
                     print(
@@ -1414,36 +1538,29 @@ def extractModel(model, file_type, base_file_name=None):
                     continue
 
             # 2d depthwise convolutional layer
+            # 2d depthwise convolutional layer
             if (
                 isinstance(layer, keras.layers.DepthwiseConv2D)
                 or "depthwiseconv2d" in layer.name.lower()
             ):
                 try:
                     use_bias = config.get("use_bias", True)
+                    # Keras DepthwiseConv2D weights: [depthwise_kernel, (bias?)]
                     if use_bias and len(layer_weights) == 2:
                         depthwise_kernel, bias = layer_weights
                     elif not use_bias and len(layer_weights) == 1:
                         depthwise_kernel, bias = layer_weights[0], None
                     else:
                         depthwise_kernel, bias = None, None
-                    conv_params = {
-                        "layer_type": "DepthwiseConv2D",
-                        "depthwise_kernel": depthwise_kernel,
-                        "depthwise_bias": bias,
-                        "pointwise_kernel": None,
-                        "pointwise_bias": None,
-                        "filters": config.get("depth_multiplier", 1),
-                        "kernel_size": config.get("kernel_size", (3, 3)),
-                        "strides": config.get("strides", (1, 1)),
-                        "padding": config.get("padding", "valid"),
-                        "dilation_rate": config.get("dilation_rate", (1, 1)),
-                        "use_bias": use_bias,
-                    }
-                    H, W, C = current_shape
-                    kH, kW = conv_params["kernel_size"]
-                    sH, sW = conv_params["strides"]
-                    pad = conv_params["padding"]
 
+                    H, W, C = current_shape
+                    kH, kW = config.get("kernel_size", (3, 3))
+                    sH, sW = config.get("strides", (1, 1))
+                    pad = config.get("padding", "valid")
+                    dilH, dilW = config.get("dilation_rate", (1, 1))
+                    depth_multiplier = int(config.get("depth_multiplier", 1))
+
+                    # output spatial size (same formula you use elsewhere)
                     if pad.lower() == "same":
                         out_H = math.ceil(H / sH)
                         out_W = math.ceil(W / sW)
@@ -1452,20 +1569,31 @@ def extractModel(model, file_type, base_file_name=None):
                         out_W = math.floor((W - kW) / sW) + 1
                     else:
                         out_H, out_W = H, W
-                    out_C = C * conv_params["filters"]  # depth_multiplier
+
+                    out_C = C * depth_multiplier
                     new_shape = (out_H, out_W, out_C)
 
-                    conv_params["in_shape"] = current_shape
-                    conv_params["out_shape"] = new_shape
+                    conv_params = {
+                        "layer_type": "DepthwiseConv2D",
+                        "depthwise_kernel": depthwise_kernel,
+                        "depthwise_bias": bias,
+                        "kernel_size": (kH, kW),
+                        "strides": (sH, sW),
+                        "padding": pad,
+                        "dilation_rate": (dilH, dilW),
+                        "use_bias": use_bias,
+                        "depth_multiplier": depth_multiplier,
+                        "in_shape": current_shape,
+                        "out_shape": new_shape,
+                    }
+
                     current_shape = new_shape
                     conv_layer_params.append(conv_params)
                     weights_list.append(None)
                     biases_list.append(None)
-                    alphas.append(alpha_value)
                     norm_layer_params.append(None)
-                    activation_functions.append(
-                        activation if activation != "linear" else "linear"
-                    )
+                    activation_functions.append(activation if activation != "linear" else "linear")
+                    alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("DepthwiseConv2D")
@@ -1476,6 +1604,68 @@ def extractModel(model, file_type, base_file_name=None):
                         e,
                     )
                     continue
+            # if (
+            #     isinstance(layer, keras.layers.DepthwiseConv2D)
+            #     or "depthwiseconv2d" in layer.name.lower()
+            # ):
+            #     try:
+            #         use_bias = config.get("use_bias", True)
+            #         if use_bias and len(layer_weights) == 2:
+            #             depthwise_kernel, bias = layer_weights
+            #         elif not use_bias and len(layer_weights) == 1:
+            #             depthwise_kernel, bias = layer_weights[0], None
+            #         else:
+            #             depthwise_kernel, bias = None, None
+            #         conv_params = {
+            #             "layer_type": "DepthwiseConv2D",
+            #             "depthwise_kernel": depthwise_kernel,
+            #             "depthwise_bias": bias,
+            #             "pointwise_kernel": None,
+            #             "pointwise_bias": None,
+            #             "filters": config.get("depth_multiplier", 1),
+            #             "kernel_size": config.get("kernel_size", (3, 3)),
+            #             "strides": config.get("strides", (1, 1)),
+            #             "padding": config.get("padding", "valid"),
+            #             "dilation_rate": config.get("dilation_rate", (1, 1)),
+            #             "use_bias": use_bias,
+            #         }
+            #         H, W, C = current_shape
+            #         kH, kW = conv_params["kernel_size"]
+            #         sH, sW = conv_params["strides"]
+            #         pad = conv_params["padding"]
+
+            #         if pad.lower() == "same":
+            #             out_H = math.ceil(H / sH)
+            #             out_W = math.ceil(W / sW)
+            #         elif pad.lower() == "valid":
+            #             out_H = math.floor((H - kH) / sH) + 1
+            #             out_W = math.floor((W - kW) / sW) + 1
+            #         else:
+            #             out_H, out_W = H, W
+            #         out_C = C * conv_params["filters"]  # depth_multiplier
+            #         new_shape = (out_H, out_W, out_C)
+
+            #         conv_params["in_shape"] = current_shape
+            #         conv_params["out_shape"] = new_shape
+            #         current_shape = new_shape
+            #         conv_layer_params.append(conv_params)
+            #         weights_list.append(None)
+            #         biases_list.append(None)
+            #         alphas.append(alpha_value)
+            #         norm_layer_params.append(None)
+            #         activation_functions.append(
+            #             activation if activation != "linear" else "linear"
+            #         )
+            #         dropout_rates.append(0.0)
+            #         layer_shape.append(new_shape)
+            #         layer_type.append("DepthwiseConv2D")
+            #         continue
+            #     except ValueError as e:
+            #         print(
+            #             f"\nError in extracting parameters: 2d depthwise convolutional layer {layer_idx} --> ",
+            #             e,
+            #         )
+            #         continue
 
             # 1d seperable convolution layers
             if (

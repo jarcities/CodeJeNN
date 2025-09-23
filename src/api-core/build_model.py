@@ -601,6 +601,7 @@ inline void Conv2DTranspose_{base_file_name}(
             {{
                 const Scalar v = inputs[( (ih * in_width + iw) * in_channels ) + ic];
 
+                //[kh][kw][oc][ic]   
                 for (int kh = 0; kh < kernel_h; ++kh) 
                 {{
                     const int oh = oh_base + kh;
@@ -611,20 +612,20 @@ inline void Conv2DTranspose_{base_file_name}(
                         const int ow = ow_base + kw;
                         if (ow < 0 || ow >= out_width) continue;
 
-                        // weights[kh, kw, ic, oc] contiguous in oc
-                        const int w_k_base =
-                            ( ( (kh * kernel_w + kw) * in_channels + ic) * out_channels );
-                        const int out_pix_base = ( (oh * out_width + ow) * out_channels );
+                        const int out_pix_base = ((oh * out_width + ow) * out_channels);
+                        const int w_spatial_base = (kh * kernel_w + kw) * out_channels;
 
                         for (int oc = 0; oc < out_channels; ++oc) 
                         {{
-                            outputs[out_pix_base + oc] += v * weights[w_k_base + oc];
+                            const int w_base_oc = (w_spatial_base + oc) * in_channels;   
+                            outputs[out_pix_base + oc] += v * weights[w_base_oc + ic];
                         }}
                     }}
                 }}
             }}
         }}
     }}
+    
 
     // pointwise activation
     for (int oh = 0; oh < out_height; ++oh) 
@@ -697,7 +698,7 @@ inline void Conv3D_{base_file_name}(Scalar * __restrict outputs, const Scalar * 
 """,
         "Conv3DTranspose": f"""
 template <typename Scalar, int out_channels, int out_depth, int out_height, int out_width, typename ActFun>
-inline void Conv3DTranspose(
+inline void Conv3DTranspose_{base_file_name}(
     Scalar* __restrict outputs,                  
     const Scalar* __restrict inputs,             
     const Scalar* __restrict weights,           
@@ -837,38 +838,58 @@ inline void DepthwiseConv1D_{base_file_name}(Scalar * __restrict outputs,
 """,
         "DepthwiseConv2D": f"""
 template <typename Scalar, typename ActFun>
-inline void DepthwiseConv2D_{base_file_name}(Scalar * __restrict outputs, const Scalar * __restrict inputs, const Scalar * __restrict weights, const Scalar * __restrict biases,
-                            int out_channels, int out_height, int out_width,
-                            int in_channels, int in_height, int in_width,
-                            int kernel_height, int kernel_width, int stride_height, int stride_width,
-                            int padding_height, int padding_width,
-                            ActFun activation_function, Scalar alpha) noexcept
+inline void DepthwiseConv2D_{base_file_name}(Scalar* __restrict outputs,
+                                             const Scalar* __restrict inputs,
+                                             const Scalar* __restrict weights,
+                                             const Scalar* __restrict biases,
+                                             int out_channels, int out_height, int out_width,
+                                             int in_channels, int in_height, int in_width,
+                                             int kernel_height, int kernel_width,
+                                             int stride_height, int stride_width,
+                                             int padding_height, int padding_width,
+                                             int depth_multiplier,
+                                             ActFun activation_function, Scalar alpha) noexcept
 {{
-    for (int c = 0; c < in_channels; ++c)
+    // out_channels should equal in_channels * depth_multiplier
+    const int outC = in_channels * depth_multiplier;
+    (void)out_channels; // optional: assert(out_channels == outC)
+
+    for (int ic = 0; ic < in_channels; ++ic)
     {{
-        for (int oh = 0; oh < out_height; ++oh)
+        for (int m = 0; m < depth_multiplier; ++m)
         {{
-            for (int ow = 0; ow < out_width; ++ow)
+            const int oc = ic * depth_multiplier + m;
+
+            for (int oh = 0; oh < out_height; ++oh)
             {{
-                Scalar sum = 0;
-                for (int kh = 0; kh < kernel_height; ++kh)
+                const int ih0 = oh * stride_height - padding_height;
+
+                for (int ow = 0; ow < out_width; ++ow)
                 {{
-                    
-                    for (int kw = 0; kw < kernel_width; ++kw)
+                    const int iw0 = ow * stride_width - padding_width;
+
+                    Scalar sum = 0;
+
+                    for (int kh = 0; kh < kernel_height; ++kh)
                     {{
-                        int in_h = oh * stride_height - padding_height + kh;
-                        int in_w = ow * stride_width - padding_width + kw;
-                        if (in_h >= 0 && in_h < in_height && in_w >= 0 && in_w < in_width)
+                        const int ih = ih0 + kh;
+                        if (ih < 0 || ih >= in_height) continue;
+
+                        for (int kw = 0; kw < kernel_width; ++kw)
                         {{
-                            int input_index = (in_h * in_width * in_channels) + (in_w * in_channels) + c;
-                            int weight_index = (kh * kernel_width + kw) * in_channels + c;
-                            sum += inputs[input_index] * weights[weight_index];
+                            const int iw = iw0 + kw;
+                            if (iw < 0 || iw >= in_width) continue;
+                            const int in_idx = (ih * in_width + iw) * in_channels + ic;
+                            const int w_idx =
+                                (((kh * kernel_width + kw) * in_channels) + ic) * depth_multiplier + m;
+
+                            sum += inputs[in_idx] * weights[w_idx];
                         }}
                     }}
+                    sum += biases ? biases[oc] : Scalar(0);
+                    const int out_idx = (oh * out_width + ow) * outC + oc;
+                    activation_function(outputs[out_idx], sum, alpha);
                 }}
-                sum += biases[c];
-                int output_index = (oh * out_width * in_channels) + (ow * in_channels) + c;
-                activation_function(outputs[output_index], sum, alpha);
             }}
         }}
     }}
