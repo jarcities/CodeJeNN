@@ -1223,7 +1223,7 @@ def extractModel(model, file_type, base_file_name=None):
                     )
 
                     pool_params = {
-                        "layer_type": layer.__class__.__name__,
+                        "layer_type": "AvgPooling3D",
                         "pool_size": pool_size,
                         "strides": strides,
                         "padding": padding,
@@ -1833,7 +1833,7 @@ def extractModel(model, file_type, base_file_name=None):
                         kernel, bias = None, None
 
                     conv_params = {
-                        "layer_type": layer.__class__.__name__,
+                        "layer_type": "Conv1D",
                         "weights": kernel,
                         "biases": bias,
                         "filters": config.get("filters", None),
@@ -1912,7 +1912,7 @@ def extractModel(model, file_type, base_file_name=None):
                         kernel, bias = None, None
 
                     conv_params = {
-                        "layer_type": layer.__class__.__name__,
+                        "layer_type": "Conv2D",
                         "weights": kernel,
                         "biases": bias,
                         "filters": config.get("filters", None),
@@ -1994,7 +1994,7 @@ def extractModel(model, file_type, base_file_name=None):
                         kernel, bias = None, None
 
                     conv_params = {
-                        "layer_type": layer.__class__.__name__,
+                        "layer_type": "Conv3D",
                         "weights": kernel,
                         "biases": bias,
                         "filters": config.get("filters", None),

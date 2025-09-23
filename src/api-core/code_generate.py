@@ -686,7 +686,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
         # retrieve activation function
         if act_fun == "softmax" and ltype != "Activation":
-            # softmax is handled as a separate layer if not already an activation layer
             mapped_act = "linear"
             alpha = 0.0
 
@@ -695,7 +694,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             # alpha = alpha #leave alpha as is
 
         ## THIS IS SOFTMAX FROM PREVIOUS LAYER ##
-        # guard index and previous-layer type checks (avoid i-1 when i==0)
         if i > 0 and activation_functions[i - 1] == "softmax" and (layer_type[i - 1] if isinstance(layer_type, (list, tuple)) else None) != "Activation":
             if isinstance(last_shape, tuple) and len(last_shape) > 1:
                 channels = last_shape[-1]
