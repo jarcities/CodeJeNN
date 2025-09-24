@@ -8,7 +8,6 @@ NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DIS
 MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 """
 
-# doctest.debug removed (unused)
 import os
 import absl.logging
 import warnings
@@ -18,6 +17,42 @@ import operator
 absl.logging.set_verbosity("error")
 warnings.filterwarnings("ignore", category=UserWarning, module="keras")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
+
+def ERROR(layer_type, layer_idx, e):
+    print(f"\n__Error__ in code_generate.py: {layer_type} layer {layer_idx} --> ", e)
+
+
+def debug_printing(layer_idx, layer_type, layer_shape, last_layer_name, num_values=10):
+    # ===============================================
+    # generate the debug printing code for each layer
+    # ===============================================
+    if isinstance(layer_shape, tuple):
+        total_size = 1
+        for dim in layer_shape:
+            total_size *= dim
+    else:
+        total_size = layer_shape
+    num_val = min(num_values, total_size)
+    cpp_debug_code = f"""    // DEBUGGING, 1st {num_val} values of {layer_type} layer {layer_idx}:
+    std::cout << "({layer_type}) layer {layer_idx}:" << "\\n";
+    std::cout << "Shape -> ";"""
+
+    if isinstance(layer_shape, tuple):
+        shape_str = "(" + ", ".join(map(str, layer_shape)) + ")"
+    else:
+        shape_str = f"({layer_shape},)"
+
+    cpp_debug_code += f"""
+    std::cout << "{shape_str}" << "\\n";
+    std::cout << "Values -> ";
+    for (int ii = 0; ii < {num_val}; ++ii) {{
+        std::cout << {last_layer_name}[ii];
+        if (ii < {num_val} - 1) std::cout << ", ";
+    }}
+    std::cout << " . . .\\n\\n";\n
+"""
+    return cpp_debug_code
 
 
 def preambleHeader():
@@ -41,40 +76,6 @@ def preambleHeader():
     cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
 
     return cpp_code
-
-
-def debug_printing(layer_idx, layer_type, layer_shape, last_layer_name, num_values=10):
-    # ===============================================
-    # generate the debug printing code for each layer
-    # ===============================================
-    # calculate total size of the layer output
-    if isinstance(layer_shape, tuple):
-        total_size = 1
-        for dim in layer_shape:
-            total_size *= dim
-    else:
-        total_size = layer_shape
-    num_val = min(num_values, total_size)
-    cpp_debug_code = f"""    // DEBUGGING, 1st {num_val} values of {layer_type} layer {layer_idx}:
-    std::cout << "({layer_type}) layer {layer_idx}:" << "\\n";
-    std::cout << "Shape -> ";"""
-
-    # shape information
-    if isinstance(layer_shape, tuple):
-        shape_str = "(" + ", ".join(map(str, layer_shape)) + ")"
-    else:
-        shape_str = f"({layer_shape},)"
-
-    cpp_debug_code += f"""
-    std::cout << "{shape_str}" << "\\n";
-    std::cout << "Values -> ";
-    for (int ii = 0; ii < {num_val}; ++ii) {{
-        std::cout << {last_layer_name}[ii];
-        if (ii < {num_val} - 1) std::cout << ", ";
-    }}
-    std::cout << " . . .\\n\\n";\n
-"""
-    return cpp_debug_code
 
 
 def codeGen(
@@ -160,26 +161,21 @@ def codeGen(
     if user_activation:
         activation_func_map[user_activation] = user_activation
 
-    # build user header file name
     name_space = os.path.splitext(os.path.basename(user_file))[0]
     name_space = name_space.replace("-", "_").replace(" ", "_")
 
-    # build input_type from layer_shape[0]
     raw_shape = layer_shape[0]
     if isinstance(raw_shape, tuple) and len(raw_shape) > 1:
         dims = [d for d in raw_shape if d != 1]
         input_type = "Scalar"
         for d in reversed(dims):
             input_type = f"std::array<{input_type}, {d}>"
-
-    # 1d fall back
     else:
         d = raw_shape[0] if isinstance(raw_shape, tuple) else raw_shape
         input_type = f"std::array<Scalar, {d}>"
 
     cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
 
-    # start generating the NN function header
     cpp_code += f"""
 template <typename Scalar = {precision_type}>
 inline auto {name_space}(const {input_type}& initial_input) {{\n
@@ -206,9 +202,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 cpp_code += "};\n\n"
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in printing parameters: rescale layer {layer_idx} --> ", e
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         ## DENSE LAYERS ##
@@ -225,9 +219,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 cpp_code += "};\n\n"
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in printing parameters: dense layer {layer_idx} --> ", e
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         ## NORMALIZATION LAYERS ##
@@ -266,10 +258,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 )
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in printing parameters: normalization layer {layer_idx} --> ",
-                    e,
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         ## CONVOLUTIONAL LAYERS ##
@@ -278,7 +267,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             cpp_code += f"    // Layer {layer_idx}: {ltype}\n"
 
             try:
-                # regular 1d, 2d, 3d convolutional layers
                 if ltype in ["Conv1D", "Conv2D", "Conv3D"] and ltype not in [
                     "Conv1DTranspose",
                     "Conv2DTranspose",
@@ -291,7 +279,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         cpp_code += f"    constexpr std::array<Scalar, {len(kflat)}> convKernel_{layer_idx} = {{"
                         cpp_code += ", ".join(f"{val:10.9e}" for val in kflat)
                         cpp_code += "};\n"
-                    # num_filters = conv_dict.get("filters", 0) or 0
                     out_shape = conv_dict.get(
                         "out_shape", conv_dict.get("output_shape", None)
                     )
@@ -310,45 +297,17 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += "\n"
                     continue
 
-                # elif ltype in ["DepthwiseConv1D", "DepthwiseConv2D"]:
-                #     # prefer explicit depthwise tensors if present, else fall back to generic names
-                #     kernel = conv_dict.get(
-                #         "depthwise_kernel", conv_dict.get("weights", None)
-                #     )
-                #     bias = conv_dict.get(
-                #         "depthwise_bias", conv_dict.get("biases", None)
-                #     )
-
-                #     if kernel is not None:
-                #         kflat = kernel.flatten()
-                #         cpp_code += f"    constexpr std::array<Scalar, {len(kflat)}> depthwiseKernel_{layer_idx} = {{"
-                #         cpp_code += ", ".join(f"{val:10.9e}" for val in kflat)
-                #         cpp_code += "};\n"
-
-                #     out_shape = conv_dict.get(
-                #         "out_shape", conv_dict.get("output_shape", None)
-                #     )
-
-                #     if bias is not None:
-                #         bflat = bias.flatten()
-                #         cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> depthwiseBias_{layer_idx} = {{"
-                #         cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
-                #         cpp_code += "};\n"
-                #     else:
-                #         size = (
-                #             out_shape[-1]
-                #             if out_shape
-                #             else (conv_dict.get("filters") or 1)
-                #         )
-                #         cpp_code += f"    constexpr std::array<Scalar, {size}> depthwiseBias_{layer_idx} = {{}};\n"
-
-                #     cpp_code += "\n"
-                #     continue
                 elif ltype in ["DepthwiseConv1D", "DepthwiseConv2D"]:
-                    kernel = conv_dict.get("depthwise_kernel", conv_dict.get("weights", None))
-                    bias   = conv_dict.get("depthwise_bias",   conv_dict.get("biases",  None))
+                    kernel = conv_dict.get(
+                        "depthwise_kernel", conv_dict.get("weights", None)
+                    )
+                    bias = conv_dict.get(
+                        "depthwise_bias", conv_dict.get("biases", None)
+                    )
                     depth = int(conv_dict.get("depth_multiplier", 1))
-                    cpp_code += f"    constexpr int depthMultiplier_{layer_idx} = {depth};\n"
+                    cpp_code += (
+                        f"    constexpr int depthMultiplier_{layer_idx} = {depth};\n"
+                    )
 
                     if kernel is not None:
                         kflat = kernel.flatten()
@@ -356,21 +315,26 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         cpp_code += ", ".join(f"{val:10.9e}" for val in kflat)
                         cpp_code += "};\n"
 
-                    out_shape = conv_dict.get("out_shape", conv_dict.get("output_shape", None))
+                    out_shape = conv_dict.get(
+                        "out_shape", conv_dict.get("output_shape", None)
+                    )
 
                     if bias is not None:
-                        bflat = bias.flatten()  
+                        bflat = bias.flatten()
                         cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> depthwiseBias_{layer_idx} = {{"
                         cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
                         cpp_code += "};\n"
                     else:
-                        size = (out_shape[-1] if out_shape else (conv_dict.get("filters") or 1))
+                        size = (
+                            out_shape[-1]
+                            if out_shape
+                            else (conv_dict.get("filters") or 1)
+                        )
                         cpp_code += f"    constexpr std::array<Scalar, {size}> depthwiseBias_{layer_idx} = {{}};\n"
 
                     cpp_code += "\n"
                     continue
 
-                # 1d and 2d separable convolutional layers
                 elif ltype in ["SeparableConv1D", "SeparableConv2D"]:
                     dk = conv_dict.get("depthwise_kernel", None)
                     pk = conv_dict.get("pointwise_kernel", None)
@@ -399,7 +363,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += "\n"
                     continue
 
-                # transposed 1d, 2d, and 3d convolutional layers
                 elif ltype in [
                     "Conv1DTranspose",
                     "Conv2DTranspose",
@@ -503,13 +466,12 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"{{{in_shape[0]}, {in_shape[1]}, {in_shape[2]}}};\n\n"
                     continue
             except ValueError as e:
-                print(f"\nError in printing parameters: conv layer {layer_idx} --> ", e)
+                ERROR(ltype, layer_idx, e)
                 continue
 
     cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
 
     ## NORMALIZE INPUT AND OUTPUTS ##
-    # print input normalization/standardization parameters
     try:
         if input_scale is not None and input_shift is not None:
             input_scale = (
@@ -535,10 +497,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             cpp_code += ", ".join(f"{float(x):10.9e}" for x in input_shift)
             cpp_code += "};\n\n"
     except ValueError as e:
-        print("\nError in printing parameters: input normalization --> ", e)
+        ERROR("input normalization", "0", e)
         pass
 
-    # print output normalization/standardization parameters
     out_norm_size = output_size
     out_size = layer_shape[len(layer_shape) - 1]
     try:
@@ -563,7 +524,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             cpp_code += "};\n\n"
             cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
     except ValueError as e:
-        print("\nError in printing parameters: output normalization --> ", e)
+        ERROR("output normalization", "0", e)
         pass
 
     #################################
@@ -582,20 +543,17 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     ###################
     ## FLATTEN INPUT ##
     ###################
-    # build normalization arrays if input_scale and input_shift are provided
     cpp_code += f"""    
     // model input and flattened
     constexpr int flat_size = {input_size}; 
     std::array<Scalar, flat_size> model_input;\n
     """
 
-    # get input dimensions of model
     dims = layer_shape[0]
     indent = ""
 
     ## FLATTEN INPUT ##
     if isinstance(dims, tuple) and len(dims) > 1:
-        # multi-dimensional input
         try:
             dims = [d for d in raw_shape if d != 1]
             loop_vars = [f"i{j}" for j in range(len(dims))]
@@ -603,7 +561,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 cpp_code += f"{indent}for (int {loop_vars[d_i]} = 0; {loop_vars[d_i]} < {d_val}; {loop_vars[d_i]}++) {{\n"
                 indent = "      " * (d_i + 1)
 
-            # compute the 1D row major index
             index_expr = ""
             for d_i in range(len(dims)):
                 stride = 1
@@ -629,13 +586,12 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"[{lv}]"
                 cpp_code += " - input_shift[flatIndex]) / (input_scale[flatIndex]);\n"
 
-            # match indentation levels
             for d_i in range(len(dims), 0, -1):
                 cpp_code += "    " * d_i + "}\n"
 
             cpp_code += f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
         except ValueError as e:
-            print("\nError in flattening input: --> ", e)
+            ERROR("input layer", "0", e)
             pass
 
     else:
@@ -652,7 +608,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     ######################################
     ## PRINT EACH LAYERS FUNCTION CALLS ##
     ######################################
-    # intialize pointer to "last" layers output shape as input for the next layers input shape
     last_layer = "model_input"
     last_shape = layer_shape[0]
     layer_idx = 0
@@ -675,16 +630,13 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
         )
     ):
 
-        # layer iterator index
         layer_idx = i + 1
 
-        # update current layers shape
         if len(layer_shape) > i + 1:
             current_shape = layer_shape[i + 1]
         else:
             current_shape = None
 
-        # retrieve activation function
         if act_fun == "softmax" and ltype != "Activation":
             mapped_act = "linear"
             alpha = 0.0
@@ -694,7 +646,12 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             # alpha = alpha #leave alpha as is
 
         ## THIS IS SOFTMAX FROM PREVIOUS LAYER ##
-        if i > 0 and activation_functions[i - 1] == "softmax" and (layer_type[i - 1] if isinstance(layer_type, (list, tuple)) else None) != "Activation":
+        if (
+            i > 0
+            and activation_functions[i - 1] == "softmax"
+            and (layer_type[i - 1] if isinstance(layer_type, (list, tuple)) else None)
+            != "Activation"
+        ):
             if isinstance(last_shape, tuple) and len(last_shape) > 1:
                 channels = last_shape[-1]
                 length = 1
@@ -765,10 +722,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in generating function call: activation layer {layer_idx} --> ",
-                    e,
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         ## PREPROCESSING LAYERS ##
@@ -790,10 +744,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in generating function call: rescale layer {layer_idx} --> ",
-                    e,
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         ## RESHAPE LAYERS ##
@@ -810,10 +761,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in generating function call: reshape layer {layer_idx} --> ",
-                    e,
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         ## DENSE LAYER ##
@@ -841,10 +789,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in generating function call: dense layer {layer_idx} --> ",
-                    e,
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         ## NORMALIZATION LAYERS ##
@@ -897,10 +842,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in generating function call: batchnorm layer {layer_idx} --> ",
-                    e,
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         if (
@@ -949,10 +891,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in generating function call: layernorm layer {layer_idx} --> ",
-                    e,
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         if ltype == "UnitNormalization":
@@ -993,10 +932,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in generating function call: unitnorm layer {layer_idx} --> ",
-                    e,
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         if (
@@ -1011,15 +947,12 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     groups = 32  # default to 32 groups
 
                 if isinstance(last_shape, tuple) and len(last_shape) > 1:
-                    # cnn case
                     if len(last_shape) == 3:
                         if last_shape[2] == 1:
                             length, channels, _ = last_shape
-                        # 2d cnn
                         else:
                             height, width, channels = last_shape
                             length = height * width
-                    # 3d cnn
                     elif len(last_shape) == 4:
                         depth, height, width, channels = last_shape
                         length = depth * height * width
@@ -1027,7 +960,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         channels = last_shape[-1]
                         length = reduce(operator.mul, last_shape[:-1], 1)
                 else:
-                    # mlp case
                     channels = len(gamma)
                     length = 1
 
@@ -1043,7 +975,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 )
                 cpp_code += f"        epsilon_{layer_idx});\n\n"
                 last_layer = f"layer_{layer_idx}_output"
-                # update last shape
                 if length == 1:
                     last_shape = (channels,)
                 else:
@@ -1053,26 +984,20 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
                 continue
             except ValueError as e:
-                print(
-                    f"\nError in generating function call: groupnorm layer {layer_idx} --> ",
-                    e,
-                )
+                ERROR(ltype, layer_idx, e)
                 continue
 
         ## CONVOLUTIONAL LAYERS ##
         if ltype is not None and conv_dict is not None:
 
-            # get layer input shape and output shape with safe handling
             in_shape = conv_dict.get("in_shape", None)
             out_shape = conv_dict.get("out_shape", conv_dict.get("output_shape", None))
 
-            # Use last_shape as fallback for input shape if needed
             if in_shape is None:
                 in_shape = (
                     last_shape if isinstance(last_shape, tuple) else (last_shape,)
                 )
 
-            # 1d convolutional layers
             if ltype == "Conv1D" and ltype not in ["Conv1DTranspose"]:
                 try:
                     input_length = in_shape[0] if len(in_shape) > 0 else 1
@@ -1108,13 +1033,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: conv1d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 2d convolutional layers
             elif ltype == "Conv2D" and ltype not in ["Conv2DTranspose"]:
                 try:
                     in_shape = conv_dict.get(
@@ -1161,13 +1082,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: conv2d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 3d convolutional layers
             elif ltype == "Conv3D" and ltype not in ["Conv3DTranspose"]:
                 try:
                     kernel = conv_dict.get("kernel_size", (3, 3, 3))
@@ -1199,13 +1116,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: conv3d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 1d depthwise convolutional layers
             elif ltype == "DepthwiseConv1D":
                 try:
                     input_length = in_shape[0] if len(in_shape) > 0 else 1
@@ -1242,13 +1155,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: depthwiseconv1d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 2d depthwise convolutional layers
             # elif ltype == "DepthwiseConv2D":
             #     try:
             #         kernel = conv_dict.get("kernel_size", (3, 3))
@@ -1280,14 +1189,11 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             #             )
             #         continue
             #     except ValueError as e:
-            #         print(
-            #             f"\nError in generating function call: depthwiseconv2d layer {layer_idx} --> ",
-            #             e,
-            #         )
+            #         ERROR(ltype, layer_idx, e)
             #         continue
             elif ltype == "DepthwiseConv2D":
                 try:
-                    kernel  = conv_dict.get("kernel_size", (3, 3))
+                    kernel = conv_dict.get("kernel_size", (3, 3))
                     strides = conv_dict.get("strides", (1, 1))
                     padding = conv_dict.get("padding", "valid")
                     pad_h = kernel[0] // 2 if padding.lower() == "same" else 0
@@ -1298,8 +1204,12 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += f"    DepthwiseConv2D_{base_file_name}(\n"
                     cpp_code += f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                     cpp_code += f"        depthwiseKernel_{layer_idx}.data(), depthwiseBias_{layer_idx}.data(),\n"
-                    cpp_code += f"        {out_shape[2]}, {out_shape[0]}, {out_shape[1]},\n"
-                    cpp_code += f"        {in_shape[2]}, {in_shape[0]}, {in_shape[1]},\n"
+                    cpp_code += (
+                        f"        {out_shape[2]}, {out_shape[0]}, {out_shape[1]},\n"
+                    )
+                    cpp_code += (
+                        f"        {in_shape[2]}, {in_shape[0]}, {in_shape[1]},\n"
+                    )
                     cpp_code += f"        {kernel[0]}, {kernel[1]}, {strides[0]}, {strides[1]}, {pad_h}, {pad_w}, depthMultiplier_{layer_idx},\n"
                     cpp_code += f"        {mapped_act}, {alpha});\n\n"
 
@@ -1308,16 +1218,14 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
                     # debug printing flag
                     if debug_outputs:
-                        cpp_code += debug_printing(layer_idx, ltype, last_shape, last_layer)
+                        cpp_code += debug_printing(
+                            layer_idx, ltype, last_shape, last_layer
+                        )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: depthwiseconv2d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 1d separable convolutional layers
             elif ltype == "SeparableConv1D":
                 try:
                     input_length = in_shape[0] if len(in_shape) > 0 else 1
@@ -1358,13 +1266,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: separableconv1d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 2d seperable convolutional layers
             elif ltype == "SeparableConv2D":
                 try:
                     kernel = conv_dict.get("kernel_size", (3, 3))
@@ -1393,13 +1297,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: separableconv2d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 1d transposed convolutional layers
             elif ltype == "Conv1DTranspose" and ltype not in ["Conv1D"]:
                 try:
                     input_length = in_shape[0] if len(in_shape) > 0 else 1
@@ -1457,13 +1357,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: conv1dtranspose layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 2d transposed convolutional layers
             elif ltype == "Conv2DTranspose" and ltype not in ["Conv2D"]:
                 try:
                     kernel = conv_dict.get("kernel_size", (3, 3))
@@ -1501,13 +1397,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: conv2dtranspose layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 3d transposed convolutional layers
             elif ltype == "Conv3DTranspose" and ltype not in ["Conv3D"]:
                 try:
                     out_shape = conv_dict["out_shape"]
@@ -1546,10 +1438,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: conv3dtranspose layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
             #############################################################################################
@@ -1588,7 +1477,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             #############################################################################################
 
             ## POOLING LAYERS ##
-            # 1d max pooling layers
             elif ltype == "MaxPooling1D":
                 try:
                     input_length = in_shape[0] if len(in_shape) > 0 else 1
@@ -1618,13 +1506,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: maxpool1d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 2d max pooling layers
             elif ltype == "MaxPooling2D":
                 try:
                     pool_size = conv_dict.get("pool_size", (2, 2))
@@ -1642,13 +1526,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: maxpool2d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 3d max pooling layers
             elif ltype == "MaxPooling3D":
                 try:
                     pool_size = conv_dict.get("pool_size", (2, 2, 2))
@@ -1666,13 +1546,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: maxpool3d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 1d average pooling layers
             elif ltype == "AvgPooling1D":
                 try:
                     input_length = in_shape[0] if len(in_shape) > 0 else 1
@@ -1702,13 +1578,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: avgpool1d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 2d average pooling layers
             elif ltype == "AvgPooling2D":
                 try:
                     pool_size = conv_dict.get("pool_size", (2, 2))
@@ -1726,13 +1598,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: avgpool2d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 3d average pooling layers
             elif ltype == "AvgPooling3D":
                 try:
                     pool_size = conv_dict.get("pool_size", (2, 2, 2))
@@ -1750,13 +1618,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: avgpool3d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 1d global max pooling layers
             elif ltype == "GlobalMaxPooling1D":
                 try:
                     input_length = in_shape[0] if len(in_shape) > 0 else 1
@@ -1775,13 +1639,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: globalmaxpool1d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 2d global max pooling layers
             elif ltype == "GlobalMaxPooling2D":
                 try:
                     input_height = in_shape[0] if len(in_shape) > 0 else 1
@@ -1801,13 +1661,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: globalmaxpool2d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 3d global max pooling layers
             elif ltype == "GlobalMaxPooling3D":
                 try:
                     input_depth = in_shape[0] if len(in_shape) > 0 else 1
@@ -1829,13 +1685,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: globalmaxpool3d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 1d global average pooling layers
             elif ltype == "GlobalAvgPooling1D":
                 try:
                     input_length = in_shape[0] if len(in_shape) > 0 else 1
@@ -1854,13 +1706,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: globalavgpool1d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 2d global average pooling layers
             elif ltype == "GlobalAvgPooling2D":
                 try:
                     input_height = in_shape[0] if len(in_shape) > 0 else 1
@@ -1880,13 +1728,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: globalavgpool2d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
-            # 3d global average pooling layers
             elif ltype == "GlobalAvgPooling3D":
                 try:
                     input_depth = in_shape[0] if len(in_shape) > 0 else 1
@@ -1907,10 +1751,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in generating function call: globalavgpool3d layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(ltype, layer_idx, e)
                     continue
 
     cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n\n"

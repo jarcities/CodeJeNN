@@ -21,12 +21,12 @@ EPS = 1e-8
 
 X = np.random.rand(NUM_SAMPLES, INPUT_D, INPUT_H, INPUT_W, 1).astype(np.float32)
 y = np.random.rand(NUM_SAMPLES, OUTPUT_H, OUTPUT_W).astype(np.float32)
-y = y.reshape(NUM_SAMPLES, OUTPUT_DIM)
+y = y.reshape(NUM_SAMPLES, OUTPUT_H, OUTPUT_W, 1)  # Reshape labels to 3D
 
 X_mean = X.mean(axis=0, keepdims=True)
 X_std = X.std(axis=0, keepdims=True) + EPS
-y_mean = y.mean(axis=0) + EPS
-y_std = y.std(axis=0) + EPS
+y_mean = y.mean(axis=0, keepdims=True) 
+y_std = y.std(axis=0, keepdims=True) + EPS
 
 X = (X - X_mean) / X_std
 y = (y - y_mean) / y_std
@@ -41,15 +41,18 @@ x = layers.Conv3D(filters=64, kernel_size=(3, 3, 3), activation='relu', padding=
 x = layers.BatchNormalization()(x)
 x = layers.MaxPooling3D(pool_size=(2, 2, 2))(x)
 # layer 3
-x = layers.Conv3D(filters=96, kernel_size=(3, 3, 3), activation='swish', padding='same')(x)
-x = layers.BatchNormalization()(x)
-# layer 4
 x = layers.Conv3D(filters=128, kernel_size=(3, 3, 3), activation='tanh', padding='same')(x)
 x = layers.BatchNormalization()(x)
+x = layers.SpatialDropout3D(0.1)(x)
 x = layers.MaxPooling3D(pool_size=(2, 2, 2))(x)
-# layer 5 (transpose for upsampling)
+# layer 4
+x = layers.Conv3D(filters=96, kernel_size=(3, 3, 3), activation='swish', padding='same')(x)
+x = layers.BatchNormalization()(x)
+x = layers.SpatialDropout3D(0.1)(x)
+# layer 5 
 x = layers.Conv3DTranspose(filters=64, kernel_size=(3, 3, 3), strides=(2, 2, 2), activation='relu', padding='same')(x)
 x = layers.BatchNormalization()(x)
+x = layers.SpatialDropout3D(0.15)(x)
 # layer 6
 x = layers.GlobalAveragePooling3D()(x)
 # layer 7
@@ -61,7 +64,7 @@ x = layers.Dense(128, activation='gelu')(x)
 x = layers.Dropout(0.2)(x)
 # layer 9
 x = layers.Dense(OUTPUT_DIM, activation='linear')(x)
-outputs = layers.Reshape((OUTPUT_H, OUTPUT_W))(x)
+outputs = layers.Reshape((OUTPUT_H, OUTPUT_W, 1))(x) 
 model = Model(inputs=inputs, outputs=outputs)
 
 #compile

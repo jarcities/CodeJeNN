@@ -7,6 +7,7 @@ USE, MODIFICATION, AND DISSEMINATION ARE PERMITTED ONLY IN ACCORDANCE WITH THE T
 NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DISPOSITION, OR MODIFICATION OF THIS SOURCE CODE
 MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 """
+
 import os
 import re
 import absl.logging
@@ -1467,7 +1468,6 @@ inline void GlobalAvgPooling3D_{base_file_name}(Scalar * __restrict outputs, con
     }
 
     try:
-        # set every function and append it to cpp_code
         current_activations = set(activation_functions)
         current_activations = {
             ("tanhCustom" if act == "tanh" else act)
@@ -1477,7 +1477,7 @@ inline void GlobalAvgPooling3D_{base_file_name}(Scalar * __restrict outputs, con
 
         cpp_lambda = """"""
 
-        # set activation functions
+        ## SET ACTIVATION FUNCTION ##
         for act in current_activations:
             if act in lambda_functions:
                 cpp_lambda += lambda_functions[act]
@@ -1489,7 +1489,6 @@ inline void GlobalAvgPooling3D_{base_file_name}(Scalar * __restrict outputs, con
         # deduplicate layer_type list
         unique_layer_types = {lt for lt in layer_type if lt is not None}
 
-        # set layer propagation layers
         for type in unique_layer_types:
             if type in preprocessing_functions:
                 cpp_code += preprocessing_functions[type]
@@ -1504,9 +1503,6 @@ inline void GlobalAvgPooling3D_{base_file_name}(Scalar * __restrict outputs, con
             if type in pooling_functions:
                 cpp_code += pooling_functions[type]
     except ValueError as e:
-        print(
-            f"\nError in setting layer propagation functions --> ",
-            e,
-        )
+        print(f"__Error__ in build_model.py -> {e}")
 
     return cpp_code, cpp_lambda

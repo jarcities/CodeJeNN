@@ -61,7 +61,7 @@ parser.add_argument(
     action="store_true",
     help="save a visualization of the model architecture as a PNG file",
 )
-# process arguments
+
 args = parser.parse_args()
 
 ## DATA TYPE PRECISION ##
@@ -70,7 +70,7 @@ if args.double:
 elif args.float:
     precision_type = "float"
 else:
-    precision_type = "float"  # default to float
+    precision_type = "float" 
 
 model_dir = args.input
 save_dir = args.output
@@ -82,10 +82,12 @@ else:
 
 ## CHECK INPUT AND OUTPUT DIRECTORIES ##
 if not os.path.exists(model_dir):
-    print(f"ERROR: Input directory '{model_dir}' does not exist.")
+    print(f"__Error__ -> Input directory '{model_dir}' does not exist.")
     exit(1)
 elif not os.path.exists(save_dir):
-    print(f"WARNING: Output directory '{save_dir}' does not exist. Creating it now...")
+    print(
+        f"__Warning__ -> Output directory '{save_dir}' does not exist. Creating it now..."
+    )
     os.makedirs(save_dir)
 else:
     ## PROCESS EACH MODEL IN INPUT DIRECTORY ##
@@ -116,9 +118,8 @@ else:
                     model, file_extension = loadModel(
                         file_path, base_file_name, user_activation
                     )
-                    # model.summary()
                 except ValueError as e:
-                    print(f"\n-> <{file_name}> is NOT a compatible file (skipping).")
+                    print(f"\n__Skipping__ <{file_name}> -> not a compatible file.")
                     continue
 
                 #################################
@@ -140,7 +141,7 @@ else:
                         layer_type,
                     ) = extractModel(model, file_extension, base_file_name)
 
-                    #https://keras.io/api/utils/model_plotting_utils/
+                    # https://keras.io/api/utils/model_plotting_utils/
                     if args.model_image:
                         plot_model(
                             model,
@@ -197,7 +198,7 @@ else:
                         )
 
                 except ValueError as e:
-                    print("\nError in extracting model:", e)
+                    print("\n__Error__ in extract_model.py -> ", e)
                     continue
 
                 ############################
@@ -214,7 +215,7 @@ else:
                         cpp_code, activation_functions, layer_type, base_file_name
                     )
                 except ValueError as e:
-                    print("\nError in generating layer propagation functions:", e)
+                    print("\n__Error__ in build_model.py -> ", e)
                     continue
 
                 ################################
@@ -246,7 +247,7 @@ else:
                         args.debug,
                     )
                 except ValueError as e:
-                    print("\nError in generating C++ code:", e)
+                    print("\n__Error__ in code_generate.py -> ", e)
                     continue
 
                 print()
@@ -255,7 +256,7 @@ else:
                 print(f"Saved {file_name} model in {save_path}")
 
             except ValueError as e:
-                print(f"\nERROR: '{file_name}' is not readable (skipping): {e}  - -\n")
+                print(f"\n__Skipping__ '{file_name}' -> {e}\n")
                 continue
 
 print("\nAll done!\n")

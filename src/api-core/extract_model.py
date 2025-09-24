@@ -19,11 +19,14 @@ import numpy as np
 import math
 from tensorflow import keras
 
-# check for errors and warnings
 absl.logging.set_verbosity("error")
 warnings.filterwarnings("ignore", category=UserWarning, module="keras")
 tf.get_logger().setLevel("ERROR")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
+
+def ERROR(layer_type, layer_idx, e):
+    print(f"\n__Error__ in extract_model.py: {layer_type} layer {layer_idx} --> ", e)
 
 
 def getAlphaForActivation(layer, activation):
@@ -62,8 +65,6 @@ def getActivation(layer, config):
     # ===================================================================================
     # extracts the name of the activation function from a Keras layer.
     # ===================================================================================
-
-    # standalone activation layers
     if isinstance(layer, keras.layers.LeakyReLU):
         return "leakyrelu"
     elif isinstance(layer, keras.layers.ReLU):
@@ -75,7 +76,6 @@ def getActivation(layer, config):
 
     act_name = config.get("activation", None)
 
-    # get activation directly
     if act_name in (None, "linear"):
         activation_attr = getattr(layer, "activation", None)
         if activation_attr is None:
@@ -123,9 +123,8 @@ def extractModel(model, file_type, base_file_name=None):
     layer_shape = []
     activation_configs = []
 
-    # check for keras based models
     if file_type in [".h5", ".keras"]:
-        # INPUT SHAPE
+        ## INPUT SHAPE ##
         this_input_shape = model.input_shape
         if this_input_shape[0] is None:
             this_raw_intput_shape = this_input_shape[1:]
@@ -133,8 +132,6 @@ def extractModel(model, file_type, base_file_name=None):
             this_raw_intput_shape = this_input_shape
         input_flat_size = int(np.prod(this_raw_intput_shape))
         layer_shape.append(tuple(this_raw_intput_shape))
-
-        # init layer params
         current_shape = model.input_shape[1:]
         layer_idx = 0
 
@@ -151,22 +148,27 @@ def extractModel(model, file_type, base_file_name=None):
                 layer_input_shape = layer.input_shape
             except AttributeError:
                 layer_input_shape = current_shape
+
             config = layer.get_config()
+
             layer_weights = layer.get_weights()
+
             activation = getActivation(layer, config)
+
             if not isinstance(activation, str):
                 activation = activation.get("class_name", "linear").lower()
 
-            # for complex activation functions
             raw_act = config.get("activation", "linear")
+
             if isinstance(raw_act, dict):
                 act_name = raw_act["class_name"].lower()
                 act_params = raw_act.get("config", {})
+
             elif raw_act:
                 act_name = str(raw_act).lower()
                 act_params = {}
+
             else:
-                # standalone LeakyReLU, PReLU, etc.
                 act_name = layer.__class__.__name__.lower()
                 layer_cfg = config
                 act_params = {
@@ -220,7 +222,6 @@ def extractModel(model, file_type, base_file_name=None):
                     if class_name not in builtin_activations:
                         act_name = class_name.lower()
 
-            # get alpha value for activation
             alpha_value = getAlphaForActivation(layer, activation)
 
             #######################
@@ -255,7 +256,6 @@ def extractModel(model, file_type, base_file_name=None):
                 ]
             ):
                 try:
-                    # handle standalone activation layers first
                     if isinstance(layer, keras.layers.LeakyReLU):
                         act_name = "leakyrelu"
                     elif isinstance(layer, keras.layers.ReLU):
@@ -275,15 +275,11 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(alpha_value)
                     dropout_rates.append(0.0)
-                    # layer_shape.append(0)
                     layer_shape.append(current_shape)
                     layer_type.append("Activation")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: activation layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
             #########################
@@ -310,21 +306,16 @@ def extractModel(model, file_type, base_file_name=None):
                     activation_functions.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(0.0)
-                    # layer_shape.append(len(scale))
                     layer_shape.append(current_shape)
                     layer_type.append("Rescale")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: rescale layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
             #################
             ## CORE LAYERS ##
             #################
-            # dense layers
             if isinstance(layer, keras.layers.Dense) or "dense" in layer.name.lower():
                 try:
                     w, b = layer_weights
@@ -333,7 +324,6 @@ def extractModel(model, file_type, base_file_name=None):
                     weights_list.append(w)
                     biases_list.append(b)
                     norm_layer_params.append(None)
-                    # layer_shape.append(w.shape[1])
                     current_shape = (w.shape[1],)
                     layer_shape.append(current_shape)
                     layer_type.append("Dense")
@@ -343,16 +333,12 @@ def extractModel(model, file_type, base_file_name=None):
                     dropout_rates.append(config.get("dropout_rate", 0.0))
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: dense layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
             ###########################
             ## REGULARIZATION LAYERS ##
             ###########################
-            # dropout layers
             if (
                 isinstance(layer, keras.layers.Dropout)
                 or "dropout" in layer.name.lower()
@@ -366,18 +352,13 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(dropout_rate)
-                    # layer_shape.append(0)
                     layer_shape.append(current_shape)
                     layer_type.append("Dropout")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: dropout layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 1d spatial dropout layers
             if (
                 isinstance(layer, keras.layers.SpatialDropout1D)
                 or "spatialdropout1d" in layer.name.lower()
@@ -391,18 +372,13 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(dropout_rate)
-                    # layer_shape.append(0)
                     layer_shape.append(current_shape)
                     layer_type.append("Dropout")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 1d spatial dropout layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 2d spatial dropout layers
             if (
                 isinstance(layer, keras.layers.SpatialDropout2D)
                 or "spatialdropout2d" in layer.name.lower()
@@ -416,18 +392,13 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(dropout_rate)
-                    # layer_shape.append(0)
                     layer_shape.append(current_shape)
                     layer_type.append("Dropout")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d spatial dropout layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 3d spatial dropout layers
             if (
                 isinstance(layer, keras.layers.SpatialDropout3D)
                 or "spatialdropout3d" in layer.name.lower()
@@ -441,21 +412,16 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(dropout_rate)
-                    # layer_shape.append(0)
                     layer_shape.append(current_shape)
                     layer_type.append("Dropout")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 3d spatial dropout layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
             ####################
             ## RESHAPE LAYERS ##
             ####################
-            # reshape layers
             if (
                 isinstance(layer, keras.layers.Reshape)
                 or "reshape" in layer.name.lower()
@@ -486,14 +452,9 @@ def extractModel(model, file_type, base_file_name=None):
                     current_shape = new_shape
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: reshape layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # flatten layers
-            # (everything is flattened anyways)
             if (
                 isinstance(layer, keras.layers.Flatten)
                 or "flatten" in layer.name.lower()
@@ -506,28 +467,22 @@ def extractModel(model, file_type, base_file_name=None):
                     norm_layer_params.append(None)
                     alphas.append(0.0)
                     dropout_rates.append(0.0)
-                    # layer_shape.append(0)
                     current_shape = (int(np.prod(current_shape)),)
                     layer_shape.append(current_shape)
                     layer_type.append("Flatten")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: flatten layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
             ##########################
             ## NORMALIZATION LAYERS ##
             ##########################
-            # batch normalization layers
             if (
                 isinstance(layer, keras.layers.BatchNormalization)
                 or "batchnormalization" in layer.name.lower()
             ):
                 try:
-                    # Use unified BatchNormalization (no need for separate 2D variant)
                     norm_type = "BatchNormalization"
                     if len(layer_weights) == 4:
                         gamma, beta, moving_mean, moving_variance = layer_weights
@@ -552,19 +507,14 @@ def extractModel(model, file_type, base_file_name=None):
                         alphas.append(0.0)
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: batchnormalization layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # layer normalization layers
             if (
                 isinstance(layer, keras.layers.LayerNormalization)
                 or "layernormalization" in layer.name.lower()
             ):
                 try:
-                    # Use unified LayerNormalization (no need for separate 2D variant)
                     norm_type = "LayerNormalization"
                     if len(layer_weights) == 2:
                         gamma, beta = layer_weights
@@ -587,13 +537,9 @@ def extractModel(model, file_type, base_file_name=None):
                         alphas.append(alpha_value)
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: layernormalization layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # unit normalization layers
             if (
                 isinstance(layer, keras.layers.UnitNormalization)
                 or "unitnormalization" in layer.name.lower()
@@ -601,7 +547,6 @@ def extractModel(model, file_type, base_file_name=None):
                 try:
                     epsilon = config.get("epsilon", 1e-5)
                     norm_layer_params.append((None, None, None, None, epsilon))
-                    # layer_shape.append(None)
                     layer_shape.append(current_shape)
                     activation_functions.append(None)
                     conv_layer_params.append(None)
@@ -612,25 +557,19 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("UnitNormalization")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: unitnormalization layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # group normalization layers
             if (
                 isinstance(layer, keras.layers.GroupNormalization)
                 or "groupnormalization" in layer.name.lower()
             ):
                 try:
-                    # Use unified GroupNormalization (no need for separate 2D variant)
                     norm_type = "GroupNormalization"
                     if len(layer_weights) == 2:
                         gamma, beta = layer_weights
                         epsilon = config.get("epsilon", 1e-3)
                         groups = config.get("groups", 32)
-                        # Store groups as an additional parameter in the first position
                         norm_layer_params.append(
                             (gamma, beta, None, None, epsilon, groups)
                         )
@@ -651,16 +590,12 @@ def extractModel(model, file_type, base_file_name=None):
                         alphas.append(alpha_value)
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: groupnormalization layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
             ####################
             ## POOLING LAYERS ##
             ####################
-            # 1d max pooling layers
             if (
                 isinstance(layer, keras.layers.MaxPooling1D)
                 or "maxpooling1d" in layer.name.lower()
@@ -701,7 +636,7 @@ def extractModel(model, file_type, base_file_name=None):
                     )
                     if padding == "valid":
                         length = math.floor((in_shape[0] - pool_size) / strides) + 1
-                    else:  # same
+                    else:
                         length = math.ceil(in_shape[0] / strides)
                     new_shape = (
                         (length,) + tuple(in_shape[1:])
@@ -729,86 +664,14 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("MaxPooling1D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 1d maxpooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 2d max pooling layers
             if (
                 isinstance(layer, keras.layers.MaxPooling2D)
                 or "maxpooling2d" in layer.name.lower()
             ):
                 try:
-                    # raw_pool = config.get("pool_size", (2, 2))
-                    # pool_size = (
-                    #     (raw_pool, raw_pool)
-                    #     if isinstance(raw_pool, int)
-                    #     else tuple(raw_pool)
-                    # )
-                    # raw_strides = config.get("strides", pool_size)
-                    # strides = (
-                    #     (raw_strides, raw_strides)
-                    #     if isinstance(raw_strides, int)
-                    #     else tuple(raw_strides)
-                    # )
-
-                    # padding = config.get("padding", "valid")
-                    # in_shape = current_shape
-
-                    # raw_shape = layer_input_shape[1:]
-                    # df = config.get("data_format", "channels_last")
-                    # if df == "channels_first":
-                    #     if len(raw_shape) == 2:
-                    #         raw_shape = (raw_shape[1], raw_shape[0])
-                    #     elif len(raw_shape) == 3:
-                    #         raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
-                    #     elif len(raw_shape) == 4:
-                    #         raw_shape = (
-                    #             raw_shape[1],
-                    #             raw_shape[2],
-                    #             raw_shape[3],
-                    #             raw_shape[0],
-                    #         )
-                    # current_shape = raw_shape
-
-                    # if len(current_shape) < 3:
-                    #     H, W = current_shape
-                    #     C = 1
-                    # else:
-                    #     H, W, C = current_shape
-
-                    # if padding.lower() == "same":
-                    #     out_H = math.ceil(H / strides[0])
-                    #     out_W = math.ceil(W / strides[1])
-                    # elif padding.lower() == "valid":
-                    #     out_H = math.floor((H - pool_size[0]) / strides[0]) + 1
-                    #     out_W = math.floor((W - pool_size[1]) / strides[1]) + 1
-                    # else:
-                    #     out_H, out_W = H, W
-                    # out_C = C
-                    # new_shape = (out_H, out_W, out_C)
-
-                    # pool_params = {
-                    #     "layer_type": layer.__class__.__name__,
-                    #     "pool_size": pool_size,
-                    #     "strides": strides,
-                    #     "padding": padding,
-                    #     "in_shape": in_shape,
-                    #     "output_shape": new_shape,
-                    # }
-                    # conv_layer_params.append(pool_params)
-                    # current_shape = new_shape
-                    # weights_list.append(None)
-                    # biases_list.append(None)
-                    # norm_layer_params.append(None)
-                    # activation_functions.append(None)
-                    # alphas.append(alpha_value)
-                    # dropout_rates.append(0.0)
-                    # layer_shape.append(new_shape)
-                    # layer_type.append("MaxPooling2D")
-                    # continue
                     in_shape = current_shape
                     if isinstance(in_shape, tuple) and len(in_shape) == 3:
                         H, W, C = in_shape
@@ -816,15 +679,25 @@ def extractModel(model, file_type, base_file_name=None):
                         H, W = in_shape
                         C = 1
                     else:
-                        raise ValueError(f"Unexpected in_shape for {layer.__class__.__name__}: {in_shape}")
+                        raise ValueError(
+                            f"Unexpected in_shape for {layer.__class__.__name__}: {in_shape}"
+                        )
 
                     raw_pool = config.get("pool_size", (2, 2))
-                    pool_size = (raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+                    pool_size = (
+                        (raw_pool, raw_pool)
+                        if isinstance(raw_pool, int)
+                        else tuple(raw_pool)
+                    )
 
                     raw_strides = config.get("strides", None)
                     if raw_strides is None:
                         raw_strides = pool_size
-                    strides = (raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
+                    strides = (
+                        (raw_strides, raw_strides)
+                        if isinstance(raw_strides, int)
+                        else tuple(raw_strides)
+                    )
 
                     padding = config.get("padding", "valid")
 
@@ -847,7 +720,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "padding": padding,
                         "in_shape": in_shape,
                         "output_shape": new_shape,
-                        "out_shape": new_shape,  # alias used by codegen
+                        "out_shape": new_shape,
                     }
 
                     conv_layer_params.append(pool_params)
@@ -862,19 +735,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("MaxPooling2D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d maxpooling layer {layer_idx} --> ",
-                        e,
-                    )
-                    continue
-                except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d maxpooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 3d max pooling layers
             if (
                 isinstance(layer, keras.layers.MaxPooling3D)
                 or "maxpooling3d" in layer.name.lower()
@@ -916,7 +779,7 @@ def extractModel(model, file_type, base_file_name=None):
                         d = math.floor((in_shape[0] - pool_size[0]) / strides[0]) + 1
                         h = math.floor((in_shape[1] - pool_size[1]) / strides[1]) + 1
                         w = math.floor((in_shape[2] - pool_size[2]) / strides[2]) + 1
-                    else:  # 'same'
+                    else:
                         d = math.ceil(in_shape[0] / strides[0])
                         h = math.ceil(in_shape[1] / strides[1])
                         w = math.ceil(in_shape[2] / strides[2])
@@ -948,13 +811,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("MaxPooling3D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 3d maxpooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 1d average pooling layers
             if (
                 isinstance(layer, keras.layers.AveragePooling1D)
                 or "averagepooling1d" in layer.name.lower()
@@ -1016,89 +875,14 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("AvgPooling1D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 1d averagepooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 2d average pooling layers
             if (
                 isinstance(layer, keras.layers.AveragePooling2D)
                 or "averagepooling2d" in layer.name.lower()
             ):
                 try:
-                    # raw_pool = config.get("pool_size", (2, 2))
-                    # pool_size = (
-                    #     (raw_pool, raw_pool)
-                    #     if isinstance(raw_pool, int)
-                    #     else tuple(raw_pool)
-                    # )
-                    # raw_strides = config.get("strides", pool_size)
-                    # strides = (
-                    #     (raw_strides, raw_strides)
-                    #     if isinstance(raw_strides, int)
-                    #     else tuple(raw_strides)
-                    # )
-
-                    # padding = config.get("padding", "valid")
-                    # in_shape = current_shape
-
-                    # raw_shape = layer_input_shape[1:]
-                    # df = config.get("data_format", "channels_last")
-                    # if df == "channels_first":
-                    #     if len(raw_shape) == 2:
-                    #         raw_shape = (raw_shape[1], raw_shape[0])
-                    #     elif len(raw_shape) == 3:
-                    #         raw_shape = (raw_shape[1], raw_shape[2], raw_shape[0])
-                    #     elif len(raw_shape) == 4:
-                    #         raw_shape = (
-                    #             raw_shape[1],
-                    #             raw_shape[2],
-                    #             raw_shape[3],
-                    #             raw_shape[0],
-                    #         )
-                    # current_shape = raw_shape
-
-                    # # H, W, C = current_shape
-                    # if len(current_shape) == 3:
-                    #     H, W, C = current_shape
-                    # elif len(current_shape) == 2:
-                    #     H, W = current_shape
-                    #     C = 1
-                    # else:
-                    #     raise ValueError(f"Unexpected shape for AveragePooling2D: {current_shape}")
-                    # if padding.lower() == "same":
-                    #     out_H = math.ceil(H / strides[0])
-                    #     out_W = math.ceil(W / strides[1])
-                    # elif padding.lower() == "valid":
-                    #     out_H = math.floor((H - pool_size[0]) / strides[0]) + 1
-                    #     out_W = math.floor((W - pool_size[1]) / strides[1]) + 1
-                    # else:
-                    #     out_H, out_W = H, W
-                    # out_C = C
-                    # new_shape = (out_H, out_W, out_C)
-
-                    # pool_params = {
-                    #     "layer_type": layer.__class__.__name__,
-                    #     "pool_size": pool_size,
-                    #     "strides": strides,
-                    #     "padding": padding,
-                    #     "in_shape": in_shape,
-                    #     "output_shape": new_shape,
-                    # }
-                    # conv_layer_params.append(pool_params)
-                    # current_shape = new_shape
-                    # weights_list.append(None)
-                    # biases_list.append(None)
-                    # norm_layer_params.append(None)
-                    # activation_functions.append(None)
-                    # alphas.append(alpha_value)
-                    # dropout_rates.append(0.0)
-                    # layer_shape.append(new_shape)
-                    # layer_type.append("AvgPooling2D")
-                    # AFTER (robust, preserves channels):
-
                     in_shape = current_shape
                     if isinstance(in_shape, tuple) and len(in_shape) == 3:
                         H, W, C = in_shape
@@ -1106,15 +890,25 @@ def extractModel(model, file_type, base_file_name=None):
                         H, W = in_shape
                         C = 1
                     else:
-                        raise ValueError(f"Unexpected in_shape for {layer.__class__.__name__}: {in_shape}")
+                        raise ValueError(
+                            f"Unexpected in_shape for {layer.__class__.__name__}: {in_shape}"
+                        )
 
                     raw_pool = config.get("pool_size", (2, 2))
-                    pool_size = (raw_pool, raw_pool) if isinstance(raw_pool, int) else tuple(raw_pool)
+                    pool_size = (
+                        (raw_pool, raw_pool)
+                        if isinstance(raw_pool, int)
+                        else tuple(raw_pool)
+                    )
 
                     raw_strides = config.get("strides", None)
                     if raw_strides is None:
                         raw_strides = pool_size
-                    strides = (raw_strides, raw_strides) if isinstance(raw_strides, int) else tuple(raw_strides)
+                    strides = (
+                        (raw_strides, raw_strides)
+                        if isinstance(raw_strides, int)
+                        else tuple(raw_strides)
+                    )
 
                     padding = config.get("padding", "valid")
 
@@ -1137,7 +931,7 @@ def extractModel(model, file_type, base_file_name=None):
                         "padding": padding,
                         "in_shape": in_shape,
                         "output_shape": new_shape,
-                        "out_shape": new_shape,  # alias for codegen paths that expect 'out_shape'
+                        "out_shape": new_shape,
                     }
 
                     conv_layer_params.append(pool_params)
@@ -1152,19 +946,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("AvgPooling2D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d averagepooling layer {layer_idx} --> ",
-                        e,
-                    )
-                    continue
-                except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d averagepooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 3d average pooling layers
             if (
                 isinstance(layer, keras.layers.AveragePooling3D)
                 or "averagepooling3d" in layer.name.lower()
@@ -1243,13 +1027,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("AvgPooling3D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 3d averagepooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 1d global max pooling layers
             if (
                 isinstance(layer, keras.layers.GlobalMaxPooling1D)
                 or "globalmaxpooling1d" in layer.name.lower()
@@ -1273,13 +1053,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("GlobalMaxPooling1D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 1d global maxpooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 2d global max pooling layers
             if (
                 isinstance(layer, keras.layers.GlobalMaxPooling2D)
                 or "globalmaxpooling2d" in layer.name.lower()
@@ -1303,13 +1079,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("GlobalMaxPooling2D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d global maxpooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 3d global max pooling layers
             if (
                 isinstance(layer, keras.layers.GlobalMaxPooling3D)
                 or "globalmaxpooling3d" in layer.name.lower()
@@ -1333,13 +1105,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("GlobalMaxPooling3D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 3d global maxpooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 1d global average pooling layers
             if (
                 isinstance(layer, keras.layers.GlobalAveragePooling1D)
                 or "globalaveragepooling1d" in layer.name.lower()
@@ -1363,13 +1131,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("GlobalAvgPooling1D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 1d global averagepooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 2d global average pooling layers
             if (
                 isinstance(layer, keras.layers.GlobalAveragePooling2D)
                 or "globalaveragepooling2d" in layer.name.lower()
@@ -1393,13 +1157,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("GlobalAvgPooling2D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d global averagepooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 3d global average pooling layers
             if (
                 isinstance(layer, keras.layers.GlobalAveragePooling3D)
                 or "globalaveragepooling3d" in layer.name.lower()
@@ -1423,17 +1183,12 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("GlobalAvgPooling3D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 3d global averagepooling layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
             ########################
             ## CONVOLUTION LAYERS ##
             ########################
-
-            # 1d depthwise convolutional layer
             if (
                 isinstance(layer, keras.layers.DepthwiseConv1D)
                 or "depthwiseconv1d" in layer.name.lower()
@@ -1460,7 +1215,6 @@ def extractModel(model, file_type, base_file_name=None):
                         inferred_dm if inferred_dm is not None else 1,
                     )
 
-                    # Extract kernel_size, strides, dilation_rate as integers for 1D
                     k_raw = config.get("kernel_size", None)
                     if k_raw is None and hasattr(layer, "kernel_size"):
                         k_raw = layer.kernel_size
@@ -1531,21 +1285,15 @@ def extractModel(model, file_type, base_file_name=None):
                     continue
 
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 1d depthwise convolutional layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 2d depthwise convolutional layer
-            # 2d depthwise convolutional layer
             if (
                 isinstance(layer, keras.layers.DepthwiseConv2D)
                 or "depthwiseconv2d" in layer.name.lower()
             ):
                 try:
                     use_bias = config.get("use_bias", True)
-                    # Keras DepthwiseConv2D weights: [depthwise_kernel, (bias?)]
                     if use_bias and len(layer_weights) == 2:
                         depthwise_kernel, bias = layer_weights
                     elif not use_bias and len(layer_weights) == 1:
@@ -1560,7 +1308,6 @@ def extractModel(model, file_type, base_file_name=None):
                     dilH, dilW = config.get("dilation_rate", (1, 1))
                     depth_multiplier = int(config.get("depth_multiplier", 1))
 
-                    # output spatial size (same formula you use elsewhere)
                     if pad.lower() == "same":
                         out_H = math.ceil(H / sH)
                         out_W = math.ceil(W / sW)
@@ -1592,82 +1339,18 @@ def extractModel(model, file_type, base_file_name=None):
                     weights_list.append(None)
                     biases_list.append(None)
                     norm_layer_params.append(None)
-                    activation_functions.append(activation if activation != "linear" else "linear")
+                    activation_functions.append(
+                        activation if activation != "linear" else "linear"
+                    )
                     alphas.append(alpha_value)
                     dropout_rates.append(0.0)
                     layer_shape.append(new_shape)
                     layer_type.append("DepthwiseConv2D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d depthwise convolutional layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
-            # if (
-            #     isinstance(layer, keras.layers.DepthwiseConv2D)
-            #     or "depthwiseconv2d" in layer.name.lower()
-            # ):
-            #     try:
-            #         use_bias = config.get("use_bias", True)
-            #         if use_bias and len(layer_weights) == 2:
-            #             depthwise_kernel, bias = layer_weights
-            #         elif not use_bias and len(layer_weights) == 1:
-            #             depthwise_kernel, bias = layer_weights[0], None
-            #         else:
-            #             depthwise_kernel, bias = None, None
-            #         conv_params = {
-            #             "layer_type": "DepthwiseConv2D",
-            #             "depthwise_kernel": depthwise_kernel,
-            #             "depthwise_bias": bias,
-            #             "pointwise_kernel": None,
-            #             "pointwise_bias": None,
-            #             "filters": config.get("depth_multiplier", 1),
-            #             "kernel_size": config.get("kernel_size", (3, 3)),
-            #             "strides": config.get("strides", (1, 1)),
-            #             "padding": config.get("padding", "valid"),
-            #             "dilation_rate": config.get("dilation_rate", (1, 1)),
-            #             "use_bias": use_bias,
-            #         }
-            #         H, W, C = current_shape
-            #         kH, kW = conv_params["kernel_size"]
-            #         sH, sW = conv_params["strides"]
-            #         pad = conv_params["padding"]
 
-            #         if pad.lower() == "same":
-            #             out_H = math.ceil(H / sH)
-            #             out_W = math.ceil(W / sW)
-            #         elif pad.lower() == "valid":
-            #             out_H = math.floor((H - kH) / sH) + 1
-            #             out_W = math.floor((W - kW) / sW) + 1
-            #         else:
-            #             out_H, out_W = H, W
-            #         out_C = C * conv_params["filters"]  # depth_multiplier
-            #         new_shape = (out_H, out_W, out_C)
-
-            #         conv_params["in_shape"] = current_shape
-            #         conv_params["out_shape"] = new_shape
-            #         current_shape = new_shape
-            #         conv_layer_params.append(conv_params)
-            #         weights_list.append(None)
-            #         biases_list.append(None)
-            #         alphas.append(alpha_value)
-            #         norm_layer_params.append(None)
-            #         activation_functions.append(
-            #             activation if activation != "linear" else "linear"
-            #         )
-            #         dropout_rates.append(0.0)
-            #         layer_shape.append(new_shape)
-            #         layer_type.append("DepthwiseConv2D")
-            #         continue
-            #     except ValueError as e:
-            #         print(
-            #             f"\nError in extracting parameters: 2d depthwise convolutional layer {layer_idx} --> ",
-            #             e,
-            #         )
-            #         continue
-
-            # 1d seperable convolution layers
             if (
                 isinstance(layer, keras.layers.SeparableConv1D)
                 or "separableconv1d" in layer.name.lower()
@@ -1739,13 +1422,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("SeparableConv1D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 1d seperable convolutional layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 2d separable convolution layers
             if (
                 isinstance(layer, keras.layers.SeparableConv2D)
                 or "separableconv2d" in layer.name.lower()
@@ -1810,18 +1489,14 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("SeparableConv2D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d seperable convolutional layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 1d convolution layer
             if (
                 isinstance(layer, keras.layers.Conv1D)
                 or "conv1d" in layer.name.lower()
                 and not isinstance(layer, keras.layers.Conv1DTranspose)
-                and not "conv1dtranspose" in layer.name.lower()
+                and "conv1dtranspose" not in layer.name.lower()
             ):
                 try:
                     use_bias = config.get("use_bias", True)
@@ -1889,18 +1564,14 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("Conv1D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 1d convolutional layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 2d convolution layers
             if (
                 isinstance(layer, keras.layers.Conv2D)
                 or "conv2d" in layer.name.lower()
                 and not isinstance(layer, keras.layers.Conv2DTranspose)
-                and not "conv2dtranspose" in layer.name.lower()
+                and "conv2dtranspose" not in layer.name.lower()
             ):
                 try:
                     use_bias = config.get("use_bias", True)
@@ -1971,18 +1642,14 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("Conv2D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d convolutional layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 3d convolution layers
             if (
                 isinstance(layer, keras.layers.Conv3D)
                 or "conv3d" in layer.name.lower()
                 and not isinstance(layer, keras.layers.Conv3DTranspose)
-                and not "conv3dtranspose" in layer.name.lower()
+                and "conv3dtranspose" not in layer.name.lower()
             ):
                 try:
                     use_bias = config.get("use_bias", True)
@@ -2042,10 +1709,7 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("Conv3D")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 3d convolutional layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
             ##################################################################
@@ -2115,7 +1779,6 @@ def extractModel(model, file_type, base_file_name=None):
             # -----------------------------------------------------------------
             ##################################################################
 
-            # 1d transposed convolution layers
             if (
                 isinstance(layer, keras.layers.Conv1DTranspose)
                 or "conv1dtranspose" in layer.name.lower()
@@ -2180,13 +1843,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("Conv1DTranspose")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 1d transposed convolutional layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 2d transposed convolution layers
             if (
                 isinstance(layer, keras.layers.Conv2DTranspose)
                 or "conv2dtranspose" in layer.name.lower()
@@ -2263,13 +1922,9 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("Conv2DTranspose")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 2d transposed convolutional layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-            # 3d transposed convolution layers
             if (
                 isinstance(layer, keras.layers.Conv3DTranspose)
                 or "conv3dtranspose" in layer.name.lower()
@@ -2328,13 +1983,10 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_type.append("Conv3DTranspose")
                     continue
                 except ValueError as e:
-                    print(
-                        f"\nError in extracting parameters: 3d transposed convolutional layer {layer_idx} --> ",
-                        e,
-                    )
+                    ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
-        # OUTPUT SHAPE
+        ## OUTPUT SHAPE ##
         try:
             this_output_shape = model.output_shape
             if this_output_shape[0] is None:
@@ -2342,13 +1994,9 @@ def extractModel(model, file_type, base_file_name=None):
             else:
                 this_raw_output_shape = this_output_shape
             output_flat_size = int(np.prod(this_raw_output_shape))
-            # layer_shape.append(tuple(this_raw_intput_shape))
             layer_shape.append(tuple(this_raw_output_shape))
         except ValueError as e:
-            print(
-                f"\nError in extracting parameters: output shape {layer_idx} --> ",
-                e,
-            )
+            ERROR("output shape", layer_idx, e)
 
     return (
         weights_list,
