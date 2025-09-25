@@ -1671,7 +1671,6 @@ def extractModel(model, file_type, base_file_name=None):
                         "dilation_rate": config.get("dilation_rate", None),
                         "use_bias": use_bias,
                     }
-
                     D, H, W, C = current_shape
                     kD, kH, kW = conv_params["kernel_size"]
                     sD, sH, sW = conv_params["strides"]
@@ -1925,6 +1924,73 @@ def extractModel(model, file_type, base_file_name=None):
                     ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
+            # if (
+            #     isinstance(layer, keras.layers.Conv3DTranspose)
+            #     or "conv3dtranspose" in layer.name.lower()
+            #     and not isinstance(layer, keras.layers.Conv3D)
+            #     and "conv3d" not in layer.name.lower()
+            # ):
+            #     try:
+            #         use_bias = config.get("use_bias", True)
+            #         if use_bias and len(layer_weights) == 2:
+            #             kernel, bias = layer_weights
+            #         elif not use_bias and len(layer_weights) == 1:
+            #             kernel, bias = layer_weights[0], None
+            #         else:
+            #             kernel, bias = None, None
+
+            #         in_shape = current_shape
+            #         if (
+            #             isinstance(in_shape, (list, tuple))
+            #             and len(in_shape) > 0
+            #             and isinstance(in_shape[0], (list, tuple))
+            #         ):
+
+            #         in_d, in_h, in_w = current_shape  # TODO
+            #         strides = config.get("strides", (1, 1, 1))
+            #         kernel_size = config.get("kernel_size", (3, 3, 3))
+            #         padding = config.get("padding", "valid").lower()
+            #         filters = config.get("filters", None)
+
+            #         if padding == "same":
+            #             out_d = in_d * strides[0]
+            #             out_h = in_h * strides[1]
+            #             out_w = in_w * strides[2]
+            #         else:
+            #             out_d = (in_d - 1) * strides[0] + kernel_size[0]
+            #             out_h = (in_h - 1) * strides[1] + kernel_size[1]
+            #             out_w = (in_w - 1) * strides[2] + kernel_size[2]
+
+            #         new_shape = (out_d, out_h, out_w, filters)
+            #         conv_params = {
+            #             "layer_type": "Conv3DTranspose",
+            #             "weights": kernel,
+            #             "biases": bias,
+            #             "filters": filters,
+            #             "kernel_size": kernel_size,
+            #             "strides": strides,
+            #             "padding": padding,
+            #             "dilation_rate": config.get("dilation_rate", (1, 1, 1)),
+            #             "use_bias": use_bias,
+            #             "in_shape": current_shape,
+            #             "out_shape": new_shape,
+            #         }
+            #         current_shape = new_shape
+            #         conv_layer_params.append(conv_params)
+            #         weights_list.append(None)
+            #         biases_list.append(None)
+            #         norm_layer_params.append(None)
+            #         activation_functions.append(
+            #             activation if activation != "linear" else "linear"
+            #         )
+            #         alphas.append(alpha_value)
+            #         dropout_rates.append(0.0)
+            #         layer_shape.append(new_shape)
+            #         layer_type.append("Conv3DTranspose")
+            #         continue
+            #     except ValueError as e:
+            #         ERROR(layer.name.lower(), layer_idx, e)
+            #         continue
             if (
                 isinstance(layer, keras.layers.Conv3DTranspose)
                 or "conv3dtranspose" in layer.name.lower()
@@ -1940,9 +2006,47 @@ def extractModel(model, file_type, base_file_name=None):
                     else:
                         kernel, bias = None, None
 
-                    in_d, in_h, in_w = current_shape
-                    strides = config.get("strides", (1, 1, 1))
-                    kernel_size = config.get("kernel_size", (3, 3, 3))
+                    in_shape = current_shape
+                    if (
+                        isinstance(in_shape, (list, tuple))
+                        and len(in_shape) > 0
+                        and isinstance(in_shape[0], (list, tuple))
+                    ):
+                        flat_shape = tuple(in_shape[0])
+                        if len(flat_shape) >= 3:
+                            in_d, in_h, in_w = flat_shape[:3]
+                        else:
+                            raise ValueError(
+                                f"Invalid nested shape for Conv3DTranspose: {in_shape}"
+                            )
+                        in_c = in_shape[1] if len(in_shape) > 1 else 1
+                    else:
+                        if not isinstance(in_shape, (list, tuple)):
+                            raise ValueError(
+                                f"Unexpected in_shape type for Conv3DTranspose: {type(in_shape)}"
+                            )
+                        if len(in_shape) >= 4:
+                            in_d, in_h, in_w, in_c = in_shape[:4]
+                        elif len(in_shape) == 3:
+                            in_d, in_h, in_w = in_shape
+                            in_c = 1
+                        else:
+                            raise ValueError(
+                                f"Unexpected in_shape for Conv3DTranspose: {in_shape}"
+                            )
+
+                    raw_strides = config.get("strides", (1, 1, 1))
+                    if isinstance(raw_strides, int):
+                        strides = (raw_strides, raw_strides, raw_strides)
+                    else:
+                        strides = tuple(raw_strides)
+
+                    raw_kernel = config.get("kernel_size", (3, 3, 3))
+                    if isinstance(raw_kernel, int):
+                        kernel_size = (raw_kernel, raw_kernel, raw_kernel)
+                    else:
+                        kernel_size = tuple(raw_kernel)
+
                     padding = config.get("padding", "valid").lower()
                     filters = config.get("filters", None)
 
@@ -1955,7 +2059,8 @@ def extractModel(model, file_type, base_file_name=None):
                         out_h = (in_h - 1) * strides[1] + kernel_size[1]
                         out_w = (in_w - 1) * strides[2] + kernel_size[2]
 
-                    new_shape = (out_d, out_h, out_w, filters)
+                    out_c = filters if filters is not None else in_c
+                    new_shape = (out_d, out_h, out_w, out_c)
                     conv_params = {
                         "layer_type": "Conv3DTranspose",
                         "weights": kernel,
