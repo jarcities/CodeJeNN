@@ -12,10 +12,6 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
 <div align="center">
 
-_San Diego State University, San Diego, CA_
-
-_Labratories of Computational Physics and Fluid Dynamics, Naval Research Lab, Washington, DC_
-
 __Distribution Statement A: Distribution Statement A. Approved for public release, distribution is unlimited.__
 </div>
 
