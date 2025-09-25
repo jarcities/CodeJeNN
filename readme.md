@@ -49,7 +49,7 @@ CodeJeNN/
 
 ## Starting Point
 
-* **Python 3.11 is required becuase the latest version of tensorflow requires it.**
+* **Python 3.11 is required due to compatibility with the latest version of tensorflow.**
 
 * **You ONLY need the `src` directory, all other files are just auxillary but still very useful.**
 
