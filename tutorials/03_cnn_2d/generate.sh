@@ -3,7 +3,7 @@ python3 \
     --input="." \
     --output="." \
     --double \
-    --debug \
-    --model_image
+    # --debug \
+    # --model_image
 
 rm -rf .vscode/ api-core/__pycache__ dump_model/__pycache__

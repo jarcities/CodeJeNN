@@ -681,7 +681,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
         ## ACTIVATION LAYERS ##
         if ltype == "Activation":
             try:
-                # HANDLES FULL LAYER ACTIVATION FUNCTIONS
                 if act_fun == "softmax":
                     if isinstance(last_shape, tuple) and len(last_shape) > 1:
                         channels = last_shape[-1]
@@ -707,9 +706,10 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         )
                     continue
 
-                # handle other activations
                 else:
                     cpp_code += f"    // Pure {ltype}, layer {layer_idx}\n"
+                    if act_fun == user_activation and user_activation is not None:
+                        cpp_code += "\tprintf(\"WARNING: CUSTOM ACTIVATION HAS NOT BEEN IMPLEMENTED\");\n"
                     cpp_code += f"    static std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
                     cpp_code += f"    for (int i = 0; i < {get_flat_size(last_shape)}; ++i) {{\n"
                     cpp_code += f"        {act_fun}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"

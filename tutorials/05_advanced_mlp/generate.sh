@@ -3,6 +3,7 @@ python3 \
     --input="." \
     --output="." \
     --double \
+    --custom_activation="custom_activation" \
     # --debug \
     # --model_image
 

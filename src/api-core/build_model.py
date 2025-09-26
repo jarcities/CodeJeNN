@@ -178,10 +178,10 @@ inline void Rescale_{base_file_name}(Scalar * __restrict outputs, const Scalar *
     };
 """,
         "custom_act": """
-    auto {act_name} = +[](Scalar& output, Scalar input, Scalar alpha) noexcept
+    auto {act_name} = +[](Scalar& output, Scalar input, Scalar index /*can use "alpha" for index*/) noexcept
     {{
         //TODO: implement custom activation '{act_name}'
-        std::cout << "WARNING: CUSTOM ACTIVATION HAS NOT BEEN IMPLEMENTED" << std::endl;
+        printf("WARNING: CUSTOM ACTIVATION HAS NOT BEEN IMPLEMENTED");
         output = input; //default fallback
     }};
 """,

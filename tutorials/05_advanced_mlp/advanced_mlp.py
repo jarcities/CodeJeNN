@@ -10,6 +10,8 @@ import pandas as pd
 from tensorflow.keras.regularizers import l2
 from sklearn.preprocessing import MinMaxScaler
 import os
+from tensorflow.keras.utils import register_keras_serializable
+from tensorflow.keras.utils import get_custom_objects
 
 #parameters
 FILE = 'advanced_mlp'
@@ -32,13 +34,18 @@ y_std = output.std(axis=0)
 input = (input - X_mean) / X_std
 output = (output - y_mean) / y_std
 
+#custom activation
+#https://stackoverflow.com/questions/43915482/how-do-you-create-a-custom-activation-function-with-keras
+def custom_activation(x):
+    return (tf.keras.activations.sigmoid(x) * 5) - 1
+
 #define model
 model = Sequential([
     layers.Input(shape=(INPUT_DIM,)),
-    layers.Dense(NEURONS, activation='relu'),
-    layers.SpatialDropout1D(0.3),
+    layers.Dense(NEURONS, activation='softmax'),
+    # layers.SpatialDropout1D(0.3),
     layers.Dense(NEURONS, activation='swish'),
-    layers.GroupNormalization(),
+    layers.GroupNormalization(groups=4, axis=-1),
     layers.Dense(NEURONS, activation='tanh'),
     layers.BatchNormalization(),
     layers.Dense(NEURONS, activation='elu'),
@@ -47,8 +54,8 @@ model = Sequential([
     layers.LayerNormalization(),
     layers.Dense(OUTPUT_DIM, activation='linear'),
     layers.Rescaling(scale=1.0),
-    layers.Activation('softmax'),
-    layers.LeakyReLU(alpha=0.5)
+    layers.Activation(custom_activation, name="custom_activation"),
+    layers.LeakyReLU(negative_slope=0.5)
 ])
 """
 IT IS CONVENTION TO TYPICALLY USE THE SAME ACTIVATION FUNCTION
@@ -57,7 +64,7 @@ FOR THE ENTIRE MODEL, BUT THIS IS JUST AN EXAMPLE.
 
 #compile model
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-              loss=tf.keras.losses.mse()
+              loss=tf.keras.losses.MeanSquaredError()
               )
 early_stopping = EarlyStopping(monitor='val_loss', 
                                patience=50, 

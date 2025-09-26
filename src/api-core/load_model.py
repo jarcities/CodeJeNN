@@ -7,14 +7,13 @@ USE, MODIFICATION, AND DISSEMINATION ARE PERMITTED ONLY IN ACCORDANCE WITH THE T
 NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DISPOSITION, OR MODIFICATION OF THIS SOURCE CODE
 MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 """
-from email.mime import base
 import os
 import tensorflow as tf
 from tensorflow.python.keras.models import load_model as tf_load_model
 from keras.models import load_model as keras_load_model
 
 
-def loadModel(file_path, base_file_name, user_activation):
+def loadModel(file_path, base_file_name, custom_activation):
     # ==============================================================
     # load a keras model from .h5 or .keras using keras and tf with
     # combos of compile and custom objects options.
@@ -23,22 +22,32 @@ def loadModel(file_path, base_file_name, user_activation):
     if file_extension not in (".h5", ".keras"):
         raise ValueError(f"Unsupported file type: {file_extension}")
 
-    # custom activation function handling
-    activation_name = user_activation
-    if activation_name:
-        import sys
-
-        sys.path.append(os.path.abspath("dump_model"))
-        import importlib
-
-        module = importlib.import_module(base_file_name)
-        act_fun = getattr(module, activation_name)
-        act_fun = act_fun.__name__
-    else:
-        act_fun = None
-    custom_objects = {"LeakyReLU": tf.keras.layers.LeakyReLU}
+    #######################
+    ## CUSTOM ACTIVATION ##
+    #######################
+    act_fun = {}
+    custom_objects = {}
+    if custom_activation is not None:
+        try:
+            import importlib
+            try:
+                module = importlib.import_module(custom_activation)
+                act_fun = getattr(module, custom_activation)
+            except Exception:
+                import importlib.util
+                module_dir = os.path.dirname(file_path)
+                module_path = os.path.join(module_dir, f"{custom_activation}.py")
+                if os.path.exists(module_path):
+                    spec = importlib.util.spec_from_file_location(custom_activation, module_path)
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    act_fun = getattr(module, custom_activation)
+                else:
+                    raise
+        except Exception as e:
+            print(f"\n__Error__ Cannot import custom activation '{custom_activation}' -> {e}")
     if act_fun:
-        custom_objects[activation_name] = act_fun
+        custom_objects[custom_activation] = act_fun
 
     errors = []
 
@@ -47,7 +56,7 @@ def loadModel(file_path, base_file_name, user_activation):
         model = tf_load_model(file_path, custom_objects=custom_objects, compile=False)
         return model, file_extension
     except Exception as e:
-        errors.append(f"TF-Keras compile=False: {e}")
+        errors.append(f"__Error__ TF-Keras compile=False -> {e}")
 
     # try 2
     try:
@@ -56,38 +65,38 @@ def loadModel(file_path, base_file_name, user_activation):
         )
         return model, file_extension
     except Exception as e:
-        errors.append(f"Keras compile=False, custom_objects: {e}")
+        errors.append(f"__Error__ Keras compile=False, custom_objects -> {e}")
 
     # try 3
     try:
         model = keras_load_model(file_path, compile=False)
         return model, file_extension
     except Exception as e:
-        errors.append(f"Keras compile=False, no custom_objects: {e}")
+        errors.append(f"__Error__ Keras compile=False, no custom_objects -> {e}")
 
     # try 4
     try:
         model = tf_load_model(file_path, custom_objects=custom_objects)
         return model, file_extension
     except Exception as e:
-        errors.append(f"TF-Keras default compile: {e}")
+        errors.append(f"__Error__ TF-Keras default compile -> {e}")
 
     # try 5
     try:
         model = keras_load_model(file_path, custom_objects=custom_objects)
         return model, file_extension
     except Exception as e:
-        errors.append(f"Keras default compile, custom_objects: {e}")
+        errors.append(f"__Error__ Keras default compile, custom_objects -> {e}")
 
     # try 6
     try:
         model = keras_load_model(file_path)
         return model, file_extension
     except Exception as e:
-        errors.append(f"Keras default compile, no custom_objects: {e}")
+        errors.append(f"__Error__ Keras default compile, no custom_objects -> {e}")
 
     # all is lost
     error_message = "\n".join(errors)
     raise RuntimeError(
-        f"All attempts to load the model failed for {file_name}:\n{error_message}"
+        f"__Error__ All attempts to load the model failed for {file_name} -> \n{error_message}"
     )

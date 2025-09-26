@@ -290,14 +290,64 @@ def extractModel(model, file_type, base_file_name=None):
                 or "rescaling" in layer.name.lower()
             ):
                 try:
-                    raw_scale = config.get("scale", 1.0)
-                    if isinstance(raw_scale, dict) and "config" in raw_scale:
-                        raw_scale = raw_scale["config"]["value"]
-                    scale = np.array(raw_scale, dtype=float).flatten().tolist()
-                    raw_offset = config.get("offset", 1.0)
-                    if isinstance(raw_offset, dict) and "config" in raw_offset:
-                        raw_offset = raw_offset["config"]["value"]
-                    offset = np.array(raw_offset, dtype=float).flatten().tolist()
+                    rescale_size = None
+                    if current_shape is not None:
+                        try:
+                            if isinstance(current_shape, tuple):
+                                prod = 1
+                                for d in current_shape:
+                                    prod *= d
+                                rescale_size = prod
+                            else:
+                                rescale_size = int(current_shape)
+                        except Exception:
+                            rescale_size = None
+
+                    raw_scale = config.get("scale", None)
+                    if raw_scale is None:
+                        raw_scale = 1.0
+                    if isinstance(raw_scale, dict):
+                        if "value" in raw_scale:
+                            raw_scale = raw_scale["value"]
+                        elif (
+                            "config" in raw_scale
+                            and isinstance(raw_scale["config"], dict)
+                            and "value" in raw_scale["config"]
+                        ):
+                            raw_scale = raw_scale["config"]["value"]
+
+                    arr_scale = np.array(raw_scale, dtype=float)
+                    if arr_scale.size == 1:
+                        s_val = float(arr_scale)
+                        if rescale_size is None or int(rescale_size) == 1:
+                            scale = [s_val]
+                        else:
+                            scale = [s_val] * int(rescale_size)
+                    else:
+                        scale = arr_scale.flatten().tolist()
+
+                    raw_offset = config.get("offset", None)
+                    if raw_offset is None:
+                        raw_offset = 0.0
+                    if isinstance(raw_offset, dict):
+                        if "value" in raw_offset:
+                            raw_offset = raw_offset["value"]
+                        elif (
+                            "config" in raw_offset
+                            and isinstance(raw_offset["config"], dict)
+                            and "value" in raw_offset["config"]
+                        ):
+                            raw_offset = raw_offset["config"]["value"]
+
+                    arr_offset = np.array(raw_offset, dtype=float)
+                    if arr_offset.size == 1:
+                        o_val = float(arr_offset)
+                        if rescale_size is None or int(rescale_size) == 1:
+                            offset = [o_val]
+                        else:
+                            offset = [o_val] * int(rescale_size)
+                    else:
+                        offset = arr_offset.flatten().tolist()
 
                     norm_layer_params.append((scale, offset))
                     conv_layer_params.append(None)
@@ -309,7 +359,7 @@ def extractModel(model, file_type, base_file_name=None):
                     layer_shape.append(current_shape)
                     layer_type.append("Rescale")
                     continue
-                except ValueError as e:
+                except Exception as e:
                     ERROR(layer.name.lower(), layer_idx, e)
                     continue
 
@@ -319,7 +369,6 @@ def extractModel(model, file_type, base_file_name=None):
             if isinstance(layer, keras.layers.Dense) or "dense" in layer.name.lower():
                 try:
                     w, b = layer_weights
-
                     conv_layer_params.append(None)
                     weights_list.append(w)
                     biases_list.append(b)

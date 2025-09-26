@@ -70,15 +70,16 @@ if args.double:
 elif args.float:
     precision_type = "float"
 else:
-    precision_type = "float" 
+    precision_type = "float"
 
 model_dir = args.input
 save_dir = args.output
 
 if args.custom_activation is not None:
-    user_activation = args.custom_activation
+    custom_activation = args.custom_activation
+    # print(custom_activation)
 else:
-    user_activation = None
+    custom_activation = None
 
 ## CHECK INPUT AND OUTPUT DIRECTORIES ##
 if not os.path.exists(model_dir):
@@ -116,10 +117,10 @@ else:
                 ###################
                 try:
                     model, file_extension = loadModel(
-                        file_path, base_file_name, user_activation
+                        file_path, base_file_name, custom_activation
                     )
                 except ValueError as e:
-                    print(f"\n__Skipping__ <{file_name}> -> not a compatible file.")
+                    print(f"\n__Skipping__ \"{file_name}\" -> not a compatible file.")
                     continue
 
                 #################################
@@ -243,7 +244,7 @@ else:
                         layer_shape,
                         layer_type,
                         base_file_name,
-                        user_activation,
+                        custom_activation,
                         args.debug,
                     )
                 except ValueError as e:
