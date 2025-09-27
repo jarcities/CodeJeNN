@@ -193,13 +193,15 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
         if ltype == "Rescale":
             try:
                 scale, offset = norm_params
-                cpp_code += f"    // Rescale Input/Output {layer_idx}\n"
-                cpp_code += f"    constexpr std::array<Scalar, {len(scale)}> scale_{layer_idx} = {{"
-                cpp_code += ", ".join(f"{val:10.9e}" for val in scale)
-                cpp_code += "};\n"
-                cpp_code += f"    constexpr std::array<Scalar, {len(offset)}> offset_{layer_idx} = {{"
-                cpp_code += ", ".join(f"{val:10.9e}" for val in offset)
-                cpp_code += "};\n\n"
+                cpp_code += (
+                    f"    // Rescale Input/Output {layer_idx}\n"
+                    f"    constexpr std::array<Scalar, {len(scale)}> scale_{layer_idx} = {{"
+                    + ", ".join(f"{val:10.9e}" for val in scale)
+                    + "};\n"
+                    f"    constexpr std::array<Scalar, {len(offset)}> offset_{layer_idx} = {{"
+                    + ", ".join(f"{val:10.9e}" for val in offset)
+                    + "};\n\n"
+                )
                 continue
             except ValueError as e:
                 ERROR(ltype, layer_idx, e)
@@ -210,13 +212,15 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             try:
                 wflat = w.flatten()
                 bflat = b.flatten()
-                cpp_code += f"    // Dense layer {layer_idx}\n"
-                cpp_code += f"    constexpr std::array<Scalar, {len(wflat)}> weights_{layer_idx} = {{"
-                cpp_code += ", ".join(f"{val:10.9e}" for val in wflat)
-                cpp_code += "};\n"
-                cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> biases_{layer_idx} = {{"
-                cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
-                cpp_code += "};\n\n"
+                cpp_code += (
+                    f"    // Dense layer {layer_idx}\n"
+                    f"    constexpr std::array<Scalar, {len(wflat)}> weights_{layer_idx} = {{"
+                    + ", ".join(f"{val:10.9e}" for val in wflat)
+                    + "};\n"
+                    f"    constexpr std::array<Scalar, {len(bflat)}> biases_{layer_idx} = {{"
+                    + ", ".join(f"{val:10.9e}" for val in bflat)
+                    + "};\n\n"
+                )
                 continue
             except ValueError as e:
                 ERROR(ltype, layer_idx, e)
@@ -227,32 +231,42 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
             try:
                 if len(norm_params) == 6:
                     gamma, beta, mean, var, eps, groups = norm_params
-                    cpp_code += f"    // Layer {layer_idx}: GroupNormalization\n"
-                    cpp_code += f"    constexpr int groups_{layer_idx} = {groups};\n"
+                    cpp_code += (
+                        f"    // Layer {layer_idx}: GroupNormalization\n"
+                        f"    constexpr int groups_{layer_idx} = {groups};\n"
+                    )
                 else:
                     gamma, beta, mean, var, eps = norm_params
                     cpp_code += f"    // Layer {layer_idx}: Normalization\n"
 
                 if gamma is not None:
                     gflat = gamma.flatten()
-                    cpp_code += f"    constexpr std::array<Scalar, {len(gflat)}> gamma_{layer_idx} = {{"
-                    cpp_code += ", ".join(f"{val:10.9e}" for val in gflat)
-                    cpp_code += "};\n"
+                    cpp_code += (
+                        f"    constexpr std::array<Scalar, {len(gflat)}> gamma_{layer_idx} = {{"
+                        + ", ".join(f"{val:10.9e}" for val in gflat)
+                        + "};\n"
+                    )
                 if beta is not None:
                     bflat = beta.flatten()
-                    cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> beta_{layer_idx} = {{"
-                    cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
-                    cpp_code += "};\n"
+                    cpp_code += (
+                        f"    constexpr std::array<Scalar, {len(bflat)}> beta_{layer_idx} = {{"
+                        + ", ".join(f"{val:10.9e}" for val in bflat)
+                        + "};\n"
+                    )
                 if mean is not None:
                     mflat = mean.flatten()
-                    cpp_code += f"    constexpr std::array<Scalar, {len(mflat)}> mean_{layer_idx} = {{"
-                    cpp_code += ", ".join(f"{val:10.9e}" for val in mflat)
-                    cpp_code += "};\n"
+                    cpp_code += (
+                        f"    constexpr std::array<Scalar, {len(mflat)}> mean_{layer_idx} = {{"
+                        + ", ".join(f"{val:10.9e}" for val in mflat)
+                        + "};\n"
+                    )
                 if var is not None:
                     vflat = var.flatten()
-                    cpp_code += f"    constexpr std::array<Scalar, {len(vflat)}> variance_{layer_idx} = {{"
-                    cpp_code += ", ".join(f"{val:10.9e}" for val in vflat)
-                    cpp_code += "};\n"
+                    cpp_code += (
+                        f"    constexpr std::array<Scalar, {len(vflat)}> variance_{layer_idx} = {{"
+                        + ", ".join(f"{val:10.9e}" for val in vflat)
+                        + "};\n"
+                    )
                 cpp_code += (
                     f"    constexpr Scalar epsilon_{layer_idx} = {eps:10.9e};\n\n"
                 )
@@ -276,17 +290,21 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     bias = conv_dict.get("biases", None)
                     if kernel is not None:
                         kflat = kernel.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(kflat)}> convKernel_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in kflat)
-                        cpp_code += "};\n"
+                        cpp_code += (
+                            f"    constexpr std::array<Scalar, {len(kflat)}> convKernel_{layer_idx} = {{"
+                            + ", ".join(f"{val:10.9e}" for val in kflat)
+                            + "};\n"
+                        )
                     out_shape = conv_dict.get(
                         "out_shape", conv_dict.get("output_shape", None)
                     )
                     if bias is not None:
                         bflat = bias.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> convBias_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
-                        cpp_code += "};\n"
+                        cpp_code += (
+                            f"    constexpr std::array<Scalar, {len(bflat)}> convBias_{layer_idx} = {{"
+                            + ", ".join(f"{val:10.9e}" for val in bflat)
+                            + "};\n"
+                        )
                     else:
                         size = (
                             out_shape[-1]
@@ -305,15 +323,15 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         "depthwise_bias", conv_dict.get("biases", None)
                     )
                     depth = int(conv_dict.get("depth_multiplier", 1))
-                    cpp_code += (
-                        f"    constexpr int depthMultiplier_{layer_idx} = {depth};\n"
-                    )
+                    cpp_code += f"    constexpr int depthMultiplier_{layer_idx} = {depth};\n"
 
                     if kernel is not None:
                         kflat = kernel.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(kflat)}> depthwiseKernel_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in kflat)
-                        cpp_code += "};\n"
+                        cpp_code += (
+                            f"    constexpr std::array<Scalar, {len(kflat)}> depthwiseKernel_{layer_idx} = {{"
+                            + ", ".join(f"{val:10.9e}" for val in kflat)
+                            + "};\n"
+                        )
 
                     out_shape = conv_dict.get(
                         "out_shape", conv_dict.get("output_shape", None)
@@ -321,9 +339,11 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
                     if bias is not None:
                         bflat = bias.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> depthwiseBias_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
-                        cpp_code += "};\n"
+                        cpp_code += (
+                            f"    constexpr std::array<Scalar, {len(bflat)}> depthwiseBias_{layer_idx} = {{"
+                            + ", ".join(f"{val:10.9e}" for val in bflat)
+                            + "};\n"
+                        )
                     else:
                         size = (
                             out_shape[-1]
@@ -331,7 +351,6 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                             else (conv_dict.get("filters") or 1)
                         )
                         cpp_code += f"    constexpr std::array<Scalar, {size}> depthwiseBias_{layer_idx} = {{}};\n"
-
                     cpp_code += "\n"
                     continue
 
@@ -342,24 +361,32 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     pb = conv_dict.get("pointwise_bias", None)
                     if dk is not None:
                         dkflat = dk.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(dkflat)}> sepDepthwise_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in dkflat)
-                        cpp_code += "};\n"
+                        cpp_code += (
+                            f"    constexpr std::array<Scalar, {len(dkflat)}> sepDepthwise_{layer_idx} = {{"
+                            + ", ".join(f"{val:10.9e}" for val in dkflat)
+                            + "};\n"
+                        )
                     if db is not None:
                         dbflat = db.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(dbflat)}> sepDepthwiseBias_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in dbflat)
-                        cpp_code += "};\n"
+                        cpp_code += (
+                            f"    constexpr std::array<Scalar, {len(dbflat)}> sepDepthwiseBias_{layer_idx} = {{"
+                            + ", ".join(f"{val:10.9e}" for val in dbflat)
+                            + "};\n"
+                        )
                     if pk is not None:
                         pkflat = pk.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(pkflat)}> sepPointwise_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in pkflat)
-                        cpp_code += "};\n"
+                        cpp_code += (
+                            f"    constexpr std::array<Scalar, {len(pkflat)}> sepPointwise_{layer_idx} = {{"
+                            + ", ".join(f"{val:10.9e}" for val in pkflat)
+                            + "};\n"
+                        )
                     if pb is not None:
                         pbflat = pb.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(pbflat)}> sepPointwiseBias_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in pbflat)
-                        cpp_code += "};\n"
+                        cpp_code += (
+                            f"    constexpr std::array<Scalar, {len(pbflat)}> sepPointwiseBias_{layer_idx} = {{"
+                            + ", ".join(f"{val:10.9e}" for val in pbflat)
+                            + "};\n"
+                        )
                     cpp_code += "\n"
                     continue
 
@@ -372,14 +399,18 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     bias = conv_dict.get("biases", None)
                     if kernel is not None:
                         kflat = kernel.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(kflat)}> convKernel_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in kflat)
-                        cpp_code += "};\n"
+                        cpp_code += (
+                            f"    constexpr std::array<Scalar, {len(kflat)}> convKernel_{layer_idx} = {{"
+                            + ", ".join(f"{val:10.9e}" for val in kflat)
+                            + "};\n"
+                        )
                     if bias is not None:
                         bflat = bias.flatten()
-                        cpp_code += f"    constexpr std::array<Scalar, {len(bflat)}> convBias_{layer_idx} = {{"
-                        cpp_code += ", ".join(f"{val:10.9e}" for val in bflat)
-                        cpp_code += "};\n"
+                        cpp_code += (
+                            f"    constexpr std::array<Scalar, {len(bflat)}> convBias_{layer_idx} = {{"
+                            + ", ".join(f"{val:10.9e}" for val in bflat)
+                            + "};\n"
+                        )
                     cpp_code += "\n"
                     continue
 
@@ -424,27 +455,33 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     pool_size = conv_dict.get("pool_size", 2)
                     strides = conv_dict.get("strides", pool_size)
                     padding = conv_dict.get("padding", "valid")
-                    cpp_code += f"    constexpr std::array<int, 1> poolSize_{layer_idx} = {{{pool_size}}};\n"
-                    cpp_code += f"    constexpr std::array<int, 1> poolStrides_{layer_idx} = {{{strides}}};\n"
-                    cpp_code += f'    constexpr const char* poolPadding_{layer_idx} = "{padding}";\n\n'
+                    cpp_code += (
+                        f"    constexpr std::array<int, 1> poolSize_{layer_idx} = {{{pool_size}}};\n"
+                        f"    constexpr std::array<int, 1> poolStrides_{layer_idx} = {{{strides}}};\n"
+                        f'    constexpr const char* poolPadding_{layer_idx} = "{padding}";\n\n'
+                    )
                     continue
 
                 elif ltype in ["MaxPooling2D", "AvgPooling2D"]:
                     pool_size = conv_dict.get("pool_size", (2, 2))
                     strides = conv_dict.get("strides", pool_size)
                     padding = conv_dict.get("padding", "valid")
-                    cpp_code += f"    constexpr std::array<int, 2> poolSize_{layer_idx} = {{{pool_size[0]}, {pool_size[1]}}};\n"
-                    cpp_code += f"    constexpr std::array<int, 2> poolStrides_{layer_idx} = {{{strides[0]}, {strides[1]}}};\n"
-                    cpp_code += f'    constexpr const char* poolPadding_{layer_idx} = "{padding}";\n\n'
+                    cpp_code += (
+                        f"    constexpr std::array<int, 2> poolSize_{layer_idx} = {{{pool_size[0]}, {pool_size[1]}}};\n"
+                        f"    constexpr std::array<int, 2> poolStrides_{layer_idx} = {{{strides[0]}, {strides[1]}}};\n"
+                        f'    constexpr const char* poolPadding_{layer_idx} = "{padding}";\n\n'
+                    )
                     continue
 
                 elif ltype in ["MaxPooling3D", "AvgPooling3D"]:
                     pool_size = conv_dict.get("pool_size", (2, 2, 2))
                     strides = conv_dict.get("strides", pool_size)
                     padding = conv_dict.get("padding", "valid")
-                    cpp_code += f"    constexpr std::array<int, 3> poolSize_{layer_idx} = {{{pool_size[0]}, {pool_size[1]}, {pool_size[2]}}};\n"
-                    cpp_code += f"    constexpr std::array<int, 3> poolStrides_{layer_idx} = {{{strides[0]}, {strides[1]}, {strides[2]}}};\n"
-                    cpp_code += f'    constexpr const char* poolPadding_{layer_idx} = "{padding}";\n\n'
+                    cpp_code += (
+                        f"    constexpr std::array<int, 3> poolSize_{layer_idx} = {{{pool_size[0]}, {pool_size[1]}, {pool_size[2]}}};\n"
+                        f"    constexpr std::array<int, 3> poolStrides_{layer_idx} = {{{strides[0]}, {strides[1]}, {strides[2]}}};\n"
+                        f"    constexpr const char* poolPadding_{layer_idx} = {padding};\n\n"
+                    )
                     continue
 
                 elif ltype in ["GlobalMaxPooling1D", "GlobalAvgPooling1D"]:
@@ -460,10 +497,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
                 elif ltype in ["GlobalMaxPooling3D", "GlobalAvgPooling3D"]:
                     in_shape = conv_dict["in_shape"]
-                    cpp_code += (
-                        f"    constexpr std::array<int, 3> poolSize_{layer_idx} = "
-                    )
-                    cpp_code += f"{{{in_shape[0]}, {in_shape[1]}, {in_shape[2]}}};\n\n"
+                    cpp_code += f"    constexpr std::array<int, 3> poolSize_{layer_idx} = {{{in_shape[0]}, {in_shape[1]}, {in_shape[2]}}};\n\n"
                     continue
             except ValueError as e:
                 ERROR(ltype, layer_idx, e)
@@ -484,18 +518,14 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 if hasattr(input_shift, "flatten")
                 else input_shift
             )
-
             cpp_code += (
                 f"    constexpr std::array<Scalar, {len(input_scale)}> input_scale = {{"
-            )
-            cpp_code += ", ".join(f"{float(x):10.9e}" for x in input_scale)
-            cpp_code += "};\n\n"
-
-            cpp_code += (
+                + ", ".join(f"{float(x):10.9e}" for x in input_scale)
+                + "};\n\n"
                 f"    constexpr std::array<Scalar, {len(input_shift)}> input_shift = {{"
+                + ", ".join(f"{float(x):10.9e}" for x in input_shift)
+                + "};\n\n"
             )
-            cpp_code += ", ".join(f"{float(x):10.9e}" for x in input_shift)
-            cpp_code += "};\n\n"
     except ValueError as e:
         ERROR("input normalization", "0", e)
         pass
@@ -514,15 +544,15 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 if hasattr(output_shift, "flatten")
                 else output_shift
             )
-
-            cpp_code += f"    constexpr std::array<Scalar, {len(output_scale)}> output_scale = {{"
-            cpp_code += ", ".join(f"{float(x):10.9e}" for x in output_scale)
-            cpp_code += "};\n\n"
-
-            cpp_code += f"    constexpr std::array<Scalar, {len(output_shift)}> output_shift = {{"
-            cpp_code += ", ".join(f"{float(x):10.9e}" for x in output_shift)
-            cpp_code += "};\n\n"
-            cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
+            cpp_code += (
+                f"    constexpr std::array<Scalar, {len(output_scale)}> output_scale = {{"
+                + ", ".join(f"{float(x):10.9e}" for x in output_scale)
+                + "};\n\n"
+                f"    constexpr std::array<Scalar, {len(output_shift)}> output_shift = {{"
+                + ", ".join(f"{float(x):10.9e}" for x in output_shift)
+                + "};\n\n"
+                "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
+            )
     except ValueError as e:
         ERROR("output normalization", "0", e)
         pass
@@ -709,7 +739,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 else:
                     cpp_code += f"    // Pure {ltype}, layer {layer_idx}\n"
                     if act_fun == user_activation and user_activation is not None:
-                        cpp_code += "\tprintf(\"WARNING: CUSTOM ACTIVATION HAS NOT BEEN IMPLEMENTED\");\n"
+                        cpp_code += '\tprintf("WARNING: CUSTOM ACTIVATION HAS NOT BEEN IMPLEMENTED");\n'
                     cpp_code += f"    static std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
                     cpp_code += f"    for (int i = 0; i < {get_flat_size(last_shape)}; ++i) {{\n"
                     cpp_code += f"        {act_fun}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
