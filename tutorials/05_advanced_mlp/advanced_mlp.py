@@ -10,8 +10,7 @@ import pandas as pd
 from tensorflow.keras.regularizers import l2
 from sklearn.preprocessing import MinMaxScaler
 import os
-from tensorflow.keras.utils import register_keras_serializable
-from tensorflow.keras.utils import get_custom_objects
+
 
 #parameters
 FILE = 'advanced_mlp'

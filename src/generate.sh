@@ -12,12 +12,13 @@
 # python main.py --input="path_to_input_folder" --output="path_to_output_folder" --precision="desired_precision" 
 
 ### default ###
-python3 ./training/mlp_eigen_parallel.py
 python3 \
     ./api-core/main.py \
     --input="./dump_model" \
     --output="./bin" \
-    --precision="double" \
-    --custom_activation="nonzero_diag"
+    --double \
+    # --custom_activation="act_fun" \
+    # --debug \
+    # --model_image 
 
 rm -rf .vscode/ api-core/__pycache__ dump_model/__pycache__

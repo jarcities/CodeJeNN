@@ -22,20 +22,21 @@ CodeJeNN is a simple neural network generator for c++ that can robustly ingest a
 ## File Structure
 ```plaintext
 CodeJeNN/
-    ├── README.md
-    └── tutorials/
-            └── simple_mlp_01
-            └── 1d_cnn_02
-            └── model_file_breakdown.md
-            └── supported_layers.md
     └── src/
+            └── api-core/
             └── bin/
-            └── codegen/
             └── dump_model/
-            └── testing/
             └── clean.sh
             └── generate.sh
             └── readme.md
+    └── tutorials/
+            └── 01_simple_mlp/
+            └── 02_cnn_1d/
+            └── 03_cnn_2d/
+            └── 04_cnn_3d/
+            └── 05_advanced_mlp/
+            └── hdf5_file_breakdown.md
+            └── supported_layers.md
     └── citation.cff
     └── license.txt
     └── logo.png
@@ -46,6 +47,8 @@ CodeJeNN/
 ## Starting Point
 
 * **Python 3.11 is required due to compatibility with the latest version of tensorflow.**
+
+* **Keras is used through tensorflow, thus only installing tensorflow is necessary.**
 
 * **You ONLY need the `src` directory, all other files are just auxillary but still very useful.**
 
@@ -66,3 +69,9 @@ CodeJeNN/
     pip install -r requirements.txt
     ```
 1. From here, `cd` into `src` and carry on with the ***README.md*** file in there.
+
+## Citation
+You may site this repo using `citation.cff` or PREFERABLY with the paper below.
+```
+#citation
+```

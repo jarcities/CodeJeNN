@@ -8,18 +8,15 @@ NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DIS
 MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 """
 
-from calendar import c
-from encodings.punycode import T
-import os
+from pathlib import Path
 import argparse
-import numpy as np
 from tensorflow.keras.utils import plot_model
 from load_model import loadModel
 from extract_model import extractModel
 from build_model import buildModel
 from code_generate import preambleHeader, codeGen
-from test_script import testSource
 from normalization import normParam
+from testing import cppTestCode
 
 ## ARG PARSING ##
 parser = argparse.ArgumentParser(
@@ -72,8 +69,8 @@ elif args.float:
 else:
     precision_type = "float"
 
-model_dir = args.input
-save_dir = args.output
+input_dir = Path(args.input)
+output_dir = Path(args.output)
 
 if args.custom_activation is not None:
     custom_activation = args.custom_activation
@@ -82,182 +79,195 @@ else:
     custom_activation = None
 
 ## CHECK INPUT AND OUTPUT DIRECTORIES ##
-if not os.path.exists(model_dir):
-    print(f"__Error__ -> Input directory '{model_dir}' does not exist.")
+if not input_dir.exists():
+    print(f"__Error__ -> Input directory '{input_dir}' does not exist.")
     exit(1)
-elif not os.path.exists(save_dir):
+if not output_dir.exists():
     print(
-        f"__Warning__ -> Output directory '{save_dir}' does not exist. Creating it now..."
+        f"__Warning__ -> Output directory '{output_dir}' does not exist. Creating it now..."
     )
-    os.makedirs(save_dir)
-else:
-    ## PROCESS EACH MODEL IN INPUT DIRECTORY ##
-    for file_name in os.listdir(model_dir):
-        file_path = os.path.join(model_dir, file_name)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-        if file_name == ".gitkeep" or file_name.startswith("."):
+## PROCESS EACH MODEL IN INPUT DIRECTORY ##
+for entry in sorted(input_dir.iterdir()):
+    if entry.name == ".gitkeep" or entry.name.startswith("."):
+        continue
+    if entry.suffix == ".npy":
+        continue
+    if not entry.is_file():
+        continue
+
+    try:
+        file_name = entry.name
+        base_file_name = entry.stem
+        file_path = str(entry)
+
+        #########################################
+        ## 1. PROCESS NORMALIZATION PARAMETERS ##
+        #########################################
+        input_scale, input_shift, output_scale, output_shift = normParam(str(input_dir))
+
+        ###################
+        ## 2. LOAD MODEL ##
+        ###################
+        try:
+            model, file_extension = loadModel(
+                file_path, base_file_name, custom_activation
+            )
+        except ValueError:
+            print(f'\n__Skipping__ "{file_name}" -> not a compatible file.')
             continue
-        if file_name.endswith(".npy"):
-            continue
 
-        ## CHECK FILE AND PROCESS MODEL ##
-        if os.path.isfile(file_path):
-            try:
-                base_file_name = os.path.splitext(file_name)[0]
+        #################################
+        ## 3. EXTRACT MODEL EVERYTHING ##
+        #################################
+        try:
+            (
+                weights_list,
+                biases_list,
+                activation_functions,
+                activation_configs,
+                alphas,
+                dropout_rates,
+                norm_layer_params,
+                conv_layer_params,
+                input_flat_size,
+                output_flat_size,
+                layer_shape,
+                layer_type,
+            ) = extractModel(model, file_extension, base_file_name)
 
-                #########################################
-                ## 1. PROCESS NORMALIZATION PARAMETERS ##
-                #########################################
-                input_scale, input_shift, output_scale, output_shift = normParam(
-                    model_dir
+            # https://keras.io/api/utils/model_plotting_utils/
+            if args.model_image:
+                plot_model(
+                    model,
+                    to_file=f"{base_file_name}_architecture.png",
+                    show_shapes=True,
+                    show_dtype=True,
+                    show_layer_names=True,
+                    show_layer_activations=True,
                 )
 
-                ###################
-                ## 2. LOAD MODEL ##
-                ###################
-                try:
-                    model, file_extension = loadModel(
-                        file_path, base_file_name, custom_activation
-                    )
-                except ValueError as e:
-                    print(f"\n__Skipping__ \"{file_name}\" -> not a compatible file.")
-                    continue
+            ## DEBUG PRINTS ##
+            if args.debug:
+                print(f"\nModel Summary for {file_name}:")
+                print("----------------------------------")
+                model.summary()
+                print(f"\nWhat CodeJeNN extracted for {file_name}:")
+                print("------------------------------------------------------")
+                print(f"Input Size -> {input_flat_size}\n")
+                print(f"Output Size -> {output_flat_size}\n")
+                print(f"Layer Shape [{len(layer_shape)}] -> {layer_shape}\n")
+                print(f"Layer Types [{len(layer_type)}] -> {layer_type}\n")
+                print(
+                    f"Activation Functions [{len(activation_functions)}] -> {activation_functions}\n"
+                )
+                print(
+                    f"Convolutional Params (# of params per layer) [{len(conv_layer_params)}] -> ",
+                    end="",
+                )
+                for i, params in enumerate(conv_layer_params):
+                    if params is not None:
+                        num_of_info = len(params)
+                        print(f"{num_of_info}", end="")
+                    else:
+                        print("-", end="")
+                    if i < len(conv_layer_params) - 1:
+                        print(",", end=" ")
+                print("]", end="")
+                print("\n")
+                print(
+                    f"Normalization Params (# of params per layer) [{len(norm_layer_params)}] -> ",
+                    end="",
+                )
+                for i, params in enumerate(norm_layer_params):
+                    if params is not None:
+                        num_of_info = len(params)
+                        print(f"{num_of_info}", end="")
+                    else:
+                        print("-", end="")
+                    if i < len(norm_layer_params) - 1:
+                        print(",", end=" ")
+                print("]", end="")
+                print("\n------------------------------------------------------")
 
-                #################################
-                ## 3. EXTRACT MODEL EVERYTHING ##
-                #################################
-                try:
-                    (
-                        weights_list,
-                        biases_list,
-                        activation_functions,
-                        activation_configs,
-                        alphas,
-                        dropout_rates,
-                        norm_layer_params,
-                        conv_layer_params,
-                        input_flat_size,
-                        output_flat_size,
-                        layer_shape,
-                        layer_type,
-                    ) = extractModel(model, file_extension, base_file_name)
+        except ValueError as e:
+            print("\n__Error__ in extract_model.py -> ", e)
+            continue
 
-                    # https://keras.io/api/utils/model_plotting_utils/
-                    if args.model_image:
-                        plot_model(
-                            model,
-                            to_file=f"{base_file_name}_architecture.png",
-                            show_shapes=True,
-                            show_dtype=True,
-                            show_layer_names=True,
-                            show_layer_activations=True,
-                        )
+        ############################
+        ## 4. INITIALIZE C++ CODE ##
+        ############################
+        # base path (without extension) for output files for this model
+        output_base = output_dir / base_file_name
+        cpp_code = preambleHeader()
 
-                    ## DEBUG PRINTS ##
-                    if args.debug:
-                        print(f"\nModel Summary for {file_name}:")
-                        print("----------------------------------")
-                        model.summary()
-                        print(f"\nWhat CodeJeNN extracted for {file_name}:")
-                        print("------------------------------------------------------")
-                        print(f"Input Size -> {input_flat_size}\n")
-                        print(f"Output Size -> {output_flat_size}\n")
-                        print(f"Layer Shape [{len(layer_shape)}] -> {layer_shape}\n")
-                        print(f"Layer Types [{len(layer_type)}] -> {layer_type}\n")
-                        print(
-                            f"Activation Functions [{len(activation_functions)}] -> {activation_functions}\n"
-                        )
-                        print(
-                            f"Convolutional Params (# of params per layer) [{len(conv_layer_params)}] -> [",
-                            end="",
-                        )
-                        for i, params in enumerate(conv_layer_params):
-                            if params is not None:
-                                num_of_info = len(params)
-                                print(f"{num_of_info}", end="")
-                            else:
-                                print("-", end="")
-                            if i < len(conv_layer_params) - 1:
-                                print(",", end=" ")
-                        print("]", end="")
-                        print("\n")
-                        print(
-                            f"Normalization Params (# of params per layer) [{len(norm_layer_params)}] -> [",
-                            end="",
-                        )
-                        for i, params in enumerate(norm_layer_params):
-                            if params is not None:
-                                num_of_info = len(params)
-                                print(f"{num_of_info}", end="")
-                            else:
-                                print("-", end="")
-                            if i < len(norm_layer_params) - 1:
-                                print(",", end=" ")
-                        print("]", end="")
-                        print(
-                            "\n------------------------------------------------------"
-                        )
+        ######################
+        ## 5. REBUILD MODEL ##
+        ######################
+        try:
+            cpp_code, cpp_lambda = buildModel(
+                cpp_code, activation_functions, layer_type, base_file_name
+            )
+        except ValueError as e:
+            print("\n__Error__ in build_model.py -> ", e)
+            continue
 
-                except ValueError as e:
-                    print("\n__Error__ in extract_model.py -> ", e)
-                    continue
+        ################################
+        ## 6. GENERATE FINAL C++ CODE ##
+        ################################
+        try:
+            cpp_code = codeGen(
+                cpp_code,
+                cpp_lambda,
+                precision_type,
+                weights_list,
+                biases_list,
+                activation_functions,
+                alphas,
+                dropout_rates,
+                norm_layer_params,
+                conv_layer_params,
+                input_flat_size,
+                output_flat_size,
+                str(output_base),
+                input_scale,
+                input_shift,
+                output_scale,
+                output_shift,
+                layer_shape,
+                layer_type,
+                base_file_name,
+                custom_activation,
+                args.debug,
+            )
+        except ValueError as e:
+            print("\n__Error__ in code_generate.py -> ", e)
+            continue
 
-                ############################
-                ## 4. INITIALIZE C++ CODE ##
-                ############################
-                save_path = os.path.join(save_dir, base_file_name)
-                cpp_code = preambleHeader()
+        resolved_output_dir = output_dir.resolve(strict=False)
+        header_file = output_base.with_suffix(".hpp")
 
-                ######################
-                ## 5. REBUILD MODEL ##
-                ######################
-                try:
-                    cpp_code, cpp_lambda = buildModel(
-                        cpp_code, activation_functions, layer_type, base_file_name
-                    )
-                except ValueError as e:
-                    print("\n__Error__ in build_model.py -> ", e)
-                    continue
+        with open(header_file, "w") as f:
+            f.write(cpp_code)
+        print(f"\nSaved {file_name} model in {resolved_output_dir}/")
 
-                ################################
-                ## 6. GENERATE FINAL C++ CODE ##
-                ################################
-                try:
-                    cpp_code = codeGen(
-                        cpp_code,
-                        cpp_lambda,
-                        precision_type,
-                        weights_list,
-                        biases_list,
-                        activation_functions,
-                        alphas,
-                        dropout_rates,
-                        norm_layer_params,
-                        conv_layer_params,
-                        input_flat_size,
-                        output_flat_size,
-                        save_path,
-                        input_scale,
-                        input_shift,
-                        output_scale,
-                        output_shift,
-                        layer_shape,
-                        layer_type,
-                        base_file_name,
-                        custom_activation,
-                        args.debug,
-                    )
-                except ValueError as e:
-                    print("\n__Error__ in code_generate.py -> ", e)
-                    continue
-
-                print()
-                with open(f"{save_path}.hpp", "w") as f:
-                    f.write(cpp_code)
-                print(f"Saved {file_name} model in {save_path}")
-
+        #######################################
+        ## GENERATE TEST SCRIPT IF NECESSARY ##
+        #######################################
+        if args.debug:
+            try:
+                test_code = cppTestCode(precision_type, base_file_name, layer_shape)
             except ValueError as e:
-                print(f"\n__Skipping__ '{file_name}' -> {e}\n")
+                print("\n__Error__ in testing.py -> ", e)
                 continue
+            source_file = output_base.with_suffix(".cpp")
+            with open(source_file, "w") as f:
+                f.write(test_code)
+            print(f"\nSaved {file_name} test code in {resolved_output_dir}/")
+
+    except ValueError as e:
+        print(f"\n__Skipping__ '{entry.name}' -> {e}\n")
+        continue
 
 print("\nAll done!\n")

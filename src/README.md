@@ -8,25 +8,23 @@ NO OTHER RIGHTS OR LICENSES ARE GRANTED. UNAUTHORIZED USE, SALE, CONVEYANCE, DIS
 MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 -->
 
-## Directory Contents (1)
-  * `codegen/` ⮕ directory that holds all methods/function to extract, load, and code generate any model in a directory where your neural nets are stored.
-
-  * `generate.sh` ⮕ Bash script you can use if you wish to generate c++ files, or include the contents in your own bash script or makefile.
-
-  * `dump_model/` ⮕ Default dump directory that you can dump any trained model and link during the code generation process (you can link another directory if you want).
+## DIRECTORY CONTENTS
+  * `api-core/` ⮕ Directory that holds all methods/function to extract, load, and code generate any model in a directory where your neural nets are stored.
 
   * `bin/` ⮕ Default directory where genereated header files are created (you can link another directory if you want).
 
-  * `testing/` ⮕ directory to compare and contrast header file to keras' output per layer.
+  * `dump_model/` ⮕ Default dump directory that you can dump any trained model and link during the code generation process (you can link another directory if you want).
 
-## Code Generation Steps (2)
-1. First create trained neural nets using tensorflow keras and save in the supported file extensions.
+  * `generate.sh & clean.sh` ⮕ Default bash scripts used to generate and/or clean c++ files.
 
-    * If necessary, save normalization/standardization parameters in a **.dat**, a **.csv**, or a **.txt** file format. 
+## CODE GENERATION STEPS
+1. First create a trained neural nets using tensorflow keras and save in the supported file extensions `.h5` or `.keras`.
 
-1. Put all models wanting to be code generated in the **dump_model/** directory, or whatever directory you wish to link.
+    * If necessary, save normalization/standardization parameters in a `.npy` file (example in `dump_model/`).
 
-1. Link necessary directories or change the bash script **(generate.sh)** dependicies as stated below.
+1. Put all models wanting to be code generated in the `dump_model/` directory, or whatever directory you wish to link.
+
+1. Link necessary flags or change the bash script `generate.sh` as stated below:
 
     1. `--input` ⮕ path to directory that holds any and all trained models to be code generated, or use **dump_model/**.
 
@@ -34,14 +32,34 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
     1. `--precision` ⮕ (OPTIONAL) variable type of precision, either double or float. If not specified, will default to float.
 
+    1. `--double` ⮕ (OPTIONAL) precision (float or double)
+
+    1. `--float` ⮕ (OPTIONAL) precision (float or double)
+
+    1. `--custom_activation` ⮕  (OPTIONAL)  if your model has a serialized custom activation function, attach the name of the activation function. (Example in `tutorials/05_advanced_mlp/`) 
+    
+        **NOTE**: The file name of the activation function must match the name of the activation function itself.
+
+    1. `--debug` ⮕ (OPTIONAL) if there is inference errors with the trained neural net, you have the option to see what was extracted, and the output of each layer of the generated model. (Example in `tutorials/05_advanced_mlp/`)
+
+    1. `--model_image` ⮕ (OPTIONAL) requires installing `graphviz` and `svn` allowing to see visual image of neural net.
+
         ```bash
-        python ./codegen/main.py --input="./dump_model" --output="./bin" --precision="double"
+        python3 \
+            ./api-core/main.py \
+            --input="./dump_model" \
+            --output="./bin" \
+            --double \
+            --custom_activation="act_fun" \
+            --debug \
+            --model_image 
         ```
+
 1. Run **generate.sh** (type `bash generate.sh` in terminal/shell).
 
 1. Once generation is complete. You are done!
 
-## About CodeJeNN (3A)
+## About CodeJeNN (i)
 
 * CodeJeNN code generations a train neural net stored on a **.keras**,a **.h5** file. Tensorflow keras was chosen because of its portability. Because the NN parameters, hyperparameters and the architecture itself is stored on the file as opposed to PyTorch, CodeJeNN only needs that file to code generate.
 
@@ -59,7 +77,7 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
     * If such errors occurs, the user is very, and I mean very encouraged to add and update the logic and submit a pull request and merge. 
 
-## CodeJeNN Model Architecture (3B)
+## CodeJeNN Model Architecture (ii)
 
 * CodeJeNN suports CNNs and MLPs. CodeJeNN only supports single input and output sequential models or functional models, more information can be found in the **../tutorial/** directory. Single input and single output refers to a scalar, an array, a 2d matrix or 3d matrix. 
 
@@ -76,7 +94,7 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
     1. arrays of layer parameters (weights, baises, strides, kernels, gamma, etc...) **~85%**
     1. functions calls to drive through the each layer of the model. **~5%**
 
-## Aglorithm Complexity (3C)
+## Aglorithm Complexity (iii)
 
 * CodeJeNN generates c++ interpreted nueral nets for computaional physics application, which means these NN are used within big codes. CodeJeNN takes advantage of what c++ has to offer in terms of runtime calculation speed. 
 
@@ -94,7 +112,7 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
 * The user is also encouraged to optimize the code generated neural net as much as possible too. 
 
-## Standardization/Normalization (3D)
+## Standardization/Normalization (iv)
 
 CodeJeNN supports normalization/standardization of inputs and outputs. 
 
@@ -106,7 +124,7 @@ CodeJeNN supports normalization/standardization of inputs and outputs.
     
     * `input_std.npy` `intput_mean.npy` `output_std.npy` `output_mean.npy`
 
-## Testing Generated Model (4)
+## Testing Generated Model (v)
 
 * As said before, a test.cpp file will also be copied into the output directory so the user can compare the c++ NN output with the python tensorflow keras output. 
 
@@ -127,7 +145,7 @@ CodeJeNN supports normalization/standardization of inputs and outputs.
 
 1. Verify that the output is correct!
 
-## Try An Example Already In **dump_model/** (5)
+## Try An Example Already In **dump_model/** (vi)
 HOPEFULLY YOU READ ALL THIS, you can now try out the example in **dump_model/**. Just open a terminal/shell in the **src/** directory, MAKE SURE YOU HAVE INSTALLED ALL DEPENDICIES FROM **requirements.txt**, link the correct directorys in **generate.sh**, type `bash generate.sh` in the terminal/shell, and you are good to go!
 
 There are of course much more examples in `../tutorials/`.

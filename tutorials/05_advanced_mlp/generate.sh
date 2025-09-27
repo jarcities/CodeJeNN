@@ -4,7 +4,7 @@ python3 \
     --output="." \
     --double \
     --custom_activation="custom_activation" \
-    # --debug \
+    --debug \
     # --model_image
 
 rm -rf .vscode/ api-core/__pycache__ dump_model/__pycache__
