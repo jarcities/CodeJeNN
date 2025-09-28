@@ -34,24 +34,25 @@ def debug_printing(layer_idx, layer_type, layer_shape, last_layer_name, num_valu
     else:
         total_size = layer_shape
     num_val = min(num_values, total_size)
-    cpp_debug_code = f"""    // DEBUGGING, 1st {num_val} values of {layer_type} layer {layer_idx}:
-    std::cout << "({layer_type}) layer {layer_idx}:" << "\\n";
-    std::cout << "Shape -> ";"""
-
+    cpp_debug_code = (
+        f"    // DEBUGGING, 1st {num_val} values of {layer_type} layer {layer_idx}:"
+        f'   std::cout << "({layer_type}) layer {layer_idx}:" << "\\n";'
+        '   std::cout << "Shape -> ";"""'
+    )
     if isinstance(layer_shape, tuple):
         shape_str = "(" + ", ".join(map(str, layer_shape)) + ")"
     else:
         shape_str = f"({layer_shape},)"
-
-    cpp_debug_code += f"""
-    std::cout << "{shape_str}" << "\\n";
-    std::cout << "Values -> ";
-    for (int ii = 0; ii < {num_val}; ++ii) {{
-        std::cout << {last_layer_name}[ii];
-        if (ii < {num_val} - 1) std::cout << ", ";
-    }}
-    std::cout << " . . .\\n\\n";\n
-"""
+    cpp_debug_code += (
+        f'   std::cout << "{shape_str}" << "\\n";'
+        '   std::cout << "Values -> ";'
+        '   for (int ii = 0; ii < {num_val}; ++ii)'
+        '   {{'
+        '       std::cout << {last_layer_name}[ii];'
+        '       if (ii < {num_val} - 1) std::cout << ", ";'
+        '   }}'
+        '   std::cout << " . . .\\n\\n";\n'
+    )
     return cpp_debug_code
 
 
@@ -59,22 +60,20 @@ def preambleHeader():
     # ===========================================
     # generate the preamble for the header file
     # ===========================================
-    cpp_code = """#pragma once
-#include <iostream>
-#include <array>
-#include <random>
-#include <cmath>
-#include <functional>
-#include <stdexcept>
-#include <algorithm> 
-#include <cstddef> 
-#include <vector>
-#include <limits>
-
-"""
-
-    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
-
+    cpp_code = (
+        "#pragma once"
+        "#include <iostream>"
+        "#include <array>"
+        "#include <random>"
+        "#include <cmath>"
+        "#include <functional>"
+        "#include <stdexcept>"
+        "#include <algorithm> "
+        "#include <cstddef> "
+        "#include <vector>"
+        "#include <limits>\n"
+        "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
+    )
     return cpp_code
 
 
