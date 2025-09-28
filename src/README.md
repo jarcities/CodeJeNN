@@ -15,14 +15,14 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
   * `dump_model/` ⮕ Default dump directory that you can dump any trained model and link during the code generation process (you can link another directory if you want).
 
-  * `generate.sh & clean.sh` ⮕ Default bash scripts used to generate and/or clean c++ files.
+  * `generate.sh` & `clean.sh` ⮕ Default bash scripts used to generate and/or clean c++ files.
 
 ## CODE GENERATION STEPS
-1. First create a trained neural nets using tensorflow keras and save in the supported file extensions `.h5` or `.keras`.
+1. First create a trained neural nets using Tensorflow Keras and save in the supported file extensions `.h5` or `.Keras`.
 
-    * If necessary, save normalization/standardization parameters in a `.npy` file (example in `dump_model/`).
+    * If necessary, save normalization/standardization parameters in a `.npy` file. (Example in ***dump_model/***)
 
-1. Put all models wanting to be code generated in the `dump_model/` directory, or whatever directory you wish to link.
+1. Put all models wanting to be code generated in the ***dump_model/*** directory, or whatever directory you wish to link.
 
 1. Link necessary flags or change the bash script `generate.sh` as stated below:
 
@@ -30,17 +30,13 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
     1. `--output` ⮕ path to directory to save all generated header files, or use **generated_model/**.
 
-    1. `--precision` ⮕ (OPTIONAL) variable type of precision, either double or float. If not specified, will default to float.
+    1. `--double` or `--float` ⮕ (OPTIONAL) variable type precision, will default to float.
 
-    1. `--double` ⮕ (OPTIONAL) precision (float or double)
-
-    1. `--float` ⮕ (OPTIONAL) precision (float or double)
-
-    1. `--custom_activation` ⮕  (OPTIONAL)  if your model has a serialized custom activation function, attach the name of the activation function. (Example in `tutorials/05_advanced_mlp/`) 
+    1. `--custom_activation` ⮕  (OPTIONAL)  if your model has a serialized custom activation function, attach the name of the activation function. (Example in ***tutorials/05_advanced_mlp/***) 
     
         **NOTE**: The file name of the activation function must match the name of the activation function itself.
 
-    1. `--debug` ⮕ (OPTIONAL) if there is inference errors with the trained neural net, you have the option to see what was extracted, and the output of each layer of the generated model. (Example in `tutorials/05_advanced_mlp/`)
+    1. `--debug` ⮕ (OPTIONAL) If there are inference errors with the generated neural net, you can compare the each layer outputs and what was extracted between CodeJeNN and Tensorflow Keras. (Example in ***tutorials/05_advanced_mlp/***)
 
     1. `--model_image` ⮕ (OPTIONAL) requires installing `graphviz` and `svn` allowing to see visual image of neural net.
 
@@ -61,9 +57,9 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
 ## About CodeJeNN (i)
 
-* CodeJeNN code generations a train neural net stored on a **.keras**,a **.h5** file. Tensorflow keras was chosen because of its portability. Because the NN parameters, hyperparameters and the architecture itself is stored on the file as opposed to PyTorch, CodeJeNN only needs that file to code generate.
+* CodeJeNN code generations a train neural net stored on a **.Keras**,a **.h5** file. Tensorflow Keras was chosen because of its portability. Because the NN parameters, hyperparameters and the architecture itself is stored on the file as opposed to PyTorch, CodeJeNN only needs that file to code generate.
 
-* You link the input directory with all trained models (infinite amount of **.keras** or **.h5** files if you please) wanting to be code generated as well as the output directory to save the files. Additionally, the data type precision is optional, but only accepts float or double.
+* You link the input directory with all trained models (infinite amount of **.Keras** or **.h5** files if you please) wanting to be code generated as well as the output directory to save the files. Additionally, the data type precision is optional, but only accepts float or double.
 
     * **dump_model/** is the default linked dump directory to place trained models.
 
@@ -81,9 +77,9 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
 * CodeJeNN suports CNNs and MLPs. CodeJeNN only supports single input and output sequential models or functional models, more information can be found in the **../tutorial/** directory. Single input and single output refers to a scalar, an array, a 2d matrix or 3d matrix. 
 
-    * Sequential models or functional models refers to how the user can build an MLP or CNN using tensorflow keras. You can stack different types of layers on top whether they are Dense, Conv2D, Activations, Normalization layers and etc. 
+    * Sequential models or functional models refers to how the user can build an MLP or CNN using Tensorflow Keras. You can stack different types of layers on top whether they are Dense, Conv2D, Activations, Normalization layers and etc. 
 
-* Unfortunately, at the time of writing, tensorflow keras is currently implementing API for GNNs.
+* Unfortunately, at the time of writing, Tensorflow Keras is currently implementing API for GNNs.
 
 * To truly understand how complex and deep these architectures can be code generated, the user is referred to the **../tutorial/** directory.
 
@@ -112,7 +108,7 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
 * The user is also encouraged to optimize the code generated neural net as much as possible too. 
 
-## Standardization/Normalization (iv)
+## Normalization/Standardization (iv)
 
 CodeJeNN supports normalization/standardization of inputs and outputs. 
 
@@ -126,26 +122,15 @@ CodeJeNN supports normalization/standardization of inputs and outputs.
 
 ## Testing Generated Model (v)
 
-* As said before, a test.cpp file will also be copied into the output directory so the user can compare the c++ NN output with the python tensorflow keras output. 
+* As said before, if `--debug` flag is on, a `.cpp` and `.py` test file prepended with `DEBUG_` will be generated into the output directory so the user can compare the C++ NN output with the Python Tensorflow Keras output. 
 
-* The user may edit the **test.cpp** source file to check for precision and accuracy of trained neural net. Down below is what needs to be change in **test.cpp**
+* The first 10 values of the output of each layer will be printed for both python and c++ files. The final model output will also be printed. The user may compare layer outputs to see which layer created discrepencies with the final output.
 
-    **Header File** 
-    ```c++
-    // change file name to desired header file
-    #include "header_file.hpp"
-    ```
-    **Input**
-    ```c++
-    // change input to desired features
-    std::array<Scalar, "number_of_input_features"> input = {"input(s)"};
-    auto output = "function_name"<Scalar>(input);
-    ```
-1. Once done, compile code. Comments on the preferred method to compile and run **test.cpp** is at the bottom of the source file.
+* The input will be based on expected input shape extracted during code generation and the input values are in ascending order from 0 up to the input shape.
 
-1. Verify that the output is correct!
+* Note: prior testing has shown that the layer where the discrepency occurs may not be the issue but from the layer before it even if the prior layer outputs match. This can be from mismatches in layer shape sizes being passed to incorrect padding. Verify that the output is correct!
 
-## Try An Example Already In **dump_model/** (vi)
-HOPEFULLY YOU READ ALL THIS, you can now try out the example in **dump_model/**. Just open a terminal/shell in the **src/** directory, MAKE SURE YOU HAVE INSTALLED ALL DEPENDICIES FROM **requirements.txt**, link the correct directorys in **generate.sh**, type `bash generate.sh` in the terminal/shell, and you are good to go!
+## Try out an example in ***dump_model/*** (vi)
+A simple example in **dump_model/** has been laid out. Just open a terminal/shell in the **src/** directory, MAKE SURE YOU HAVE INSTALLED ALL DEPENDICIES FROM **requirements.txt**, link the correct directorys in **generate.sh**, enter in `bash generate.sh` or `./generate.sh` in the terminal/shell, and you are good to go!
 
-There are of course much more examples in `../tutorials/`.
+There are of course more examples in ***../tutorials/***.
