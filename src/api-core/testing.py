@@ -138,9 +138,7 @@ layer_outputs = extractor.predict(data)
 for i, layer_output in enumerate(layer_outputs):
     layer_name = model.layers[i].name
     print(f"({{layer_name}}) Layer {{i}}\\n")
-    
     {denorm_code}
-
     flat_output = layer_output.flatten()
     preview = flat_output[:10]  # first 10 values (or fewer if not available)
     print(f"Values -> {{preview}}\\n")
