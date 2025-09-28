@@ -35,23 +35,23 @@ def debug_printing(layer_idx, layer_type, layer_shape, last_layer_name, num_valu
         total_size = layer_shape
     num_val = min(num_values, total_size)
     cpp_debug_code = (
-        f"    // DEBUGGING, 1st {num_val} values of {layer_type} layer {layer_idx}:"
-        f'   std::cout << "({layer_type}) layer {layer_idx}:" << "\\n";'
-        '   std::cout << "Shape -> ";"""'
+        f"    // DEBUGGING, 1st {num_val} values of {layer_type} layer {layer_idx}:\n"
+        f'    std::cout << "({layer_type}) layer {layer_idx}:" << "\\n";\n'
+        '    std::cout << "Shape -> ";\n'
     )
     if isinstance(layer_shape, tuple):
         shape_str = "(" + ", ".join(map(str, layer_shape)) + ")"
     else:
         shape_str = f"({layer_shape},)"
     cpp_debug_code += (
-        f'   std::cout << "{shape_str}" << "\\n";'
-        '   std::cout << "Values -> ";'
-        '   for (int ii = 0; ii < {num_val}; ++ii)'
-        '   {{'
-        '       std::cout << {last_layer_name}[ii];'
-        '       if (ii < {num_val} - 1) std::cout << ", ";'
-        '   }}'
-        '   std::cout << " . . .\\n\\n";\n'
+        f'    std::cout << "{shape_str}" << "\\n";\n'
+        '    std::cout << "Values -> ";\n'
+        f"    for (int ii = 0; ii < {num_val}; ++ii)\n"
+        "    {\n"
+        f"        std::cout << {last_layer_name}[ii];\n"
+        f'        if (ii < {num_val} - 1) std::cout << ", ";\n'
+        "    }\n"
+        '    std::cout << " . . .\\n\\n";\n\n'
     )
     return cpp_debug_code
 
@@ -61,16 +61,16 @@ def preambleHeader():
     # generate the preamble for the header file
     # ===========================================
     cpp_code = (
-        "#pragma once"
-        "#include <iostream>"
-        "#include <array>"
-        "#include <random>"
-        "#include <cmath>"
-        "#include <functional>"
-        "#include <stdexcept>"
-        "#include <algorithm> "
-        "#include <cstddef> "
-        "#include <vector>"
+        "#pragma once\n"
+        "#include <iostream>\n"
+        "#include <array>\n"
+        "#include <random>\n"
+        "#include <cmath>\n"
+        "#include <functional>\n"
+        "#include <stdexcept>\n"
+        "#include <algorithm>\n"
+        "#include <cstddef>\n"
+        "#include <vector>\n"
         "#include <limits>\n"
         "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
     )
@@ -173,7 +173,7 @@ def codeGen(
         d = raw_shape[0] if isinstance(raw_shape, tuple) else raw_shape
         input_type = f"std::array<Scalar, {d}>"
 
-    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
+    cpp_code += "\n\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
 
     cpp_code += f"""
 template <typename Scalar = {precision_type}>
@@ -504,7 +504,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                 ERROR(ltype, layer_idx, e)
                 continue
 
-    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n"
+    cpp_code += "\n//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\//\\\// \n\n\n"
 
     ## NORMALIZE INPUT AND OUTPUTS ##
     try:
@@ -628,15 +628,15 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
     else:
         if input_scale is None:
             cpp_code += (
-                "// pass input "
-                "   for (int i=0; i<flat_size; i++) {{ model_input[i] = initial_input[i]; }}\n\n"
+                "// pass input\n"
+                "    for (int i=0; i<flat_size; i++) { model_input[i] = initial_input[i]; }\n\n"
                 f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
             )
         else:
             cpp_code += (
-                "// normalize input"
-                "   for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_shift[i]) / (input_scale[i]); }} \n\n"
-                f'   if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
+                "// normalize input\n"
+                f"    for (int i = 0; i < {input_size}; i++) {{ model_input[i] = (initial_input[i] - input_shift[i]) / (input_scale[i]); }} \n\n"
+                f'    if (model_input.size() != {input_size}) {{ throw std::invalid_argument("Invalid input size. Expected size: {input_size}"); }}\n\n'
             )
 
     ######################################
@@ -648,7 +648,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
 
     if debug_outputs:
         cpp_code += (
-            "   //DEBUG PRINTING FLAG IS ON\n"
+            "    // DEBUG PRINTING FLAG IS ON\n"
             '    std::cout << "\\n";\n'
             '    std::cout << "Debug printing first ~10 outputs of each layer:" << "\\n";\n'
             '    std::cout << "\\n";\n\n'

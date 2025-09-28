@@ -23,11 +23,12 @@ from keras.models import load_model
 import math
 from keras.models import Sequential
 
-def normParam(model_dir):
+def normParam(model_dir, debug):
     input_scale = []
     output_scale = []
     input_shift = []
     output_shift = []
+    which_norm = {}
     
     # Use the model directory directly to look for normalization files
     base_dir = model_dir
@@ -57,12 +58,16 @@ def normParam(model_dir):
             input_mean = np.load(npy_files['input_mean'])
             input_scale = input_std
             input_shift = input_mean
-            
+            if debug:
+                which_norm["input"] = "std/mean"
         if output_std_mean:
             output_std = np.load(npy_files['output_std'])
             output_mean = np.load(npy_files['output_mean'])
             output_scale = output_std
             output_shift = output_mean
+            if debug:
+                which_norm["output"] = "std/mean"
+
     else:
         #use min/max normalization
         if input_min_max:
@@ -70,12 +75,16 @@ def normParam(model_dir):
             input_max = np.load(npy_files['input_max'])
             input_scale = input_max - input_min
             input_shift = input_min
+            if debug:
+                which_norm["input"] = "max/min"
             
         if output_min_max:
             output_min = np.load(npy_files['output_min'])
             output_max = np.load(npy_files['output_max'])
             output_scale = output_max - output_min
             output_shift = output_min
+            if debug:
+                which_norm["output"] = "max/min"
     
     #convert empty lists to None
     if isinstance(input_scale, list) and len(input_scale) == 0:
@@ -87,4 +96,4 @@ def normParam(model_dir):
     if isinstance(output_shift, list) and len(output_shift) == 0:
         output_shift = None
         
-    return input_scale, input_shift, output_scale, output_shift
+    return input_scale, input_shift, output_scale, output_shift, which_norm

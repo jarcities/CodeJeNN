@@ -57,7 +57,7 @@ def cppTestCode(precision_type, base_file_name, layer_shape):
     else:
         raise ValueError("Unsupported input shape")
 
-    test_code = f"""#include <iostream>
+    cpp_test_code = f"""#include <iostream>
 #include <array>
 #include <random>
 #include <cmath>
@@ -86,4 +86,87 @@ clang++ -std=c++23 -Wall -O3 -march=native -o test test.cpp
 */
 """
 
-    return test_code
+    return cpp_test_code
+
+def pyTestCode(precision_type, file_path, layer_shape, which_norm):
+    # print(file_path)
+    input_code = "\n"
+    input_shape = layer_shape[0]
+    norm_code = ""
+    if which_norm.get("input") == "std/mean":
+        norm_code += 'input_scale = np.load("input_std.npy")\n'
+        norm_code += 'input_shift = np.load("input_mean.npy")\n'
+    elif which_norm.get("input") == "max/min":
+        norm_code += 'input_scale = np.load("input_max.npy")\n'
+        norm_code += 'input_shift = np.load("input_min.npy")\n'
+    if which_norm.get("output") == "std/mean":
+        norm_code += 'output_scale = np.load("output_std.npy")\n'
+        norm_code += 'output_shift = np.load("output_mean.npy")\n'
+    elif which_norm.get("output") == "max/min":
+        norm_code += 'output_scale = np.load("output_max.npy")\n'
+        norm_code += 'output_shift = np.load("output_min.npy")\n'
+
+    if "output" in which_norm:
+        denorm_code = """
+    #denormalize if last layer
+    if i == len(layer_outputs) - 1:
+        layer_output = layer_output * output_scale + output_shift
+"""
+    
+    py_test_code = f"""
+from keras.models import load_model
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+import h5py
+import os
+
+#load model
+file_name = "{file_path}"
+model = load_model(file_name)
+extractor = keras.Model(inputs=model.inputs, outputs=[layer.output for layer in model.layers])
+{norm_code}
+
+data = np.array([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]], dtype='float32')
+data = (data - input_shift) / input_scale
+
+#extract each layer
+layer_outputs = extractor.predict(data)
+
+#print first 10 values of each layer
+for i, layer_output in enumerate(layer_outputs):
+    layer_name = model.layers[i].name
+    print(f"({{layer_name}}) Layer {{i}}\\n")
+    
+    {denorm_code}
+
+    flat_output = layer_output.flatten()
+    preview = flat_output[:10]  # first 10 values (or fewer if not available)
+    print(f"Values -> {{preview}}\\n")
+"""
+    return py_test_code
+
+
+##SAVE FOR LATER##
+# #parameters
+# output_folder = "layer_outputs"
+# os.makedirs(output_folder, exist_ok=True)
+
+###
+
+
+# for i, layer_output in enumerate(layers):
+#     layer_name = model.layers[i].name
+#     file_name = f"layer_{{i}}_{{layer_name}}_output.csv"
+#     file_path = os.path.join(output_folder, file_name)
+    
+#     #if last layer
+#     if i == len(layers) - 1:
+#         denormalized_output = layer_output * output_std + output_mean
+#         flattened = denormalized_output.flatten()
+#         print(denormalized_output)
+#     else:
+#         flattened = layer_output.flatten()
+    
+#     np.savetxt(file_path, flattened, delimiter=",")

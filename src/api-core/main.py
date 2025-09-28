@@ -10,13 +10,14 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
 from pathlib import Path
 import argparse
+from shutil import which
 from tensorflow.keras.utils import plot_model
 from load_model import loadModel
 from extract_model import extractModel
 from build_model import buildModel
 from code_generate import preambleHeader, codeGen
 from normalization import normParam
-from testing import cppTestCode
+from testing import cppTestCode, pyTestCode
 
 ## ARG PARSING ##
 parser = argparse.ArgumentParser(
@@ -105,7 +106,7 @@ for entry in sorted(input_dir.iterdir()):
         #########################################
         ## 1. PROCESS NORMALIZATION PARAMETERS ##
         #########################################
-        input_scale, input_shift, output_scale, output_shift = normParam(str(input_dir))
+        input_scale, input_shift, output_scale, output_shift, which_norm = normParam(str(input_dir), args.debug)
 
         ###################
         ## 2. LOAD MODEL ##
@@ -250,21 +251,35 @@ for entry in sorted(input_dir.iterdir()):
 
         with open(header_file, "w") as f:
             f.write(cpp_code)
-        print(f"\nSaved {file_name} model in {resolved_output_dir}/")
+        print(f"\nSaved \"{file_name}\" model in {resolved_output_dir}/")
 
         #######################################
         ## GENERATE TEST SCRIPT IF NECESSARY ##
         #######################################
         if args.debug:
+
             try:
-                test_code = cppTestCode(precision_type, base_file_name, layer_shape)
+                cpp_test_code = cppTestCode(precision_type, base_file_name, layer_shape)
             except ValueError as e:
                 print("\n__Error__ in testing.py -> ", e)
                 continue
             source_file = output_base.with_suffix(".cpp")
+            source_file = source_file.with_name("DEBUG_" + source_file.name)
             with open(source_file, "w") as f:
-                f.write(test_code)
-            print(f"\nSaved {file_name} test code in {resolved_output_dir}/")
+                f.write(cpp_test_code)
+            print(f"\nSaved \"{source_file}\" test code in {resolved_output_dir}/")
+
+            try: 
+                py_test_code = pyTestCode(precision_type, file_path, layer_shape, which_norm)
+            except ValueError as e:
+                print("\n__Error__ in testing.py -> ", e)
+                continue
+            python_file = output_base.with_suffix(".py")
+            python_file = python_file.with_name("DEBUG_" + python_file.name)
+            with open(python_file, "w") as f:
+                f.write(py_test_code)
+            print(f"\nSaved \"{python_file}\" test code in {resolved_output_dir}/")
+
 
     except ValueError as e:
         print(f"\n__Skipping__ '{entry.name}' -> {e}\n")
