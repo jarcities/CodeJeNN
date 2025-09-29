@@ -19,7 +19,7 @@ __Distribution Statement A: Distribution Statement A. Approved for public releas
 
 CodeJeNN is a simple neural network generator for c++ that can robustly ingest a trained NN to be used on the fly for inference in target computational physics and fluid dynamics software. This abstracts away the need for using third party libraries which are often cumbersome and would require shipping large data onto main memory to utilize inference. Instead, the NN is inlined and localized to the users machine for inference. This will assure scalability and allow for certain optimizations that ML has promised to numerical solvers: faster constiutive laws, accurate interpolation functions, etc. CodeJeNN works by converting a trained neural net stored in a .h5 or a .keras file into a c++ header file that can be used in the users code to predict (perform inference).
 
-## File Structure
+## Directory Contents
 ```plaintext
 CodeJeNN/
     └── src/

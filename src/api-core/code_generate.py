@@ -14,7 +14,7 @@ import warnings
 from functools import reduce
 import operator
 
-absl.logging.set_verbosity("error")
+absl.logging.set_verbosity(absl.logging.ERROR)
 warnings.filterwarnings("ignore", category=UserWarning, module="keras")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
@@ -481,13 +481,12 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += (
                         f"    constexpr std::array<int, 3> poolSize_{layer_idx} = {{{pool_size[0]}, {pool_size[1]}, {pool_size[2]}}};\n"
                         f"    constexpr std::array<int, 3> poolStrides_{layer_idx} = {{{strides[0]}, {strides[1]}, {strides[2]}}};\n"
-                        f"    constexpr const char* poolPadding_{layer_idx} = {padding};\n\n"
+                        f'    constexpr const char* poolPadding_{layer_idx} = "{padding}";\n\n'
                     )
                     continue
 
                 elif ltype in ["GlobalMaxPooling1D", "GlobalAvgPooling1D"]:
                     in_shape = conv_dict["in_shape"]
-                    print(in_shape)
                     cpp_code += f"    constexpr std::array<int, 1> poolSize_{layer_idx} = {{{in_shape[0]}}};\n\n"
                     continue
 
@@ -754,7 +753,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         f"    static std::array<Scalar, {get_flat_size(last_shape)}> layer_{layer_idx}_output;\n"
                         f"    for (int i = 0; i < {get_flat_size(last_shape)}; ++i) {{\n"
                         f"        {act_fun}(layer_{layer_idx}_output[i], {last_layer}[i], {alpha});\n"
-                        "    }}\n\n"
+                        "    }\n\n"
                     )
                     last_layer = f"layer_{layer_idx}_output"
                     # debug printing flag
@@ -1125,7 +1124,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                         pw = kernel[2] // 2
                     cpp_code += (
                         f"    // {ltype}, layer {layer_idx}\n"
-                        f"    static std::array<Scalar, {out_shape[0]} * {out_shape[1]} * {out_shape[2]} * {out_shape[3]}> layer_{layer_idx}_output;\n"
+                        f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]} * {out_shape[3]})> layer_{layer_idx}_output;\n"
                         f"    Conv3D_{base_file_name}<Scalar, {out_shape[3]}, {out_shape[0]}, {out_shape[1]}, {out_shape[2]}>(\n"
                         f"        layer_{layer_idx}_output.data(), {last_layer}.data(),\n"
                         f"        convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
@@ -1338,7 +1337,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += (
                         f"    // {ltype}, layer {layer_idx}\n"
                         f"    static std::array<Scalar, {output_size}> layer_{layer_idx}_output;\n"
-                        f"    Conv1DTranspose_{base_file_name}<Scalar, {output_channels}, {output_length}>"
+                        f"    Conv1DTranspose_{base_file_name}<Scalar, {output_channels}, {output_length}>("
                     )
                     kernel_val = (
                         kernel[0] if isinstance(kernel, (tuple, list)) else kernel
@@ -1351,10 +1350,8 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     else:
                         pad = kernel_val // 2
                     cpp_code += (
-                        f"       (layer_{0}_output.data(), {1}.data(), convKernel_{0}.data(), convBias_{0}.data(),\n\t\t".format(
-                            layer_idx, last_layer
-                        )
-                        + f"       {input_channels}, {input_length}, {kernel_val}, {strides_val}, {pad}, {mapped_act}, {alpha});\n\n"
+                        f"\n        layer_{layer_idx}_output.data(), {last_layer}.data(), convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
+                        f"        {input_channels}, {input_length}, {kernel_val}, {strides_val}, {pad}, {mapped_act}, {alpha});\n\n"
                     )
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = (
@@ -1437,11 +1434,9 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     cpp_code += (
                         f"    // {ltype}, layer {layer_idx}\n"
                         f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]} * {out_shape[3]})> layer_{layer_idx}_output;\n"
-                        f"    Conv3DTranspose_{base_file_name}<Scalar, {out_shape[3]}, {out_shape[0]}, {out_shape[1]}, {out_shape[2]}>"
-                        f"(layer_{0}_output.data(), {1}.data(), convKernel_{0}.data(), convBias_{0}.data(),".format(
-                            layer_idx, last_layer
-                        )
-                        + f"{in_shape[3]}, {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {kd}, {kh}, {kw}, {sd}, {sh}, {sw}, {pd}, {ph}, {pw}, {mapped_act}, {alpha});\n\n"
+                        f"    Conv3DTranspose_{base_file_name}<Scalar, {out_shape[3]}, {out_shape[0]}, {out_shape[1]}, {out_shape[2]}>(\n"
+                        f"        layer_{layer_idx}_output.data(), {last_layer}.data(), convKernel_{layer_idx}.data(), convBias_{layer_idx}.data(),\n"
+                        f"        {in_shape[3]}, {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {kd}, {kh}, {kw}, {sd}, {sh}, {sw}, {pd}, {ph}, {pw}, {mapped_act}, {alpha});\n\n"
                     )
                     last_layer = f"layer_{layer_idx}_output"
                     last_shape = out_shape

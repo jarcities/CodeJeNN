@@ -18,7 +18,11 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 def cppTestCode(precision_type, base_file_name, layer_shape):
 
     input_code = "\n"
+    output_code = "\n"
     input_shape = layer_shape[0]
+    input_shape = tuple(dim for dim in input_shape if dim != 1)
+    output_shape = layer_shape[-1]
+    output_shape = tuple(dim for dim in output_shape if dim != 1)
 
     if len(input_shape) == 1: 
         n = input_shape[0]
@@ -56,6 +60,39 @@ def cppTestCode(precision_type, base_file_name, layer_shape):
         )
     else:
         raise ValueError("Unsupported input shape")
+    
+    if len(output_shape) == 1:
+        m = output_shape[0]
+        output_code += (
+            f"\tfor (int i = 0; i < {m}; ++i) {{\n"
+            f"\t    std::cout << output[i] << '\\n';\n"
+            "\t}"
+        )
+    elif len(output_shape) == 2:
+        rows, cols = output_shape
+        output_code += (
+            f"\tfor (int i = 0; i < {rows}; ++i) {{\n"
+            f"\t    for (int j = 0; j < {cols}; ++j) {{\n"
+            "\t        std::cout << output[i][j] << ' ';\n"
+            "\t    }\n"
+            "\t    std::cout << '\\n';\n"
+            "\t}"
+        )
+    elif len(output_shape) == 3:
+        depth, rows, cols = output_shape
+        output_code += (
+            f"\tfor (int d = 0; d < {depth}; ++d) {{\n"
+            f"\t    for (int i = 0; i < {rows}; ++i) {{\n"
+            f"\t        for (int j = 0; j < {cols}; ++j) {{\n"
+            "\t            std::cout << output[d][i][j] << ' ';\n"
+            "\t        }\n"
+            "\t        std::cout << '\\n';\n"
+            "\t    }\n"
+            "\t    std::cout << '\\n';\n"
+            "\t}"
+        )
+    else:
+        raise ValueError("Unsupported output shape")
 
     cpp_test_code = f"""#include <iostream>
 #include <array>
@@ -72,9 +109,7 @@ int main() {{
 
     std::cout << std::scientific << std::setprecision(15);  // scientific notation precision
     std::cout << "Output:\\n";  
-    for(const auto& val : output) {{
-        std::cout << val << '\\n';
-    }}
+    {output_code}
     std::cout << std::endl;
 
     return 0;
@@ -90,9 +125,11 @@ clang++ -std=c++23 -Wall -O3 -march=native -o test test.cpp
 
 
 def pyTestCode(precision_type, file_path, layer_shape, which_norm):
-    # print(file_path)
+
     input_code = ""
-    input_shape = layer_shape[0]
+    # preserve the full input shape (including channel/batch singleton dims)
+    input_shape = tuple(layer_shape[0])
+
     if which_norm:
         norm_code = "\n#normalization parameters\n"
     if which_norm.get("input") == "std/mean":
@@ -116,24 +153,20 @@ def pyTestCode(precision_type, file_path, layer_shape, which_norm):
 """
 
     try:
-        if len(input_shape) == 1:
-            n = input_shape[0]
-            input_code += f"data = np.arange({n}, dtype='float32').reshape(1, {n})\n"
-        elif len(input_shape) == 2:
-            rows, cols = input_shape
-            input_code += f"data = np.arange({rows * cols}, dtype='float32').reshape(1, {rows}, {cols})\n"
-        elif len(input_shape) == 3:
-            depth, rows, cols = input_shape
-            input_code += f"data = np.arange({depth * rows * cols}, dtype='float32').reshape(1, {depth}, {rows}, {cols})\n"
-        else:
-            input_code += "data = np.arange(10, dtype='float32').reshape(1, 10)\n"
+        # build data that exactly matches the model input shape so normalization arrays
+        # saved with keepdims=True (e.g. (1, D, H, W, 1)) will broadcast correctly.
+        total = 1
+        for d in input_shape:
+            total *= int(d)
+        shape_str = ", ".join(str(int(d)) for d in input_shape)
+        input_code += f"data = np.arange({total}, dtype='float32').reshape({shape_str})\n"
     except Exception:
         raise ValueError("Unsupported input shape")
 
     if which_norm.get("input") == "std/mean":
         input_code += "data = (data - input_shift) / input_scale\n"
     elif which_norm.get("input") == "max/min":
-        input_code += "data = (data - input_min) / (input_max - input_min)\n"
+        input_code += "data = (data - input_shift) / input_scale\n"
     
     py_test_code = f"""
 from keras.models import load_model
