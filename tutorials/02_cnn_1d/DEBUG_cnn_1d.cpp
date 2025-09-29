@@ -19,9 +19,10 @@ int main() {
 
     std::cout << std::scientific << std::setprecision(15);  // scientific notation precision
     std::cout << "Output:\n";  
-    for(const auto& val : output) {
-        std::cout << val << '\n';
-    }
+    
+	for (int i = 0; i < 10; ++i) {
+	    std::cout << output[i] << '\n';
+	}
     std::cout << std::endl;
 
     return 0;

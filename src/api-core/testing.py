@@ -127,7 +127,6 @@ clang++ -std=c++23 -Wall -O3 -march=native -o test test.cpp
 def pyTestCode(precision_type, file_path, layer_shape, which_norm):
 
     input_code = ""
-    # preserve the full input shape (including channel/batch singleton dims)
     input_shape = tuple(layer_shape[0])
 
     if which_norm:
@@ -153,13 +152,14 @@ def pyTestCode(precision_type, file_path, layer_shape, which_norm):
 """
 
     try:
-        # build data that exactly matches the model input shape so normalization arrays
-        # saved with keepdims=True (e.g. (1, D, H, W, 1)) will broadcast correctly.
         total = 1
         for d in input_shape:
             total *= int(d)
-        shape_str = ", ".join(str(int(d)) for d in input_shape)
-        input_code += f"data = np.arange({total}, dtype='float32').reshape({shape_str})\n"
+        if len(input_shape) == 1:
+            input_code += f"data = np.arange({total}, dtype='float32').reshape(1, -1)\n"
+        else:
+            shape_str = ", ".join(str(int(d)) for d in input_shape)
+            input_code += f"data = np.arange({total}, dtype='float32').reshape({shape_str})\n"
     except Exception:
         raise ValueError("Unsupported input shape")
 

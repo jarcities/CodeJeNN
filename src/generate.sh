@@ -7,11 +7,6 @@
 # MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
 #!/bin/bash
-
-### example ###
-# python main.py --input="path_to_input_folder" --output="path_to_output_folder" --precision="desired_precision" 
-
-### default ###
 python3 \
     ./api-core/main.py \
     --input="./dump_model" \

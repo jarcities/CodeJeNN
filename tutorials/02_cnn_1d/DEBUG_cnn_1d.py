@@ -19,7 +19,7 @@ output_scale = np.load("output_max.npy")
 output_shift = np.load("output_min.npy")
 
 #input data
-data = np.arange(100, dtype='float32').reshape(1, 100, 1)
+data = np.arange(100, dtype='float32').reshape(100, 1)
 data = (data - input_shift) / input_scale
 
 #extract each layer

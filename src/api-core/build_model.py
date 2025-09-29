@@ -765,15 +765,12 @@ inline void Conv3DTranspose_{base_file_name}(
                                 const int ow = ow_base + kw;
                                 if (ow < 0 || ow >= out_width) continue;
 
-                                // weights[kd, kh, kw, ic, oc] contiguous in oc
-                                const int w_k_base =
-                                    (((((kd * kernel_h + kh) * kernel_w + kw) * in_channels) + ic) * out_channels);
-                                const int out_pix_base =
-                                    (((od * out_height + oh) * out_width + ow) * out_channels);
+                                const int out_pix_base = (((od * out_height + oh) * out_width + ow) * out_channels);
 
                                 for (int oc = 0; oc < out_channels; ++oc) 
                                 {{
-                                    outputs[out_pix_base + oc] += v * weights[w_k_base + oc];
+                                    const int w_k_base = (((((kd * kernel_h + kh) * kernel_w + kw) * out_channels) + oc) * in_channels);
+                                    outputs[out_pix_base + oc] += v * weights[w_k_base + ic];
                                 }}
                             }}
                         }}

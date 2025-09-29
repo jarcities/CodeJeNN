@@ -10,6 +10,7 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
 from pathlib import Path
 import argparse
+import numpy as np
 from shutil import which
 from tensorflow.keras.utils import plot_model
 from load_model import loadModel

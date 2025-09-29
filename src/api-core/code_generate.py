@@ -1548,7 +1548,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     strides = conv_dict.get("strides", pool_size)
                     cpp_code += (
                         f"    // {ltype}, layer {layer_idx}\n"
-                        f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
+                        f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]} * {out_shape[3]})> layer_{layer_idx}_output;\n"
                         f"    MaxPooling3D_{base_file_name}<Scalar, {pool_size[0]}, {pool_size[1]}, {pool_size[2]}, {strides[0]}, {strides[1]}, {strides[2]}>(\n"
                         f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {in_shape[3]});\n\n"
                     )
@@ -1626,7 +1626,7 @@ inline auto {name_space}(const {input_type}& initial_input) {{\n
                     strides = conv_dict.get("strides", pool_size)
                     cpp_code += (
                         f"    // {ltype}, layer {layer_idx}\n"
-                        f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]})> layer_{layer_idx}_output;\n"
+                        f"    static std::array<Scalar, ({out_shape[0]} * {out_shape[1]} * {out_shape[2]} * {out_shape[3]})> layer_{layer_idx}_output;\n"
                         f"    AvgPooling3D_{base_file_name}<Scalar, {pool_size[0]}, {pool_size[1]}, {pool_size[2]}, {strides[0]}, {strides[1]}, {strides[2]}>(\n"
                         f"        layer_{layer_idx}_output.data(), {last_layer}.data(), {in_shape[0]}, {in_shape[1]}, {in_shape[2]}, {in_shape[3]});\n\n"
                     )
