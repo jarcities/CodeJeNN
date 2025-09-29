@@ -46,11 +46,11 @@ CodeJeNN/
 
 ## Starting Point
 
--> **Python 3.11 is required due to compatibility with the latest version of tensorflow (NOTE: Keras is used through tensorflow so only installing tensorflow is necessary).**
+⇨ **Python 3.11 is required due to compatibility with the latest version of tensorflow (NOTE: Keras is used through tensorflow so only installing tensorflow is necessary).**
 
--> **The recommended installer is `apt` for Linux users and `brew` for macOS users.**
+⇨ **The recommended installer is `apt` for Linux users and `brew` for macOS users.**
 
--> **You ONLY need the `src` directory, all other files are just auxillary but still very useful.**
+⇨ **You ONLY need the `src` directory, all other files are just auxillary but still very useful.**
 
 1. First open up a terminal/shell session and clone this repo into the home "`~/`" directory:
     ```bash
