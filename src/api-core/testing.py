@@ -88,11 +88,13 @@ clang++ -std=c++23 -Wall -O3 -march=native -o test test.cpp
 
     return cpp_test_code
 
+
 def pyTestCode(precision_type, file_path, layer_shape, which_norm):
     # print(file_path)
-    input_code = "\n"
+    input_code = ""
     input_shape = layer_shape[0]
-    norm_code = ""
+    if which_norm:
+        norm_code = "\n#normalization parameters\n"
     if which_norm.get("input") == "std/mean":
         norm_code += 'input_scale = np.load("input_std.npy")\n'
         norm_code += 'input_shift = np.load("input_mean.npy")\n'
@@ -112,6 +114,26 @@ def pyTestCode(precision_type, file_path, layer_shape, which_norm):
     if i == len(layer_outputs) - 1:
         layer_output = layer_output * output_scale + output_shift
 """
+
+    try:
+        if len(input_shape) == 1:
+            n = input_shape[0]
+            input_code += f"data = np.arange({n}, dtype='float32').reshape(1, {n})\n"
+        elif len(input_shape) == 2:
+            rows, cols = input_shape
+            input_code += f"data = np.arange({rows * cols}, dtype='float32').reshape(1, {rows}, {cols})\n"
+        elif len(input_shape) == 3:
+            depth, rows, cols = input_shape
+            input_code += f"data = np.arange({depth * rows * cols}, dtype='float32').reshape(1, {depth}, {rows}, {cols})\n"
+        else:
+            input_code += "data = np.arange(10, dtype='float32').reshape(1, 10)\n"
+    except Exception:
+        raise ValueError("Unsupported input shape")
+
+    if which_norm.get("input") == "std/mean":
+        input_code += "data = (data - input_shift) / input_scale\n"
+    elif which_norm.get("input") == "max/min":
+        input_code += "data = (data - input_min) / (input_max - input_min)\n"
     
     py_test_code = f"""
 from keras.models import load_model
@@ -127,17 +149,17 @@ file_name = "{file_path}"
 model = load_model(file_name)
 extractor = keras.Model(inputs=model.inputs, outputs=[layer.output for layer in model.layers])
 {norm_code}
-
-data = np.array([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]], dtype='float32')
-data = (data - input_shift) / input_scale
-
+#input data
+{input_code}
 #extract each layer
 layer_outputs = extractor.predict(data)
+
+print("\\nDebug printing first ~10 outputs of each layer:\\n")
 
 #print first 10 values of each layer
 for i, layer_output in enumerate(layer_outputs):
     layer_name = model.layers[i].name
-    print(f"({{layer_name}}) Layer {{i}}\\n")
+    print(f"({{layer_name}}) Layer {{i}}:")
     {denorm_code}
     flat_output = layer_output.flatten()
     preview = flat_output[:10]  # first 10 values (or fewer if not available)

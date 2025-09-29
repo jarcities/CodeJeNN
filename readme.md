@@ -46,25 +46,47 @@ CodeJeNN/
 
 ## Starting Point
 
-* **Python 3.11 is required due to compatibility with the latest version of tensorflow.**
+-> **Python 3.11 is required due to compatibility with the latest version of tensorflow (NOTE: Keras is used through tensorflow so only installing tensorflow is necessary).**
 
-* **Keras is used through tensorflow, thus only installing tensorflow is necessary.**
+-> **The recommended installer is `apt` for Linux users and `brew` for macOS users.**
 
-* **You ONLY need the `src` directory, all other files are just auxillary but still very useful.**
+-> **You ONLY need the `src` directory, all other files are just auxillary but still very useful.**
 
-1. You do not need to create a virtual environment, but it is best to use one. You can install python 3.11 in your home directory and `cd` to your home directory and use. 
+1. First open up a terminal/shell session and clone this repo into the home "`~/`" directory:
     ```bash
-    python3.11 -m venv codejenn
-    source codejenn/bin/activate
+    git clone https://github.com/jarcities/CodeJeNN.git ~/codejenn
+    cd ~/codejenn
     ```
-    Or you can install conda and use:
+    or where ever you choose:
+    ```bash
+    git clone https://github.com/jarcities/CodeJeNN.git
+    cd codejenn
+    ```
+
+1. You do not need to create a virtual environment, but it is best to use one. This allows all dependent packages to be in one spot. 
+
+    The first way is by using conda which you can install from [Install Miniconda (official site)](https://www.anaconda.com/docs/getting-started/miniconda/install). Then in your terminal/shell:
+
     ```bash
     conda create -n codejenn python=3.11
     conda activate codejenn
     ```
-    Where `codejenn` is the name of the environment.
 
-1. Next install the necessary packages which are common in most deep learning codes already.
+    OR
+
+    The second way is to use a python environment by installing python 3.11 using `sudo apt install python3.11` or `brew install python@3.11`. Then in your home directory create a **python_environments** directory and create an environtment in there.
+
+    ```bash
+    mkdir ~/python_environments/
+    cd ~/python_environments/
+    python3.11 -m venv codejenn
+    source codejenn/bin/activate
+    ```
+
+    Where `codejenn` is the name of the environment.
+    
+
+1. Next install the necessary libraries which are common in most deep learning codes already.
     ```bash
     pip install -r requirements.txt
     ```
