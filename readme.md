@@ -93,7 +93,6 @@ CodeJeNN/
 1. From here, `cd` into `src` and carry on with the ***README.md*** file in there.
 
 ## Citation
-You may site this repo using `citation.cff` or PREFERABLY with the paper below.
 ```
 # WILL ADD SOON
 ```
