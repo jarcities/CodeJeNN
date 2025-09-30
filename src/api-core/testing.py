@@ -124,10 +124,16 @@ clang++ -std=c++23 -Wall -O3 -march=native -o test test.cpp
     return cpp_test_code
 
 
-def pyTestCode(precision_type, file_path, layer_shape, which_norm):
+def pyTestCode(precision_type, file_path, layer_shape, which_norm, custom_activation):
 
     input_code = ""
+    activation_code = ""
+    norm_code = ""
+    denorm_code = ""
     input_shape = tuple(layer_shape[0])
+
+    if custom_activation is not None:
+        activation_code += f"from {custom_activation} import {custom_activation}\n"
 
     if which_norm:
         norm_code = "\n#normalization parameters\n"
@@ -176,6 +182,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import h5py
 import os
+{activation_code}
 
 #load model
 file_name = "{file_path}"

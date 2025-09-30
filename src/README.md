@@ -9,20 +9,20 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 -->
 
 ## DIRECTORY CONTENTS
-  * `api-core/` ⮕ Directory that holds all methods/function to extract, load, and code generate any model in a directory where your neural nets are stored.
+  * `api-core/` ⮕ Directory that holds all scripts to extract, load, and code generate any model in a directory where your neural nets are stored.
 
-  * `bin/` ⮕ Default directory where genereated header files are created (you can link another directory if you want).
+  * `bin/` ⮕ Default directory where genereated header files are created (the user can link another directory).
 
-  * `dump_model/` ⮕ Default dump directory that you can dump any trained model and link during the code generation process (you can link another directory if you want).
+  * `dump_model/` ⮕ Default dump directory that the user can dump any trained model and link during the code generation process (the user can link another directory).
 
   * `generate.sh` & `clean.sh` ⮕ Default bash scripts used to generate and/or clean c++ files.
 
 ## CODE GENERATION STEPS
-1. First create a trained neural nets using Tensorflow Keras and save in the supported file extensions `.h5` or `.Keras`.
+1. First create a trained neural nets using Tensorflow Keras and save in the supported file extensions `.h5` or `.Keras` (there is not advantage of using one over the other).
 
     * If necessary, save normalization/standardization parameters in a `.npy` file. (Example in ***dump_model/***)
 
-1. Put all models wanting to be code generated in the ***dump_model/*** directory, or whatever directory you wish to link.
+1. Put all models wanting to be code generated in the ***dump_model/*** directory, or whatever directory the user wish to link.
 
 1. Link necessary flags or change the bash script `generate.sh` as stated below:
 
@@ -32,11 +32,9 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
 
     1. `--double` or `--float` ⮕ (OPTIONAL) variable type precision, will default to float.
 
-    1. `--custom_activation` ⮕  (OPTIONAL)  if your model has a serialized custom activation function, attach the name of the activation function. (Example in ***tutorials/05_advanced_mlp/***) 
-    
-        **NOTE**: The file name of the activation function must match the name of the activation function itself.
+    1. `--custom_activation` ⮕  (OPTIONAL)  if your model has a serialized custom activation function, attach the name of the activation function. (Example in ***tutorials/05_advanced_mlp/*** and more information below) 
 
-    1. `--debug` ⮕ (OPTIONAL) If there are inference errors with the generated neural net, you can compare the each layer outputs and what was extracted between CodeJeNN and Tensorflow Keras. (Example in ***tutorials/05_advanced_mlp/***)
+    1. `--debug` ⮕ (OPTIONAL) If there are inference errors with the generated neural net, the user can compare what each layer outputs and what was extracted between CodeJeNN and Tensorflow Keras. (Example in ***tutorials/***)
 
     1. `--model_image` ⮕ (OPTIONAL) requires installing `graphviz` and `svn` allowing to see visual image of neural net.
 
@@ -51,37 +49,41 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
             --model_image 
         ```
 
-1. Run **generate.sh** (type `bash generate.sh` in terminal/shell).
+1. Run **generate.sh** (type `./generate.sh` in terminal/shell).
 
-1. Once generation is complete. You are done!
+1. Check for any errors once generation is complete.
 
 ## About CodeJeNN (i)
 
 * CodeJeNN code generations a train neural net stored on a **.Keras**,a **.h5** file. Tensorflow Keras was chosen because of its portability. Because the NN parameters, hyperparameters and the architecture itself is stored on the file as opposed to PyTorch, CodeJeNN only needs that file to code generate.
 
-* You link the input directory with all trained models (infinite amount of **.Keras** or **.h5** files if you please) wanting to be code generated as well as the output directory to save the files. Additionally, the data type precision is optional, but only accepts float or double.
+* You link the input directory with all trained models (infinite amount of **.Keras** or **.h5** files up to the user) wanting to be code generated as well as the output directory to save the files. Additionally, the data type precision is optional, but only accepts float or double.
 
-    * **dump_model/** is the default linked dump directory to place trained models.
+    * ***dump_model/*** is the default linked dump directory to place trained models. **bin/** is the default output directory for generated models.
 
 * The generated header file and "predict" function will be named after the file name of the trained model that it was code generated from.
 
-    * Example: ***my_model.h5***  will code generate the header file  ***my_model.hpp*** and the predict function template will become ***auto my_model(nn_inputs)***.
+* The neural net layers that CodeJeNN supports to build a given model can be found in ***../tutorials/supported_layers.md***. 
 
-    * Along with that, a **test.cpp** file will also be copied into the desired directory. This file makes sure logic and accuracy of the trained neural net matches with results during training. 
+* CodeJeNN also supports **custom activation functions** as said before and a full example is in ***../tutorials/05_advanced_mlp/***. Three things must happen. 
 
-* CodeJeNN is not perfect. Thus, numerous errors (i.e. try catch blocks) are used to help the user zero in on the code generation errors. From testing, most of the time, errors are due to the in-capabilites of CodeJeNN.
+    1. In the training script, the user uses a custom activation function.
 
-    * If such errors occurs, the user is very, and I mean very encouraged to add and update the logic and submit a pull request and merge. 
+    1. Then in a seperate python file, the custom activation function must be supplied and serialized with the name of the file matching the name of the activation function.
+
+    1. Finally, after code generation, the user must supply the C++ rendition of the activation function within the **.hpp** file. Print statements are included if the user forgets to implement.
+
+* CodeJeNN is not perfect. Thus, extensive error handling as well as a `--debug` flag are used to help the user zero in on the code generation and inference errors. From testing, most of the time, errors are due to the in-capabilites of CodeJeNN.
+
+    * If such errors occurs, the user is very, and I mean very encouraged to add and update the logic and submit a pull request. 
 
 ## CodeJeNN Model Architecture (ii)
 
-* CodeJeNN suports CNNs and MLPs. CodeJeNN only supports single input and output sequential models or functional models, more information can be found in the **../tutorial/** directory. Single input and single output refers to a scalar, an array, a 2d matrix or 3d matrix. 
+* CodeJeNN suports CNNs and MLPs. CodeJeNN only supports single input and output sequential models or functional models, more information can be found in the **../tutorials/** directory. Single input and single output data features refers to any scalar, any array, or any 2d or 3d matrix. So long as the data features are packed together. To truly understand how complex and deep these architectures can be code generated, the user is referred to the **../tutorials/** directory.
 
     * Sequential models or functional models refers to how the user can build an MLP or CNN using Tensorflow Keras. You can stack different types of layers on top whether they are Dense, Conv2D, Activations, Normalization layers and etc. 
 
 * Unfortunately, at the time of writing, Tensorflow Keras is currently implementing API for GNNs.
-
-* To truly understand how complex and deep these architectures can be code generated, the user is referred to the **../tutorial/** directory.
 
 * Once the model is code generated, the header file structure is as follows (percentage denotes space taken in the header file):
     1. import std libraries **>1%**
@@ -90,21 +92,21 @@ MAY RESULT IN CIVIL PENALTIES AND/OR CRIMINAL PENALTIES UNDER 18 U.S.C. § 641.
     1. arrays of layer parameters (weights, baises, strides, kernels, gamma, etc...) **~85%**
     1. functions calls to drive through the each layer of the model. **~5%**
 
-## Aglorithm Complexity (iii)
+## Algorithm Complexity (iii)
 
-* CodeJeNN generates c++ interpreted nueral nets for computaional physics application, which means these NN are used within big codes. CodeJeNN takes advantage of what c++ has to offer in terms of runtime calculation speed. 
+* **CodeJeNN** generates C++-interpreted neural networks for computational physics applications, especially for runtime performance.
 
-* It is taboo to use vectorization or parallelization within the c++ NN because outside of that, the code is assumed to be already vectorized and parallelized thus no threads are left and implementation of such actions can result in slower inference and slower code overall.
+* **Vectorization and parallelization** within the generated C++ code are avoided because outside of that, the users codebase is assumed to be already vectorized and parallelized thus no threads are left and implementation of such actions can result in slower inference and slower code overall.
 
-* However, CodeJeNN tries to inline as much as possible by using templating, lambda functions, less cache spaced used, etc.
+* However, CodeJeNN tries to inline as much as possible by using templating, lambda functions, and less cache space being used. **Inlining and efficiency** are prioritized using techniques such as:
 
-    * Constexpr static arrays are used as much as possible and variables is passsed by constant reference or by pointer as much as possible to reduce memory usage. 
+    * `constexpr` static arrays and passing variables by `const` reference or pointer to minimize memory usage.
 
-    * For Loops can be optimized using variadic templating which inlines and unravels the code, increasing compile time and cache space used, but significantly decreases run time. CodeJeNN sticks to for loops because of how long and extensive these weight and biases arrays can get. 
+    * Layer propagation functions (`Conv1D`, `Conv2D`, `Dense`, `LayerNormalization`) are heavily inlined, with memory pre-allocated where possible.
 
-    * The layer propagation functions such as Conv1D(), Conv2D(), Dense(), LayerNormalization(), are inlined as much as possible and memroy is allocated beforehand in these functions as much as possible.
+    * Activation functions are passed as lambda expressions and treated as template parameters to maximize inlining, separate from layer propagation logic.
 
-    * Activation functions are not considered layer propagation functions and are defined and lambda functions to inline as much as possible. In the layer propagation function template headers, the activation function is defined as a template parameter thus the activation functions are passed by lambda and inlined as much as possible. 
+* Loop optimization via variadic templates, which increases compile time and cache usage but significantly improves runtime has been considered. Although it is useful, for how large these weight/bias arrays can get, it would be too much cache space being used. 
 
 * The user is also encouraged to optimize the code generated neural net as much as possible too. 
 
@@ -114,7 +116,7 @@ CodeJeNN supports normalization/standardization of inputs and outputs.
 
 * The standardization/normalization values must be stored in a **.npy** file.
 
-* The normalization/standardization file must be named the following depending on how you wish to normalize:
+* The normalization/standardization file must be named the following depending on how the user wish to normalize:
 
     * `input_max.npy` `input_min.npy` `output_max.npy` `output_min.npy`
     
@@ -122,15 +124,21 @@ CodeJeNN supports normalization/standardization of inputs and outputs.
 
 ## Testing Generated Model (v)
 
-* As said before, if `--debug` flag is on, a `.cpp` and `.py` test file prepended with `DEBUG_` will be generated into the output directory so the user can compare the C++ NN output with the Python Tensorflow Keras output. 
+* As said before, if `--debug` flag is on, a **.cpp** and **.py** test file prepended with `DEBUG_` will be generated into the output directory so the user can compare the C++ NN output with the Python Tensorflow Keras output. 
 
-* The first 10 values of the output of each layer will be printed for both python and c++ files. The final model output will also be printed. The user may compare layer outputs to see which layer created discrepencies with the final output.
+* The **.hpp** file itself will generate print statements printing the first 10 values of each layer that is then used in the **.cpp** file.
+
+* Similarly, the **.py** script will also use Keras' `predict` function within the `extractor` class to print out the first 10 values of each layer.
+
+* Running both the **.cpp** and **.py**, the user may compare layer outputs to see which layer created discrepencies with the final output.
 
 * The input will be based on expected input shape extracted during code generation and the input values are in ascending order from 0 up to the input shape.
 
+* With the `--debug` flag on, during code generation, the model summary from Keras API will be printed. Then what **CodeJeNN** extracted will also be printed. This allows the user to compare and see any incorrect information being extracted.
+
 * Note: prior testing has shown that the layer where the discrepency occurs may not be the issue but from the layer before it even if the prior layer outputs match. This can be from mismatches in layer shape sizes being passed to incorrect padding. Verify that the output is correct!
 
-## Try out an example in ***dump_model/*** (vi)
-A simple example in **dump_model/** has been laid out. Just open a terminal/shell in the **src/** directory, MAKE SURE YOU HAVE INSTALLED ALL DEPENDICIES FROM **requirements.txt**, link the correct directorys in **generate.sh**, enter in `bash generate.sh` or `./generate.sh` in the terminal/shell, and you are good to go!
+## Example & Tutorials (vi)
+A simple example in **dump_model/** has been laid out. Just open a terminal/shell in the **src/** directory, MAKE SURE YOU HAVE INSTALLED ALL DEPENDICIES FROM **requirements.txt**, link the correct directorys in **generate.sh**, enter in `bash generate.sh` or `./generate.sh` in the terminal/shell, and the code generation process will execute.
 
 There are of course more examples in ***../tutorials/***.

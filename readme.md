@@ -65,7 +65,7 @@ CodeJeNN/
 
 1. You do not need to create a virtual environment, but it is best to use one. This allows all dependent packages to be in one spot. 
 
-    The first way is by using conda which you can install from [Install Miniconda (official site)](https://www.anaconda.com/docs/getting-started/miniconda/install). Then in your terminal/shell:
+    The first way is by using conda which you can install from [Install Miniconda (official site)](https://www.anaconda.com/docs/getting-started/miniconda/install). Then in your terminal/shell, create a conda environment and activate it.
 
     ```bash
     conda create -n codejenn python=3.11
@@ -74,7 +74,7 @@ CodeJeNN/
 
     OR
 
-    The second way is to use a python environment by installing python 3.11 using `sudo apt install python3.11` or `brew install python@3.11`. Then in your home directory create a **python_environments** directory and create an environtment in there.
+    The second way is to use a python environment by installing python 3.11 using `sudo apt install python3.11` or `brew install python@3.11`. Then in your home directory create a **python_environments** directory and create an environtment in there and activate it.
 
     ```bash
     mkdir ~/python_environments/
@@ -95,5 +95,5 @@ CodeJeNN/
 ## Citation
 You may site this repo using `citation.cff` or PREFERABLY with the paper below.
 ```
-#citation
+# WILL ADD SOON
 ```

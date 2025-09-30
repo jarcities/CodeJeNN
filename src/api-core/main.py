@@ -271,7 +271,7 @@ for entry in sorted(input_dir.iterdir()):
             print(f"\nSaved \"{source_file}\" test code in {resolved_output_dir}/")
 
             try: 
-                py_test_code = pyTestCode(precision_type, file_path, layer_shape, which_norm)
+                py_test_code = pyTestCode(precision_type, file_path, layer_shape, which_norm, custom_activation)
             except ValueError as e:
                 print("\n__Error__ in testing.py -> ", e)
                 continue

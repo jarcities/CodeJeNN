@@ -5,7 +5,7 @@ These are the fundamental layers used in almost every neural network.
 - **Dense**: Fully connected layer.
 - **Rescale**: Rescale layers by a new range between [0, 1] or [-1, 1]
 - **Activation**: Applies an activation function.
-- **Dropout**: Randomly sets input units to 0 during training to prevent overfitting.
+- **Dropout**, **SpatialDropout1D**, **SpatialDropout2D**, **SpatialDropout3D**: Randomly sets input units to 0 during training to prevent overfitting.
 - **Flatten**: Flattens the input without affecting the batch size.
 - **Reshape**: Reshapes an output to a certain shape.
 
@@ -66,7 +66,7 @@ Helps in stabilizing and speeding up the training process.
 
 **Example:**
 ```python
-from tensorflow.keras.layers import BatchNormalization, LayerNormalization, Dense, Activation
+from tensorflow.keras.layers import BatchNormalization, LayerNormalization, GroupNormalization, UnitNormalization, Dense, Activation
 from tensorflow.keras.models import Sequential
 
 model = Sequential([
@@ -74,6 +74,8 @@ model = Sequential([
     BatchNormalization(),
     Activation('relu'),
     LayerNormalization(),
+    GroupNormalization(groups=8),
+    UnitNormalization(),
     Dense(10, activation='softmax')
 ])
 ```
@@ -112,7 +114,7 @@ Down below is all activation functions supported so far.
 1. elu
 1. selu
 1. swish
-1. prelu
+1. mish
 1. silu
 1. gelu
 1. softmax

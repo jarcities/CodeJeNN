@@ -25,13 +25,13 @@ LEARNING_RATE = 0.001
 EPOCHS = 1000
 NEURONS = 12
 
-#normalize data
-X_mean = input.mean(axis=0)
-X_std = input.std(axis=0)
-y_mean = output.mean(axis=0)
-y_std = output.std(axis=0)
-input = (input - X_mean) / X_std
-output = (output - y_mean) / y_std
+# #normalize data
+# X_mean = input.mean(axis=0)
+# X_std = input.std(axis=0)
+# y_mean = output.mean(axis=0)
+# y_std = output.std(axis=0)
+# input = (input - X_mean) / X_std
+# output = (output - y_mean) / y_std
 
 #custom activation
 #https://stackoverflow.com/questions/43915482/how-do-you-create-a-custom-activation-function-with-keras
@@ -87,11 +87,11 @@ history = model.fit(input,
 model_filename = f"{FILE}.h5"
 model.save(model_filename)
 
-#save normalization
-np.save("input_mean.npy", X_mean)
-np.save("input_std.npy", X_std)
-np.save("output_mean.npy", y_mean)
-np.save("output_std.npy", y_std)
+# #save normalization
+# np.save("input_mean.npy", X_mean)
+# np.save("input_std.npy", X_std)
+# np.save("output_mean.npy", y_mean)
+# np.save("output_std.npy", y_std)
 
 #predict model
 model.summary()
