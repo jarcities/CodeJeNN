@@ -10,7 +10,7 @@
 
 rm -rf .vscode
 rm bin/*.hpp
-rm dump_model/*.csv
+rm dump_model/*.npy
 rm dump_model/*.keras
 rm dump_model/*.h5
 rm -rf codegen/__pycache__

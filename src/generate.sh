@@ -12,7 +12,7 @@ python3 \
     --input="./dump_model" \
     --output="./bin" \
     --double \
-    # --custom_activation="act_fun" \
+    --custom_activation="nonzero_diag_activation" \
     # --debug \
     # --model_image 
 
